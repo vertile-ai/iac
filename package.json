@@ -1,21 +1,25 @@
 {
   "name": "@jazelly/iac",
   "version": "0.1.0",
-  "description": "Private Jazelly infrastructure-as-code reconciliation tools.",
+  "description": "App-first portable infrastructure intent for Vercel, AWS, and DigitalOcean.",
   "type": "module",
   "bin": {
     "jazelly-iac": "src/cli.mjs",
+    "jazelly-iac-render": "src/render.mjs",
+    "jazelly-iac-plan": "src/plan.mjs",
+    "jazelly-iac-apply": "src/apply.mjs",
     "jazelly-iac-env": "src/provision-env.mjs",
     "jazelly-iac-projects": "src/reconcile-project-settings.mjs",
     "jazelly-iac-domains": "src/reconcile-project-domains.mjs"
   },
   "files": [
     "src",
+    "docs",
     "README.md"
   ],
   "scripts": {
     "test": "node --test",
-    "check": "node --check src/*.mjs",
+    "check": "find src -name '*.mjs' -print0 | xargs -0 -n1 node --check",
     "env:dry-run": "node src/provision-env.mjs",
     "env:apply": "node src/provision-env.mjs --apply",
     "projects:dry-run": "node src/reconcile-project-settings.mjs",

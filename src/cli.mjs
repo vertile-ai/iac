@@ -11,6 +11,9 @@ const args = process.argv.slice(3)
 const root = path.dirname(fileURLToPath(import.meta.url))
 
 const commands = new Map([
+  ['render', path.join(root, 'render.mjs')],
+  ['plan', path.join(root, 'plan.mjs')],
+  ['apply', path.join(root, 'apply.mjs')],
   ['env', path.join(root, 'provision-env.mjs')],
   ['projects', path.join(root, 'reconcile-project-settings.mjs')],
   ['domains', path.join(root, 'reconcile-project-domains.mjs')],
@@ -20,16 +23,28 @@ function printHelp() {
   console.log(`jazelly-iac
 
 Usage:
+  jazelly-iac render --target=vercel|aws|digitalocean|all --env=<name> [options]
+  jazelly-iac plan --target=vercel|aws|digitalocean|all --env=<name> [options]
+  jazelly-iac apply --target=vercel|aws|digitalocean|all --env=<name> [options]
   jazelly-iac env [options]
   jazelly-iac projects [options]
   jazelly-iac domains [options]
 
 Commands:
-  env        Reconcile Vercel team and project environment variables.
-  projects   Reconcile Vercel project settings.
-  domains    Reconcile Vercel project domains.
+  render     Render Terraform workspaces from infrastructure/iac/iac.json.
+  plan       Render Terraform workspaces and run terraform plan.
+  apply      Render Terraform workspaces and run terraform apply.
+  env        Compatibility: reconcile Vercel team and project environment variables.
+  projects   Compatibility: reconcile Vercel project settings.
+  domains    Compatibility: reconcile Vercel project domains.
 
 ${sharedOptionsHelp()}
+  --iac-manifest <path>       Source-of-truth IaC manifest. Defaults to <iac-dir>/iac.json.
+  --out <path>                Generated Terraform root. Defaults to .jazelly/terraform.
+  --target <name|all>         Target provider: vercel, aws, digitalocean, or all.
+  --env <name>                Environment to render, plan, or apply. Defaults to production.
+  --terraform-bin <path>      Terraform executable. Defaults to terraform.
+  --yes                       Allow non-interactive apply with Terraform auto-approve.
 `)
 }
 
