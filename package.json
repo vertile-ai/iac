@@ -1,25 +1,29 @@
 {
-  "name": "@jazelly/iac",
+  "name": "@vertile-ai/iac",
   "version": "0.1.0",
   "description": "App-first portable infrastructure intent for Vercel, AWS, and DigitalOcean.",
   "type": "module",
   "bin": {
-    "jazelly-iac": "src/cli.mjs",
-    "jazelly-iac-render": "src/render.mjs",
-    "jazelly-iac-plan": "src/plan.mjs",
-    "jazelly-iac-apply": "src/apply.mjs",
-    "jazelly-iac-env": "src/provision-env.mjs",
-    "jazelly-iac-projects": "src/reconcile-project-settings.mjs",
-    "jazelly-iac-domains": "src/reconcile-project-domains.mjs"
+    "vertile-iac": "src/cli.mjs",
+    "vertile-iac-render": "src/render.mjs",
+    "vertile-iac-plan": "src/plan.mjs",
+    "vertile-iac-apply": "src/apply.mjs",
+    "vertile-iac-sync-env": "src/sync-env.mjs",
+    "vertile-iac-env": "src/provision-env.mjs",
+    "vertile-iac-projects": "src/reconcile-project-settings.mjs",
+    "vertile-iac-domains": "src/reconcile-project-domains.mjs"
   },
   "files": [
     "src",
     "docs",
+    "schema",
+    "examples",
     "README.md"
   ],
   "scripts": {
     "test": "node --test",
     "check": "find src -name '*.mjs' -print0 | xargs -0 -n1 node --check",
+    "sync-env": "node src/sync-env.mjs",
     "env:dry-run": "node src/provision-env.mjs",
     "env:apply": "node src/provision-env.mjs --apply",
     "projects:dry-run": "node src/reconcile-project-settings.mjs",
@@ -31,7 +35,7 @@
     "access": "restricted"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=20"
   },
   "packageManager": "pnpm@10.33.0"
 }

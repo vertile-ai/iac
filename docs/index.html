@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Jazelly IaC</title>
+    <title>Vertile AI IaC</title>
     <style>
       :root {
         color-scheme: light;
@@ -201,7 +201,7 @@
   </head>
   <body>
     <nav>
-      <a class="brand" href="#top">Jazelly IaC</a>
+      <a class="brand" href="#top">Vertile AI IaC</a>
       <div class="links">
         <a href="#manifest">Manifest</a>
         <a href="#providers">Providers</a>
@@ -221,7 +221,7 @@
     <main>
       <section id="manifest">
         <h2>One Source Of Truth</h2>
-        <p>The user-authored source of truth is <code>infrastructure/iac/iac.json</code>. Terraform files are generated output under <code>.jazelly/terraform/&lt;provider&gt;/</code>.</p>
+        <p>The user-authored source of truth is <code>infrastructure/iac/iac.json</code>. Terraform files are generated output under <code>.vertile/terraform/&lt;provider&gt;/</code>.</p>
         <pre><code>{
   "version": 1,
   "project": { "name": "example" },
@@ -242,7 +242,7 @@
 
       <section id="providers">
         <h2>Provider Adapters</h2>
-        <p>Jazelly IaC keeps portable concepts in the manifest and compiles them into provider-specific resources. Provider overrides are available when a platform has unique behavior.</p>
+        <p>Vertile AI IaC keeps portable concepts in the manifest and compiles them into provider-specific resources. Provider overrides are available when a platform has unique behavior.</p>
         <div class="grid">
           <div class="tile">
             <h3>Vercel</h3>
@@ -261,16 +261,16 @@
 
       <section id="roadmap">
         <h2>Built For Small Teams And AI Workflows</h2>
-        <p>Crossplane makes Kubernetes the infrastructure control plane. Jazelly IaC uses a Git repo and CLI as the control surface, which is lighter for solo builders and app-first teams.</p>
-        <pre><code>pnpm add -D @jazelly/iac
-jazelly-iac render --target=all --env=production
-jazelly-iac plan --target=aws --env=production
-jazelly-iac apply --target=aws --env=production --yes</code></pre>
+        <p>Crossplane makes Kubernetes the infrastructure control plane. Vertile AI IaC uses a Git repo and CLI as the control surface, which is lighter for solo builders and app-first teams.</p>
+        <pre><code>pnpm add -D @vertile-ai/iac
+vertile-iac render --target=all --env=production
+vertile-iac plan --target=aws --env=production
+vertile-iac apply --target=aws --env=production --yes</code></pre>
       </section>
     </main>
 
     <footer>
-      Crossplane is Kubernetes-first platform infrastructure. Terraform/OpenTofu is provider-specific execution. Jazelly IaC is app-first portable infrastructure intent.
+      Crossplane is Kubernetes-first platform infrastructure. Terraform/OpenTofu is provider-specific execution. Vertile AI IaC is app-first portable infrastructure intent.
     </footer>
   </body>
 </html>

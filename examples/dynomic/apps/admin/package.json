@@ -1,0 +1,7 @@
+{
+  "name": "dynomic-admin",
+  "private": true,
+  "scripts": {
+    "build": "echo \"dynomic admin fixture build\""
+  }
+}

@@ -80,6 +80,7 @@ export function normalizeManifest(rawManifest) {
     providers: asObject(manifest.providers),
     apps: Array.isArray(manifest.apps) ? manifest.apps.map(normalizeApp) : [],
     domains: Array.isArray(manifest.domains) ? manifest.domains : [],
+    infraDir: manifest.infraDir,
     objectStorage: normalizeKeyedList(manifest, 'objectStorage'),
     databases: normalizeKeyedList(manifest, 'databases'),
     queues: normalizeKeyedList(manifest, 'queues'),

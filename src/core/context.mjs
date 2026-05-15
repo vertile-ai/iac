@@ -22,7 +22,7 @@ export function resolvePlatformContext(argv) {
   )
   const generatedRoot = resolveFrom(
     repoRoot,
-    readOption(argv, '--out') || '.jazelly/terraform',
+    readOption(argv, '--out') || '.vertile/terraform',
   )
 
   return {

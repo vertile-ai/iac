@@ -9,15 +9,16 @@ infrastructure/iac/iac.json
 Generated Terraform is an implementation detail:
 
 ```text
-.jazelly/terraform/vercel/
-.jazelly/terraform/aws/
-.jazelly/terraform/digitalocean/
+.vertile/terraform/vercel/
+.vertile/terraform/aws/
+.vertile/terraform/digitalocean/
 ```
 
 ## Minimal Manifest
 
 ```json
 {
+  "$schema": "./node_modules/@vertile-ai/iac/schema/iac.schema.json",
   "version": 1,
   "project": { "name": "example" },
   "environments": ["development", "preview", "production"],
@@ -43,6 +44,9 @@ Generated Terraform is an implementation detail:
   "clusters": [{ "key": "workers", "size": 2 }]
 }
 ```
+
+The schema is published as JSON Schema Draft 2020-12 at
+`schema/iac.schema.json`.
 
 ## Provider Overrides
 
@@ -110,17 +114,17 @@ resources or another provider for those capabilities.
 Render generated Terraform:
 
 ```bash
-jazelly-iac render --target=all --env=production
+vertile-iac render --target=all --env=production
 ```
 
 Preview changes with Terraform:
 
 ```bash
-jazelly-iac plan --target=aws --env=production
+vertile-iac plan --target=aws --env=production
 ```
 
 Apply changes with explicit non-interactive approval:
 
 ```bash
-jazelly-iac apply --target=aws --env=production --yes
+vertile-iac apply --target=aws --env=production --yes
 ```

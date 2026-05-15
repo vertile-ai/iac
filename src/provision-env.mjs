@@ -3,6 +3,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { readVercelEnvManifest } from './core/vercel-manifests.mjs'
 import { resolveIacContext } from './shared.mjs'
 
 const iacContext = resolveIacContext(process.argv.slice(2), {
@@ -10,10 +11,9 @@ const iacContext = resolveIacContext(process.argv.slice(2), {
   autoCreatePrefixes: 'template-',
 })
 const rootDir = iacContext.repoRoot
-const manifestPath = iacContext.manifestPath
 const tokenFilePath = iacContext.tokenFilePath
 const apiBase = 'https://api.vercel.com'
-const managedComment = 'managed by @jazelly/iac provision-env'
+const managedComment = 'managed by @vertile-ai/iac provision-env'
 const legacyManagedComment = 'managed by infrastructure/IAC/provision-env.mjs'
 const olderLegacyManagedComment = 'managed by scripts/vercel/provision-env.mjs'
 const shouldAutoCreateProject = iacContext.shouldAutoCreateProject
@@ -610,13 +610,6 @@ async function upsertProjectEnv({
   }
 }
 
-function readManifest() {
-  if (!fs.existsSync(manifestPath)) {
-    throw new Error(`Missing manifest: ${manifestPath}`)
-  }
-  return JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
-}
-
 async function main() {
   const args = parseArgs(process.argv.slice(2))
   const dryRun = !args.apply
@@ -624,7 +617,7 @@ async function main() {
     process.env.VERCEL_TOKEN ||
     process.env.VERCEL_API_KEY ||
     readTokenFromFile(tokenFilePath)
-  const manifest = readManifest()
+  const manifest = readVercelEnvManifest(iacContext)
   const teamSlug = manifest.teamSlug
   const projects = Array.isArray(manifest.projects) ? manifest.projects : []
   const configuredProjects = [...projects]

@@ -3,7 +3,7 @@
 ## Phase 1: Stable Compiler Core
 
 - Keep `infrastructure/iac/iac.json` as the only user-authored source of truth.
-- Render provider-specific Terraform into `.jazelly/terraform/<provider>/`.
+- Render provider-specific Terraform into `.vertile/terraform/<provider>/`.
 - Keep legacy Vercel API reconciliation working until the Terraform path is
   verified.
 - Support `render`, `plan`, and guarded `apply`.
@@ -53,10 +53,10 @@ Likely later providers:
 
 ## Phase 4: AI-Native Workflow
 
-- `jazelly-iac explain`: explain a manifest in product language.
-- `jazelly-iac doctor`: detect unsupported mappings, missing credentials, and
+- `vertile-iac explain`: explain a manifest in product language.
+- `vertile-iac doctor`: detect unsupported mappings, missing credentials, and
   risky settings.
-- `jazelly-iac migrate`: suggest moves between providers.
+- `vertile-iac migrate`: suggest moves between providers.
 - Plan summaries that say what changes mean, not just what Terraform will do.
 
 ## Phase 5: State And Outputs
@@ -64,11 +64,11 @@ Likely later providers:
 - Use local state by default.
 - Support optional remote backend configuration later.
 - Add drift detection through `plan`.
-- Write provider outputs to `.jazelly/outputs/<env>.json`.
+- Write provider outputs to `.vertile/outputs/<env>.json`.
 
 ## Guiding Rule
 
-Jazelly IaC should not become Terraform, Pulumi, or Crossplane.
+Vertile AI IaC should not become Terraform, Pulumi, or Crossplane.
 
 It should stay focused on app-first portable infrastructure intent:
 

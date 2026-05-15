@@ -51,6 +51,10 @@ export function resolveIacContext(argv, defaults = {}) {
     repoRoot,
     readOption(argv, '--iac-dir') || defaults.iacDir || 'infrastructure/iac',
   )
+  const manifestArg = readOption(argv, '--manifest')
+  const projectSettingsArg = readOption(argv, '--project-settings')
+  const projectDomainsArg = readOption(argv, '--project-domains')
+  const iacManifestArg = readOption(argv, '--iac-manifest')
   const infraDir =
     readOption(argv, '--infra-dir') || defaults.infraDir || ''
 
@@ -69,22 +73,28 @@ export function resolveIacContext(argv, defaults = {}) {
     infraDir,
     manifestPath: resolveFrom(
       repoRoot,
-      readOption(argv, '--manifest') || path.relative(repoRoot, path.join(iacDir, 'env-manifest.json')),
+      manifestArg || path.relative(repoRoot, path.join(iacDir, 'env-manifest.json')),
     ),
     projectSettingsPath: resolveFrom(
       repoRoot,
-      readOption(argv, '--project-settings') ||
-        path.relative(repoRoot, path.join(iacDir, 'project-settings.json')),
+      projectSettingsArg || path.relative(repoRoot, path.join(iacDir, 'project-settings.json')),
     ),
     projectDomainsPath: resolveFrom(
       repoRoot,
-      readOption(argv, '--project-domains') ||
-        path.relative(repoRoot, path.join(iacDir, 'project-domains.json')),
+      projectDomainsArg || path.relative(repoRoot, path.join(iacDir, 'project-domains.json')),
+    ),
+    iacManifestPath: resolveFrom(
+      repoRoot,
+      iacManifestArg || path.relative(repoRoot, path.join(iacDir, 'iac.json')),
     ),
     tokenFilePath: resolveFrom(
       repoRoot,
       readOption(argv, '--token-file') || defaults.tokenFile || '.vercel.token',
     ),
+    explicitManifestPath: Boolean(manifestArg),
+    explicitProjectSettingsPath: Boolean(projectSettingsArg),
+    explicitProjectDomainsPath: Boolean(projectDomainsArg),
+    explicitIacManifestPath: Boolean(iacManifestArg),
     shouldAutoCreateProject(key) {
       return autoCreateKeys.has(key) || autoCreatePrefixes.some((prefix) => key.startsWith(prefix))
     },
@@ -98,6 +108,7 @@ export function sharedOptionsHelp() {
   --manifest <path>               Env manifest path. Defaults to <iac-dir>/env-manifest.json.
   --project-settings <path>       Project settings manifest path.
   --project-domains <path>        Project domains manifest path.
+  --iac-manifest <path>           Unified IaC manifest path. Defaults to <iac-dir>/iac.json.
   --infra-dir <path>              Override manifest infraDir.
   --token-file <path>             Token file. Defaults to <repo-root>/.vercel.token.
   --auto-create-keys <a,b>        Project keys allowed to be created in apply mode.

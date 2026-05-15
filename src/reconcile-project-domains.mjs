@@ -2,14 +2,16 @@
 
 import fs from 'node:fs'
 import process from 'node:process'
+import {
+  readVercelEnvManifest,
+  readVercelProjectDomainsManifest,
+} from './core/vercel-manifests.mjs'
 import { resolveIacContext } from './shared.mjs'
 
 const iacContext = resolveIacContext(process.argv.slice(2), {
   autoCreateKeys: 'landing,web-client,web-server,auth,preview,payment',
   autoCreatePrefixes: 'template-',
 })
-const envManifestPath = iacContext.manifestPath
-const projectDomainsPath = iacContext.projectDomainsPath
 const tokenFilePath = iacContext.tokenFilePath
 const apiBase = 'https://api.vercel.com'
 const shouldAutoCreateProject = iacContext.shouldAutoCreateProject
@@ -169,13 +171,6 @@ async function request({
   }
 
   throw new Error(`Vercel API ${method} ${pathname} failed after retries`)
-}
-
-function readJSON(filePath) {
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Missing required file: ${filePath}`)
-  }
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'))
 }
 
 async function resolveTeamId({ token, teamSlug }) {
@@ -346,8 +341,8 @@ async function main() {
     throw new Error('Missing VERCEL_TOKEN (or VERCEL_API_KEY) for apply mode')
   }
 
-  const envManifest = readJSON(envManifestPath)
-  const projectDomainsManifest = readJSON(projectDomainsPath)
+  const envManifest = readVercelEnvManifest(iacContext)
+  const projectDomainsManifest = readVercelProjectDomainsManifest(iacContext)
 
   const configuredProjects = Array.isArray(envManifest.projects)
     ? envManifest.projects

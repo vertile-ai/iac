@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vertile.ai/schemas/iac.schema.json",
+  "title": "Vertile AI IaC Manifest",
+  "description": "Portable app infrastructure intent for Vertile AI IaC.",
+  "type": "object",
+  "required": ["version", "project", "providers", "apps"],
+  "additionalProperties": true,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    },
+    "project": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "required": ["name"],
+          "additionalProperties": true,
+          "properties": {
+            "key": { "type": "string", "minLength": 1 },
+            "name": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "environments": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true,
+      "default": ["development", "preview", "production"]
+    },
+    "providers": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/providerConfig" },
+      "properties": {
+        "vercel": {
+          "allOf": [
+            { "$ref": "#/$defs/providerConfig" },
+            {
+              "type": "object",
+              "properties": {
+                "team": { "type": "string" },
+                "teamId": { "type": "string" },
+                "teamSlug": { "type": "string" },
+                "projectDefaults": { "$ref": "#/$defs/vercelProjectSettings" },
+                "projectSettingsDefaults": { "$ref": "#/$defs/vercelProjectSettings" }
+              }
+            }
+          ]
+        },
+        "aws": {
+          "allOf": [
+            { "$ref": "#/$defs/providerConfig" },
+            {
+              "type": "object",
+              "properties": {
+                "region": { "type": "string" },
+                "defaultTags": {
+                  "type": "object",
+                  "additionalProperties": { "type": ["string", "number", "boolean"] }
+                }
+              }
+            }
+          ]
+        },
+        "digitalocean": {
+          "allOf": [
+            { "$ref": "#/$defs/providerConfig" },
+            {
+              "type": "object",
+              "properties": {
+                "region": { "type": "string" },
+                "version": { "type": "string" }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "sourceDir": { "type": "string" },
+        "dir": { "type": "string" },
+        "infraDir": { "type": "string" },
+        "sharedKey": { "type": "string" },
+        "sync": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "apps": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "sharedKey": { "type": "string" },
+            "skipInVercel": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "apps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/app" }
+    },
+    "domains": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/domain" }
+    },
+    "objectStorage": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/keyedResource" }
+    },
+    "databases": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          { "$ref": "#/$defs/keyedResource" },
+          {
+            "type": "object",
+            "properties": {
+              "engine": { "type": "string" }
+            }
+          }
+        ]
+      }
+    },
+    "queues": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          { "$ref": "#/$defs/keyedResource" },
+          {
+            "type": "object",
+            "properties": {
+              "kind": { "type": "string" }
+            }
+          }
+        ]
+      }
+    },
+    "sandboxes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/keyedResource" }
+    },
+    "clusters": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          { "$ref": "#/$defs/keyedResource" },
+          {
+            "type": "object",
+            "properties": {
+              "size": { "type": "integer", "minimum": 1 },
+              "nodes": { "type": "integer", "minimum": 1 }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "providerConfig": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "resources": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/providerResource" }
+        }
+      }
+    },
+    "providerResource": {
+      "type": "object",
+      "required": ["type", "name"],
+      "additionalProperties": true,
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "values": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "vercelProjectSettings": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "rootDirectory": { "type": ["string", "null"] },
+        "nodeVersion": { "type": ["string", "null"] },
+        "enableAffectedProjectsDeployments": { "type": ["boolean", "null"] }
+      }
+    },
+    "app": {
+      "type": "object",
+      "required": ["key"],
+      "additionalProperties": true,
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "name": { "type": "string" },
+        "framework": { "type": "string" },
+        "rootDirectory": { "type": "string" },
+        "outputDir": { "type": "string" },
+        "sourceKey": { "type": "string" },
+        "nodeVersion": { "type": "string" },
+        "enableAffectedProjectsDeployments": { "type": "boolean" },
+        "domains": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/domain" }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "sourceKey": { "type": "string" },
+            "outputDir": { "type": "string" },
+            "sharedPrefix": { "type": "string" }
+          }
+        },
+        "providers": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "domain": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "required": ["name"],
+          "additionalProperties": true,
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "app": { "type": "string" },
+            "project": { "type": "string" },
+            "key": { "type": "string" },
+            "gitBranch": { "type": ["string", "null"] },
+            "verified": { "type": "boolean" }
+          }
+        }
+      ]
+    },
+    "keyedResource": {
+      "type": "object",
+      "required": ["key"],
+      "additionalProperties": true,
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "name": { "type": "string" },
+        "providers": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

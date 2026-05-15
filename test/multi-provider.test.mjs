@@ -11,7 +11,7 @@ import { readManifest } from '../src/core/manifest.mjs'
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 async function createFixture() {
-  const root = await mkdtemp(path.join(tmpdir(), 'jazelly-iac-'))
+  const root = await mkdtemp(path.join(tmpdir(), 'vertile-iac-'))
   await writeFile(path.join(root, 'package.json'), '{}\n')
   await mkdir(path.join(root, 'infrastructure', 'iac'), { recursive: true })
   await writeFile(
@@ -147,9 +147,9 @@ test('renders deterministic Terraform files for each provider', async () => {
     assert.match(result.stdout, /aws/)
     assert.match(result.stdout, /digitalocean/)
 
-    const vercelMain = await readFile(path.join(root, '.jazelly', 'terraform', 'vercel', 'main.tf'), 'utf8')
-    const awsMain = await readFile(path.join(root, '.jazelly', 'terraform', 'aws', 'main.tf'), 'utf8')
-    const digitalOceanMain = await readFile(path.join(root, '.jazelly', 'terraform', 'digitalocean', 'main.tf'), 'utf8')
+    const vercelMain = await readFile(path.join(root, '.vertile', 'terraform', 'vercel', 'main.tf'), 'utf8')
+    const awsMain = await readFile(path.join(root, '.vertile', 'terraform', 'aws', 'main.tf'), 'utf8')
+    const digitalOceanMain = await readFile(path.join(root, '.vertile', 'terraform', 'digitalocean', 'main.tf'), 'utf8')
 
     assert.match(vercelMain, /resource "vercel_project" "web"/)
     assert.match(vercelMain, /resource "vercel_project_domain" "web_web_example_com"/)
@@ -167,7 +167,7 @@ test('renders deterministic Terraform files for each provider', async () => {
     assert.match(digitalOceanMain, /resource "digitalocean_droplet" "cluster_workers"/)
     assert.match(digitalOceanMain, /resource "digitalocean_project" "main"/)
 
-    const awsVariables = await readFile(path.join(root, '.jazelly', 'terraform', 'aws', 'variables.tf'), 'utf8')
+    const awsVariables = await readFile(path.join(root, '.vertile', 'terraform', 'aws', 'variables.tf'), 'utf8')
     assert.match(awsVariables, /variable "database_appdb_password"/)
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -204,8 +204,8 @@ test('runs apply through a mocked Terraform executable with explicit approval', 
     assert.match(result.stdout, /Applying .*digitalocean/)
 
     const log = await readFile(logPath, 'utf8')
-    assert.match(log, /\.jazelly\/terraform\/digitalocean\|init -input=false/)
-    assert.match(log, /\.jazelly\/terraform\/digitalocean\|apply -input=false -auto-approve/)
+    assert.match(log, /\.vertile\/terraform\/digitalocean\|init -input=false/)
+    assert.match(log, /\.vertile\/terraform\/digitalocean\|apply -input=false -auto-approve/)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -240,8 +240,8 @@ test('runs plan through a mocked Terraform executable', async () => {
     assert.match(result.stdout, /Planning .*aws/)
 
     const log = await readFile(logPath, 'utf8')
-    assert.match(log, /\.jazelly\/terraform\/aws\|init -input=false/)
-    assert.match(log, /\.jazelly\/terraform\/aws\|plan -input=false/)
+    assert.match(log, /\.vertile\/terraform\/aws\|init -input=false/)
+    assert.match(log, /\.vertile\/terraform\/aws\|plan -input=false/)
   } finally {
     await rm(root, { recursive: true, force: true })
   }

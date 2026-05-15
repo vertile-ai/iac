@@ -1,0 +1,191 @@
+{
+  "$schema": "../../../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "dynomic",
+    "name": "dynomic"
+  },
+  "environments": ["development", "preview", "production"],
+  "providers": {
+    "vercel": {
+      "teamSlug": "vertile-ai",
+      "projectDefaults": {
+        "nodeVersion": "20.x",
+        "enableAffectedProjectsDeployments": true
+      },
+      "resources": [
+        {
+          "type": "vercel_project_environment_variable",
+          "name": "example_escape_hatch",
+          "values": {
+            "project_id": "prj_dynomic_placeholder",
+            "key": "ESCAPE_HATCH_EXAMPLE",
+            "value": "configured-through-provider-resource",
+            "target": ["preview"]
+          }
+        }
+      ]
+    },
+    "aws": {
+      "region": "us-east-1",
+      "defaultTags": {
+        "Owner": "vertile-ai",
+        "Fixture": "dynomic"
+      },
+      "resources": [
+        {
+          "type": "aws_sns_topic",
+          "name": "events",
+          "values": {
+            "name": "dynomic-events"
+          }
+        }
+      ]
+    },
+    "digitalocean": {
+      "region": "nyc3",
+      "version": ">= 2.0.0",
+      "resources": [
+        {
+          "type": "digitalocean_project",
+          "name": "main",
+          "values": {
+            "name": "dynomic"
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "sourceDir": "infrastructure",
+    "sync": {
+      "apps": ["web", "admin"],
+      "sharedKey": "shared"
+    }
+  },
+  "apps": [
+    {
+      "key": "web",
+      "id": "prj_dynomic_web_placeholder",
+      "name": "dynomic-web",
+      "framework": "nextjs",
+      "rootDirectory": "apps/web",
+      "nodeVersion": "20.x",
+      "domains": [
+        "dynomic.example.com",
+        {
+          "name": "preview.dynomic.example.com",
+          "gitBranch": "preview"
+        }
+      ],
+      "providers": {
+        "vercel": {
+          "enableAffectedProjectsDeployments": true
+        }
+      }
+    },
+    {
+      "key": "admin",
+      "id": "prj_dynomic_admin_placeholder",
+      "name": "dynomic-admin",
+      "framework": "nextjs",
+      "rootDirectory": "apps/admin",
+      "nodeVersion": "20.x",
+      "domains": [
+        "admin.dynomic.example.com",
+        {
+          "name": "admin-preview.dynomic.example.com",
+          "gitBranch": "preview"
+        }
+      ],
+      "env": {
+        "sharedPrefix": "ADMIN_"
+      }
+    }
+  ],
+  "domains": [
+    {
+      "name": "www.dynomic.example.com",
+      "app": "web"
+    }
+  ],
+  "objectStorage": [
+    {
+      "key": "uploads",
+      "visibility": "private",
+      "providers": {
+        "aws": {
+          "bucket": "dynomic-production-uploads",
+          "forceDestroy": true
+        },
+        "digitalocean": {
+          "name": "dynomic-uploads",
+          "acl": "private",
+          "region": "nyc3"
+        }
+      }
+    }
+  ],
+  "databases": [
+    {
+      "key": "appdb",
+      "engine": "postgres",
+      "providers": {
+        "aws": {
+          "engineVersion": "16",
+          "instanceClass": "db.t4g.micro",
+          "allocatedStorage": 20,
+          "databaseName": "dynomic",
+          "username": "dynomic",
+          "skipFinalSnapshot": true
+        },
+        "digitalocean": {
+          "engine": "pg",
+          "version": "16",
+          "size": "db-s-1vcpu-1gb",
+          "nodeCount": 1
+        }
+      }
+    }
+  ],
+  "queues": [
+    {
+      "key": "jobs",
+      "kind": "fifo",
+      "providers": {
+        "aws": {
+          "visibilityTimeoutSeconds": 60,
+          "messageRetentionSeconds": 345600
+        }
+      }
+    }
+  ],
+  "sandboxes": [
+    {
+      "key": "runner",
+      "providers": {
+        "aws": {
+          "instanceType": "t3.micro"
+        },
+        "digitalocean": {
+          "sizeSlug": "s-1vcpu-1gb"
+        }
+      }
+    }
+  ],
+  "clusters": [
+    {
+      "key": "workers",
+      "size": 2,
+      "providers": {
+        "aws": {
+          "instanceType": "t3.small"
+        },
+        "digitalocean": {
+          "nodes": 2,
+          "sizeSlug": "s-1vcpu-2gb"
+        }
+      }
+    }
+  ]
+}

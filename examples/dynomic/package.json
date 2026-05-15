@@ -1,0 +1,17 @@
+{
+  "name": "dynomic",
+  "private": true,
+  "scripts": {
+    "iac:env:dry-run": "vertile-iac env --repo-root . --targets=preview,production",
+    "iac:env:apply": "vertile-iac env --repo-root . --targets=preview,production --apply",
+    "iac:projects:dry-run": "vertile-iac projects --repo-root .",
+    "iac:projects:apply": "vertile-iac projects --repo-root . --apply",
+    "iac:domains:dry-run": "vertile-iac domains --repo-root .",
+    "iac:domains:apply": "vertile-iac domains --repo-root . --apply",
+    "iac:sync-env": "vertile-iac sync-env --repo-root . --variants=staging,production",
+    "iac:render": "vertile-iac render --repo-root . --target=vercel --env=production"
+  },
+  "devDependencies": {
+    "@vertile-ai/iac": "0.1.0"
+  }
+}
