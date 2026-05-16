@@ -3,6 +3,14 @@
   "version": "0.0.1",
   "description": "App-first portable infrastructure intent for Vercel, AWS, and DigitalOcean.",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vertile-ai/iac.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vertile-ai/iac/issues"
+  },
+  "homepage": "https://github.com/vertile-ai/iac#readme",
   "bin": {
     "vertile-iac": "src/cli.mjs",
     "vertile-iac-render": "src/render.mjs",
