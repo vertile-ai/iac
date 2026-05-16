@@ -205,6 +205,14 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function chunkEntries(entries, size) {
+  const chunks = []
+  for (let index = 0; index < entries.length; index += size) {
+    chunks.push(entries.slice(index, index + size))
+  }
+  return chunks
+}
+
 function readRetryAfterMs(response, attempt) {
   const retryAfter = response.headers.get('retry-after')
   if (retryAfter) {
@@ -484,13 +492,15 @@ async function upsertTeamShared({
   }
 
   if (updateCount > 0) {
-    await requestJSON({
-      token,
-      method: 'PATCH',
-      pathname: '/v1/env',
-      query: { slug: teamSlug },
-      body: { updates },
-    })
+    for (const updateChunk of chunkEntries(Object.entries(updates), 50)) {
+      await requestJSON({
+        token,
+        method: 'PATCH',
+        pathname: '/v1/env',
+        query: { slug: teamSlug },
+        body: { updates: Object.fromEntries(updateChunk) },
+      })
+    }
   }
 
   if (creates.length > 0) {
@@ -709,6 +719,12 @@ async function main() {
   const selectedConfiguredProjects = selectedProjects.filter((project) =>
     configuredProjectsWithId.some((configured) => configured.key === project.key),
   )
+  const selectedConfiguredProjectIds = selectedConfiguredProjects.map((project) => {
+    const configured = configuredProjectsWithId.find(
+      (candidate) => candidate.key === project.key,
+    )
+    return configured.id
+  })
   const skippedUnconfiguredProjects = selectedProjects.filter(
     (project) =>
       !configuredProjectsWithId.some((configured) => configured.key === project.key),
@@ -743,7 +759,7 @@ async function main() {
         teamSlug,
         target,
         entries: parsed.teamEntries,
-        projectIds,
+        projectIds: args.projects.length ? selectedConfiguredProjectIds : projectIds,
       })
     }
   }
