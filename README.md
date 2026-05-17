@@ -248,8 +248,8 @@ Product manifests can reference the package copy:
 
 ## Publishing
 
-Publish with restricted access:
+Publish with public access:
 
 ```bash
-pnpm publish --access restricted
+pnpm publish --access public
 ```

@@ -42,7 +42,7 @@
     "domains:apply": "node src/reconcile-project-domains.mjs --apply"
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   },
   "engines": {
     "node": ">=20"
