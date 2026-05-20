@@ -1,7 +1,0 @@
-{
-  "name": "dynomic-web",
-  "private": true,
-  "scripts": {
-    "build": "echo \"dynomic fixture build\""
-  }
-}

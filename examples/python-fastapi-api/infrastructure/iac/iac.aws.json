@@ -1,0 +1,53 @@
+{
+  "$schema": "../../../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "python-fastapi-api",
+    "name": "python-fastapi-api"
+  },
+  "environments": ["development", "preview", "production"],
+  "providers": {
+    "aws": {
+      "region": "us-east-1",
+      "defaultTags": {
+        "Example": "python-fastapi-api",
+        "Runtime": "python"
+      }
+    }
+  },
+  "apps": [
+    {
+      "key": "api",
+      "name": "python-fastapi-api",
+      "framework": "fastapi",
+      "rootDirectory": "."
+    }
+  ],
+  "databases": [
+    {
+      "key": "appdb",
+      "engine": "postgres",
+      "providers": {
+        "aws": {
+          "engineVersion": "16",
+          "instanceClass": "db.t4g.micro",
+          "allocatedStorage": 20,
+          "databaseName": "fastapi",
+          "username": "fastapi",
+          "skipFinalSnapshot": true
+        }
+      }
+    }
+  ],
+  "clusters": [
+    {
+      "key": "workers",
+      "size": 2,
+      "providers": {
+        "aws": {
+          "instanceType": "t3.micro"
+        }
+      }
+    }
+  ]
+}

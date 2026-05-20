@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "go-api",
+    "name": "go-api"
+  },
+  "environments": ["development", "preview", "production"],
+  "providers": {
+    "aws": {
+      "region": "us-east-1"
+    },
+    "digitalocean": {
+      "region": "nyc3"
+    }
+  },
+  "apps": [
+    {
+      "key": "api",
+      "name": "go-api",
+      "framework": "go",
+      "rootDirectory": "."
+    }
+  ],
+  "queues": [
+    {
+      "key": "jobs"
+    }
+  ]
+}

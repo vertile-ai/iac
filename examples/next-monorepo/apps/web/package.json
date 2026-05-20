@@ -1,0 +1,7 @@
+{
+  "name": "next-monorepo-web",
+  "private": true,
+  "scripts": {
+    "build": "echo \"next-monorepo web fixture build\""
+  }
+}

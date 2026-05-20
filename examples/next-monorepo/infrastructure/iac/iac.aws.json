@@ -1,0 +1,96 @@
+{
+  "$schema": "../../../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "next-monorepo",
+    "name": "next-monorepo"
+  },
+  "environments": ["development", "preview", "production"],
+  "providers": {
+    "aws": {
+      "region": "us-east-1",
+      "defaultTags": {
+        "Example": "next-monorepo",
+        "Runtime": "nextjs"
+      },
+      "resources": [
+        {
+          "type": "aws_sns_topic",
+          "name": "events",
+          "values": {
+            "name": "next-monorepo-events"
+          }
+        }
+      ]
+    }
+  },
+  "apps": [
+    {
+      "key": "web",
+      "name": "next-monorepo-web",
+      "framework": "nextjs",
+      "rootDirectory": "apps/web"
+    },
+    {
+      "key": "admin",
+      "name": "next-monorepo-admin",
+      "framework": "nextjs",
+      "rootDirectory": "apps/admin"
+    }
+  ],
+  "objectStorage": [
+    {
+      "key": "uploads",
+      "visibility": "private",
+      "providers": {
+        "aws": {
+          "bucket": "next-monorepo-production-uploads",
+          "forceDestroy": true
+        }
+      }
+    }
+  ],
+  "databases": [
+    {
+      "key": "appdb",
+      "engine": "postgres",
+      "providers": {
+        "aws": {
+          "engineVersion": "16",
+          "instanceClass": "db.t4g.micro",
+          "allocatedStorage": 20,
+          "databaseName": "next_monorepo",
+          "username": "next_monorepo",
+          "skipFinalSnapshot": true
+        }
+      }
+    }
+  ],
+  "queues": [
+    {
+      "key": "jobs",
+      "kind": "fifo"
+    }
+  ],
+  "sandboxes": [
+    {
+      "key": "runner",
+      "providers": {
+        "aws": {
+          "instanceType": "t3.micro"
+        }
+      }
+    }
+  ],
+  "clusters": [
+    {
+      "key": "workers",
+      "size": 2,
+      "providers": {
+        "aws": {
+          "instanceType": "t3.small"
+        }
+      }
+    }
+  ]
+}

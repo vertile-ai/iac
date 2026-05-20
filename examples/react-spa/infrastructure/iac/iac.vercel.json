@@ -1,0 +1,32 @@
+{
+  "$schema": "../../../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "react-spa",
+    "name": "react-spa"
+  },
+  "environments": ["development", "preview", "production"],
+  "providers": {
+    "vercel": {
+      "teamSlug": "example-team",
+      "projectDefaults": {
+        "nodeVersion": "22.x"
+      }
+    }
+  },
+  "apps": [
+    {
+      "key": "web",
+      "name": "react-spa",
+      "framework": "vite",
+      "rootDirectory": ".",
+      "outputDir": "dist",
+      "domains": ["react-spa.example.com"],
+      "providers": {
+        "vercel": {
+          "enableAffectedProjectsDeployments": false
+        }
+      }
+    }
+  ]
+}

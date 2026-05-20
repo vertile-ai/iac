@@ -2,8 +2,8 @@
   "$schema": "../../../../schema/iac.schema.json",
   "version": 1,
   "project": {
-    "key": "dynomic",
-    "name": "dynomic"
+    "key": "next-monorepo",
+    "name": "next-monorepo"
   },
   "environments": ["development", "preview", "production"],
   "providers": {
@@ -18,7 +18,7 @@
           "type": "vercel_project_environment_variable",
           "name": "example_escape_hatch",
           "values": {
-            "project_id": "prj_dynomic_placeholder",
+            "project_id": "prj_next_monorepo_placeholder",
             "key": "ESCAPE_HATCH_EXAMPLE",
             "value": "configured-through-provider-resource",
             "target": ["preview"]
@@ -30,14 +30,14 @@
       "region": "us-east-1",
       "defaultTags": {
         "Owner": "vertile-ai",
-        "Fixture": "dynomic"
+        "Fixture": "next-monorepo"
       },
       "resources": [
         {
           "type": "aws_sns_topic",
           "name": "events",
           "values": {
-            "name": "dynomic-events"
+            "name": "next-monorepo-events"
           }
         }
       ]
@@ -50,7 +50,7 @@
           "type": "digitalocean_project",
           "name": "main",
           "values": {
-            "name": "dynomic"
+            "name": "next-monorepo"
           }
         }
       ]
@@ -66,15 +66,15 @@
   "apps": [
     {
       "key": "web",
-      "id": "prj_dynomic_web_placeholder",
-      "name": "dynomic-web",
+      "id": "prj_next_monorepo_web_placeholder",
+      "name": "next-monorepo-web",
       "framework": "nextjs",
       "rootDirectory": "apps/web",
       "nodeVersion": "20.x",
       "domains": [
-        "dynomic.example.com",
+        "next-monorepo.example.com",
         {
-          "name": "preview.dynomic.example.com",
+          "name": "preview.next-monorepo.example.com",
           "gitBranch": "preview"
         }
       ],
@@ -86,15 +86,15 @@
     },
     {
       "key": "admin",
-      "id": "prj_dynomic_admin_placeholder",
-      "name": "dynomic-admin",
+      "id": "prj_next_monorepo_admin_placeholder",
+      "name": "next-monorepo-admin",
       "framework": "nextjs",
       "rootDirectory": "apps/admin",
       "nodeVersion": "20.x",
       "domains": [
-        "admin.dynomic.example.com",
+        "admin.next-monorepo.example.com",
         {
-          "name": "admin-preview.dynomic.example.com",
+          "name": "admin-preview.next-monorepo.example.com",
           "gitBranch": "preview"
         }
       ],
@@ -105,7 +105,7 @@
   ],
   "domains": [
     {
-      "name": "www.dynomic.example.com",
+      "name": "www.next-monorepo.example.com",
       "app": "web"
     }
   ],
@@ -115,11 +115,11 @@
       "visibility": "private",
       "providers": {
         "aws": {
-          "bucket": "dynomic-production-uploads",
+          "bucket": "next-monorepo-production-uploads",
           "forceDestroy": true
         },
         "digitalocean": {
-          "name": "dynomic-uploads",
+          "name": "next-monorepo-uploads",
           "acl": "private",
           "region": "nyc3"
         }
@@ -135,8 +135,8 @@
           "engineVersion": "16",
           "instanceClass": "db.t4g.micro",
           "allocatedStorage": 20,
-          "databaseName": "dynomic",
-          "username": "dynomic",
+          "databaseName": "next_monorepo",
+          "username": "next_monorepo",
           "skipFinalSnapshot": true
         },
         "digitalocean": {

@@ -1,0 +1,66 @@
+{
+  "$schema": "../../../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "next-monorepo",
+    "name": "next-monorepo"
+  },
+  "environments": ["development", "preview", "production"],
+  "providers": {
+    "vercel": {
+      "teamSlug": "vertile-ai",
+      "projectDefaults": {
+        "nodeVersion": "20.x",
+        "enableAffectedProjectsDeployments": true
+      }
+    }
+  },
+  "env": {
+    "sourceDir": "infrastructure",
+    "sync": {
+      "apps": ["web", "admin"],
+      "sharedKey": "shared"
+    }
+  },
+  "apps": [
+    {
+      "key": "web",
+      "id": "prj_next_monorepo_web_placeholder",
+      "name": "next-monorepo-web",
+      "framework": "nextjs",
+      "rootDirectory": "apps/web",
+      "nodeVersion": "20.x",
+      "domains": [
+        "next-monorepo.example.com",
+        {
+          "name": "preview.next-monorepo.example.com",
+          "gitBranch": "preview"
+        }
+      ]
+    },
+    {
+      "key": "admin",
+      "id": "prj_next_monorepo_admin_placeholder",
+      "name": "next-monorepo-admin",
+      "framework": "nextjs",
+      "rootDirectory": "apps/admin",
+      "nodeVersion": "20.x",
+      "domains": [
+        "admin.next-monorepo.example.com",
+        {
+          "name": "admin-preview.next-monorepo.example.com",
+          "gitBranch": "preview"
+        }
+      ],
+      "env": {
+        "sharedPrefix": "ADMIN_"
+      }
+    }
+  ],
+  "domains": [
+    {
+      "name": "www.next-monorepo.example.com",
+      "app": "web"
+    }
+  ]
+}

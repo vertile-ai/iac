@@ -1,0 +1,19 @@
+{
+  "name": "sveltekit-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "iac:render": "vertile-iac render --repo-root . --target=all --env=production"
+  },
+  "dependencies": {
+    "@sveltejs/adapter-auto": "^6.0.0",
+    "@sveltejs/kit": "^2.0.0",
+    "svelte": "^5.0.0",
+    "vite": "^7.0.0"
+  },
+  "devDependencies": {
+    "@vertile-ai/iac": "0.0.1"
+  }
+}

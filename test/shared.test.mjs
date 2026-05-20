@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { supportedTargets } from '../src/core/args.mjs'
 import { readManifest } from '../src/core/manifest.mjs'
 import { resolveIacContext } from '../src/shared.mjs'
 
@@ -109,6 +110,10 @@ function execNode(args, cwd) {
       })
     })
   })
+}
+
+function declaredTargets(manifest) {
+  return supportedTargets.filter((target) => manifest.providers[target])
 }
 
 test('resolves explicit project paths and auto-create controls', async () => {
@@ -227,9 +232,71 @@ test('runs env dry-run offline against a target project fixture', async () => {
   }
 })
 
-test('published Dynomic example exercises Vercel env and render flows', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'vertile-iac-dynomic-'))
-  await cp(path.join(packageRoot, 'examples', 'dynomic'), root, { recursive: true })
+test('runtime examples expose base and provider-specific manifests that render', async () => {
+  const expectedExamples = [
+    'bun-hono-api',
+    'go-api',
+    'next-monorepo',
+    'node-api',
+    'python-fastapi-api',
+    'react-spa',
+    'sveltekit-web',
+  ]
+  const examplesRoot = path.join(packageRoot, 'examples')
+  const examples = (await readdir(examplesRoot, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort()
+
+  assert.deepEqual(examples, expectedExamples)
+
+  for (const example of examples) {
+    const iacDir = path.join(examplesRoot, example, 'infrastructure', 'iac')
+    const manifestNames = (await readdir(iacDir))
+      .filter((name) => /^iac(\.(aws|do|vercel))?\.json$/.test(name))
+      .sort()
+
+    assert.ok(manifestNames.includes('iac.json'), `${example} must include iac.json`)
+    assert.ok(manifestNames.length > 1, `${example} must include provider-specific iac files`)
+
+    for (const manifestName of manifestNames) {
+      const root = await mkdtemp(path.join(tmpdir(), `vertile-iac-${example}-`))
+      await cp(path.join(examplesRoot, example), root, { recursive: true })
+
+      try {
+        const manifestPath = path.join(root, 'infrastructure', 'iac', manifestName)
+        const manifest = readManifest(manifestPath)
+        const targets = declaredTargets(manifest)
+
+        assert.ok(targets.length > 0, `${example}/${manifestName} must declare a supported provider`)
+
+        const renderResult = await execNode([
+          path.join(packageRoot, 'src', 'cli.mjs'),
+          'render',
+          '--repo-root',
+          root,
+          '--iac-manifest',
+          manifestPath,
+          '--target',
+          targets.join(','),
+          '--env=production',
+        ], packageRoot)
+
+        assert.equal(renderResult.code, 0)
+        assert.equal(renderResult.stderr, '')
+        for (const target of targets) {
+          assert.match(renderResult.stdout, new RegExp(target))
+        }
+      } finally {
+        await rm(root, { recursive: true, force: true })
+      }
+    }
+  }
+})
+
+test('published Next.js monorepo example exercises Vercel env and render flows', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'vertile-iac-next-monorepo-'))
+  await cp(path.join(packageRoot, 'examples', 'next-monorepo'), root, { recursive: true })
 
   try {
     const schema = JSON.parse(await readFile(path.join(packageRoot, 'schema', 'iac.schema.json'), 'utf8'))
@@ -277,8 +344,8 @@ test('published Dynomic example exercises Vercel env and render flows', async ()
     ], packageRoot)
 
     assert.equal(envResult.code, 0)
-    assert.match(envResult.stdout, /dynomic-web/)
-    assert.match(envResult.stdout, /dynomic-admin/)
+    assert.match(envResult.stdout, /next-monorepo-web/)
+    assert.match(envResult.stdout, /next-monorepo-admin/)
     assert.match(envResult.stdout, /\[team:preview\].*4.*shared keys/)
     assert.equal(envResult.stderr, '')
 
@@ -308,8 +375,8 @@ test('published Dynomic example exercises Vercel env and render flows', async ()
     )
     assert.match(vercelMain, /resource "vercel_project" "web"/)
     assert.match(vercelMain, /resource "vercel_project" "admin"/)
-    assert.match(vercelMain, /resource "vercel_project_domain" "web_dynomic_example_com"/)
-    assert.match(vercelMain, /resource "vercel_project_domain" "web_www_dynomic_example_com"/)
+    assert.match(vercelMain, /resource "vercel_project_domain" "web_next_monorepo_example_com"/)
+    assert.match(vercelMain, /resource "vercel_project_domain" "web_www_next_monorepo_example_com"/)
     assert.match(vercelMain, /resource "vercel_project_environment_variable" "example_escape_hatch"/)
     assert.match(awsMain, /resource "aws_s3_bucket" "object_storage_uploads"/)
     assert.match(awsMain, /resource "aws_db_instance" "database_appdb"/)

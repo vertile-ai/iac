@@ -1,0 +1,15 @@
+{
+  "name": "bun-hono-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "iac:render": "vertile-iac render --repo-root . --target=all --env=production"
+  },
+  "dependencies": {
+    "hono": "^4.0.0"
+  },
+  "devDependencies": {
+    "@vertile-ai/iac": "0.0.1"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "python-fastapi-api",
+    "name": "python-fastapi-api"
+  },
+  "environments": ["development", "preview", "production"],
+  "providers": {
+    "aws": {
+      "region": "us-east-1"
+    },
+    "digitalocean": {
+      "region": "nyc3"
+    }
+  },
+  "apps": [
+    {
+      "key": "api",
+      "name": "python-fastapi-api",
+      "framework": "fastapi",
+      "rootDirectory": "."
+    }
+  ],
+  "databases": [
+    {
+      "key": "appdb",
+      "engine": "postgres"
+    }
+  ],
+  "clusters": [
+    {
+      "key": "workers",
+      "size": 2
+    }
+  ]
+}

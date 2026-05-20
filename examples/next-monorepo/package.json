@@ -1,5 +1,5 @@
 {
-  "name": "dynomic",
+  "name": "next-monorepo",
   "private": true,
   "scripts": {
     "iac:env:dry-run": "vertile-iac env --repo-root . --targets=preview,production",

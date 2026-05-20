@@ -225,10 +225,21 @@ docs/index.html
 
 ## Examples
 
-`examples/dynomic` is a publishable fixture project that shows the current app
-shape for Vercel project settings, domains, preview/production env
-provisioning, local package env sync, portable resource concepts, provider
-overrides, and provider-specific escape hatch resources.
+The `examples/` directory uses runtime-oriented fixture names so each project
+shape is clear at a glance:
+
+- `examples/node-api`
+- `examples/bun-hono-api`
+- `examples/react-spa`
+- `examples/next-monorepo`
+- `examples/sveltekit-web`
+- `examples/python-fastapi-api`
+- `examples/go-api`
+
+Every example keeps a portable `infrastructure/iac/iac.json`. Examples with
+provider-specific fields also include standalone provider variants such as
+`iac.aws.json`, `iac.vercel.json`, or `iac.do.json` that can be passed with
+`--iac-manifest`.
 
 ## Schema
 

@@ -1,0 +1,45 @@
+{
+  "$schema": "../../../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "bun-hono-api",
+    "name": "bun-hono-api"
+  },
+  "environments": ["development", "preview", "production"],
+  "providers": {
+    "digitalocean": {
+      "region": "sfo3",
+      "resources": [
+        {
+          "type": "digitalocean_project",
+          "name": "main",
+          "values": {
+            "name": "bun-hono-api"
+          }
+        }
+      ]
+    }
+  },
+  "apps": [
+    {
+      "key": "api",
+      "name": "bun-hono-api",
+      "framework": "bun",
+      "rootDirectory": "."
+    }
+  ],
+  "databases": [
+    {
+      "key": "appdb",
+      "engine": "postgres",
+      "providers": {
+        "digitalocean": {
+          "engine": "pg",
+          "version": "16",
+          "size": "db-s-1vcpu-1gb",
+          "nodeCount": 1
+        }
+      }
+    }
+  ]
+}

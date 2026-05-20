@@ -1,0 +1,32 @@
+{
+  "$schema": "../../../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "sveltekit-web",
+    "name": "sveltekit-web"
+  },
+  "environments": ["development", "preview", "production"],
+  "providers": {
+    "vercel": {
+      "teamSlug": "example-team",
+      "projectDefaults": {
+        "nodeVersion": "22.x"
+      }
+    }
+  },
+  "apps": [
+    {
+      "key": "web",
+      "name": "sveltekit-web",
+      "framework": "sveltekit",
+      "rootDirectory": ".",
+      "domains": [
+        "sveltekit.example.com",
+        {
+          "name": "preview.sveltekit.example.com",
+          "gitBranch": "preview"
+        }
+      ]
+    }
+  ]
+}
