@@ -1,0 +1,56 @@
+{
+  "$schema": "../../../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "node-api",
+    "name": "node-api"
+  },
+  "environments": ["development", "preview", "production"],
+  "providers": {
+    "aws": {
+      "region": "us-east-1",
+      "defaultTags": {
+        "Example": "node-api",
+        "Runtime": "node"
+      },
+      "resources": [
+        {
+          "type": "aws_cloudwatch_log_group",
+          "name": "api",
+          "values": {
+            "name": "/examples/node-api",
+            "retention_in_days": 7
+          }
+        }
+      ]
+    }
+  },
+  "apps": [
+    {
+      "key": "api",
+      "name": "node-api",
+      "framework": "node",
+      "rootDirectory": "."
+    }
+  ],
+  "queues": [
+    {
+      "key": "jobs",
+      "providers": {
+        "aws": {
+          "visibilityTimeoutSeconds": 45
+        }
+      }
+    }
+  ],
+  "sandboxes": [
+    {
+      "key": "api-runner",
+      "providers": {
+        "aws": {
+          "instanceType": "t3.micro"
+        }
+      }
+    }
+  ]
+}

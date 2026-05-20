@@ -1,0 +1,48 @@
+{
+  "$schema": "../../../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "go-api",
+    "name": "go-api"
+  },
+  "environments": ["development", "preview", "production"],
+  "providers": {
+    "digitalocean": {
+      "region": "nyc3",
+      "resources": [
+        {
+          "type": "digitalocean_project",
+          "name": "main",
+          "values": {
+            "name": "go-api"
+          }
+        }
+      ]
+    }
+  },
+  "apps": [
+    {
+      "key": "api",
+      "name": "go-api",
+      "framework": "go",
+      "rootDirectory": "."
+    }
+  ],
+  "queues": [
+    {
+      "key": "jobs"
+    }
+  ],
+  "clusters": [
+    {
+      "key": "workers",
+      "size": 2,
+      "providers": {
+        "digitalocean": {
+          "nodes": 2,
+          "sizeSlug": "s-1vcpu-1gb"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "../../../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "react-spa",
+    "name": "react-spa"
+  },
+  "environments": ["development", "preview", "production"],
+  "providers": {
+    "aws": {
+      "region": "us-east-1",
+      "defaultTags": {
+        "Example": "react-spa",
+        "Runtime": "react"
+      }
+    }
+  },
+  "apps": [
+    {
+      "key": "web",
+      "name": "react-spa",
+      "framework": "vite",
+      "rootDirectory": ".",
+      "outputDir": "dist"
+    }
+  ],
+  "objectStorage": [
+    {
+      "key": "assets",
+      "visibility": "public",
+      "providers": {
+        "aws": {
+          "bucket": "react-spa-assets",
+          "forceDestroy": true
+        }
+      }
+    }
+  ]
+}

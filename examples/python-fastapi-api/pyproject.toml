@@ -1,0 +1,10 @@
+[project]
+name = "python-fastapi-api"
+version = "0.0.0"
+dependencies = [
+  "fastapi",
+  "uvicorn",
+]
+
+[tool.vertile]
+example = true

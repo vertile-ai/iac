@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "node-api",
+    "name": "node-api"
+  },
+  "environments": ["development", "preview", "production"],
+  "providers": {
+    "aws": {
+      "region": "us-east-1"
+    },
+    "digitalocean": {
+      "region": "nyc3"
+    }
+  },
+  "apps": [
+    {
+      "key": "api",
+      "name": "node-api",
+      "framework": "node",
+      "rootDirectory": "."
+    }
+  ],
+  "queues": [
+    {
+      "key": "jobs"
+    }
+  ],
+  "sandboxes": [
+    {
+      "key": "api-runner"
+    }
+  ]
+}

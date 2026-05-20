@@ -1,0 +1,33 @@
+{
+  "$schema": "../../../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "react-spa",
+    "name": "react-spa"
+  },
+  "environments": ["development", "preview", "production"],
+  "providers": {
+    "vercel": {
+      "teamSlug": "example-team"
+    },
+    "aws": {
+      "region": "us-east-1"
+    }
+  },
+  "apps": [
+    {
+      "key": "web",
+      "name": "react-spa",
+      "framework": "vite",
+      "rootDirectory": ".",
+      "outputDir": "dist",
+      "domains": ["react-spa.example.com"]
+    }
+  ],
+  "objectStorage": [
+    {
+      "key": "assets",
+      "visibility": "public"
+    }
+  ]
+}

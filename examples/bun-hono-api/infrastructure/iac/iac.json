@@ -1,0 +1,31 @@
+{
+  "$schema": "../../../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "bun-hono-api",
+    "name": "bun-hono-api"
+  },
+  "environments": ["development", "preview", "production"],
+  "providers": {
+    "aws": {
+      "region": "us-west-2"
+    },
+    "digitalocean": {
+      "region": "sfo3"
+    }
+  },
+  "apps": [
+    {
+      "key": "api",
+      "name": "bun-hono-api",
+      "framework": "bun",
+      "rootDirectory": "."
+    }
+  ],
+  "databases": [
+    {
+      "key": "appdb",
+      "engine": "postgres"
+    }
+  ]
+}
