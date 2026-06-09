@@ -34,6 +34,8 @@ export function resolvePlatformContext(argv) {
   }
 }
 
-export function targetWorkspace(context, target) {
-  return path.join(context.generatedRoot, target)
+export function targetWorkspace(context, target, deploymentName = '') {
+  return deploymentName
+    ? path.join(context.generatedRoot, target, deploymentName)
+    : path.join(context.generatedRoot, target)
 }

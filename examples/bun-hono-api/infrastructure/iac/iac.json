@@ -5,10 +5,52 @@
     "key": "bun-hono-api",
     "name": "bun-hono-api"
   },
-  "environments": ["development", "preview", "production"],
+  "environments": [
+    "development",
+    "test",
+    "uat",
+    "nightly",
+    "staging",
+    "preview",
+    "production"
+  ],
   "providers": {
     "aws": {
-      "region": "us-west-2"
+      "region": "us-west-2",
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "us-west-2",
+          "profile": "bun-hono-api-dev",
+          "tags": {
+            "Stage": "dev"
+          }
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "us-west-2",
+          "profile": "bun-hono-api-uat",
+          "tags": {
+            "Stage": "uat"
+          }
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "us-west-2",
+          "profile": "bun-hono-api-nightly",
+          "tags": {
+            "Stage": "nightly"
+          }
+        },
+        "prod": {
+          "environment": "production",
+          "region": "us-west-2",
+          "profile": "bun-hono-api-prod",
+          "tags": {
+            "Stage": "prod"
+          }
+        }
+      }
     },
     "digitalocean": {
       "region": "sfo3"
@@ -27,5 +69,39 @@
       "key": "appdb",
       "engine": "postgres"
     }
-  ]
+  ],
+  "env": {
+    "environments": {
+      "development": {
+        "files": [
+          ".env.development"
+        ]
+      },
+      "test": {
+        "files": [
+          ".env.test"
+        ]
+      },
+      "uat": {
+        "files": [
+          ".env.uat"
+        ]
+      },
+      "nightly": {
+        "files": [
+          ".env.nightly"
+        ]
+      },
+      "staging": {
+        "files": [
+          ".env.staging"
+        ]
+      },
+      "production": {
+        "files": [
+          ".env.production"
+        ]
+      }
+    }
+  }
 }

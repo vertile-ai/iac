@@ -12,6 +12,6 @@
     "iac:render": "vertile-iac render --repo-root . --target=vercel --env=production"
   },
   "devDependencies": {
-    "@vertile-ai/iac": "0.0.1"
+    "@vertile-ai/iac": "0.1.0"
   }
 }

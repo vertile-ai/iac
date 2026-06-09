@@ -221,7 +221,7 @@
     <main>
       <section id="manifest">
         <h2>One Source Of Truth</h2>
-        <p>The user-authored source of truth is <code>infrastructure/iac/iac.json</code>. Terraform files are generated output under <code>.vertile/terraform/&lt;provider&gt;/</code>.</p>
+        <p>The user-authored source of truth is <code>infrastructure/iac/iac.json</code>. Terraform files are generated output under <code>.vertile/terraform/&lt;provider&gt;/</code>. Env metadata also lives in this manifest under <code>env.metadata.&lt;source-key&gt;</code>.</p>
         <pre><code>{
   "version": 1,
   "project": { "name": "example" },
@@ -264,8 +264,8 @@
         <p>Crossplane makes Kubernetes the infrastructure control plane. Vertile AI IaC uses a Git repo and CLI as the control surface, which is lighter for solo builders and app-first teams.</p>
         <pre><code>pnpm add -D @vertile-ai/iac
 vertile-iac render --target=all --env=production
-vertile-iac plan --target=aws --env=production
-vertile-iac apply --target=aws --env=production --yes</code></pre>
+vertile-iac plan --target=aws --deployment=prod
+vertile-iac apply --target=aws --deployment=prod --yes</code></pre>
       </section>
     </main>
 

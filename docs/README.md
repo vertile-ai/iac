@@ -23,10 +23,15 @@ The user-authored source of truth is:
 infrastructure/iac/iac.json
 ```
 
+Env sync and Vercel compatibility metadata are also authored in this manifest
+under `env.sourceDir`, `env.environments`, `env.sync`, and
+`env.metadata.<source-key>`.
+
 Generated Terraform lives under:
 
 ```text
 .vertile/terraform/<provider>/
+.vertile/terraform/<provider>/<deployment>/
 ```
 
 Users edit the manifest. Vertile AI IaC renders provider-specific infrastructure.
@@ -35,6 +40,6 @@ Users edit the manifest. Vertile AI IaC renders provider-specific infrastructure
 
 ```bash
 vertile-iac render --target=all --env=production
-vertile-iac plan --target=aws --env=production
-vertile-iac apply --target=aws --env=production --yes
+vertile-iac plan --target=aws --deployment=prod
+vertile-iac apply --target=aws --deployment=prod --yes
 ```

@@ -56,6 +56,20 @@ function validateProviderResources(providers) {
   }
 }
 
+function validateProviderDeployments(manifest) {
+  for (const [provider, config] of Object.entries(manifest.providers)) {
+    const deployments = asObject(config.deployments)
+    for (const [name, deployment] of Object.entries(deployments)) {
+      const environment = asObject(deployment).environment
+      if (environment && !manifest.environments.includes(environment)) {
+        throw new Error(
+          `iac.json providers.${provider}.deployments.${name}.environment must be one of: ${manifest.environments.join(', ')}`,
+        )
+      }
+    }
+  }
+}
+
 export function validateManifest(manifest) {
   if (manifest.version !== 1) {
     throw new Error(`Unsupported iac.json version "${manifest.version}". Expected version 1.`)
@@ -65,6 +79,7 @@ export function validateManifest(manifest) {
   }
   assertStringArray(manifest.environments, 'environments')
   validateProviderResources(manifest.providers)
+  validateProviderDeployments(manifest)
 }
 
 export function normalizeManifest(rawManifest) {
@@ -80,7 +95,6 @@ export function normalizeManifest(rawManifest) {
     providers: asObject(manifest.providers),
     apps: Array.isArray(manifest.apps) ? manifest.apps.map(normalizeApp) : [],
     domains: Array.isArray(manifest.domains) ? manifest.domains : [],
-    infraDir: manifest.infraDir,
     objectStorage: normalizeKeyedList(manifest, 'objectStorage'),
     databases: normalizeKeyedList(manifest, 'databases'),
     queues: normalizeKeyedList(manifest, 'queues'),

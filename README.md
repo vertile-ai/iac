@@ -24,9 +24,10 @@ Terraform and can be used offline.
 ```bash
 vertile-iac render --target=all --env=production
 vertile-iac plan --target=vercel --env=preview
-vertile-iac apply --target=aws --env=production --yes
+vertile-iac apply --target=aws --deployment=prod --yes
 
 vertile-iac sync-env --repo-root ../noop --variants=local,staging,test
+vertile-iac sync-env --repo-root ../noop --write-examples
 vertile-iac env --repo-root ../noop --scope=all --targets=preview,production
 vertile-iac projects --repo-root ../noop
 vertile-iac domains --repo-root ../noop
@@ -34,6 +35,8 @@ vertile-iac domains --repo-root ../noop
 
 The `render`, `plan`, and `apply` commands read `infrastructure/iac/iac.json`
 and write generated Terraform workspaces to `.vertile/terraform/<target>/`.
+When `--deployment=<name>` maps to a provider deployment, the workspace is
+`.vertile/terraform/<target>/<deployment>/`.
 
 Apply is guarded. Non-interactive apply requires `--yes`, which passes
 Terraform `-auto-approve`.
@@ -55,12 +58,12 @@ The new Terraform flow expects the target project to have:
 
 ```text
 infrastructure/iac/iac.json
-infrastructure/shared/.env.development
-infrastructure/shared/.env.staging
-infrastructure/shared/.env.production
-infrastructure/<app-key>/.env.development
-infrastructure/<app-key>/.env.staging
-infrastructure/<app-key>/.env.production
+.vertile-iac/env/shared/.env.development
+.vertile-iac/env/shared/.env.staging
+.vertile-iac/env/shared/.env.production
+.vertile-iac/env/<app-key>/.env.development
+.vertile-iac/env/<app-key>/.env.staging
+.vertile-iac/env/<app-key>/.env.production
 ```
 
 Minimal `iac.json` example:
@@ -70,10 +73,26 @@ Minimal `iac.json` example:
   "$schema": "./node_modules/@vertile-ai/iac/schema/iac.schema.json",
   "version": 1,
   "project": { "name": "example" },
-  "environments": ["development", "preview", "production"],
+  "environments": ["development", "uat", "production"],
   "providers": {
     "vercel": { "team": "example-team" },
-    "aws": { "region": "us-east-1" },
+    "aws": {
+      "region": "us-east-1",
+      "deployments": {
+        "uat": {
+          "environment": "uat",
+          "region": "us-east-1",
+          "profile": "example-uat",
+          "tags": { "Stage": "uat" }
+        },
+        "prod": {
+          "environment": "production",
+          "region": "us-east-1",
+          "profile": "example-prod",
+          "tags": { "Stage": "prod" }
+        }
+      }
+    },
     "digitalocean": {}
   },
   "apps": [
@@ -86,7 +105,11 @@ Minimal `iac.json` example:
     }
   ],
   "env": {
-    "sourceDir": "infrastructure",
+    "environments": {
+      "development": { "files": [".env.development"] },
+      "uat": { "files": [".env.uat"] },
+      "production": { "files": [".env.production"] }
+    },
     "sync": {
       "apps": ["web"]
     }
@@ -109,18 +132,17 @@ Provider-specific Terraform resources can be added under
 `providers.<target>.resources` as `{ "type", "name", "values" }` objects while
 the manifest schema stays narrow.
 
-The compatibility Vercel commands expect the target project to have:
+Provider deployments map user-defined stage names such as `uat`, `nightly`, or
+`prod` to logical environments and provider-specific inputs. AWS uses deployment
+values for provider region/profile, generated workspace path, resource names,
+and default tags. The logical environment still controls env file selection.
 
-```text
-infrastructure/shared/.env.development
-infrastructure/shared/.env.staging
-infrastructure/shared/.env.production
-infrastructure/<project-key>/.env.development
-infrastructure/<project-key>/.env.staging
-infrastructure/<project-key>/.env.production
-```
+By default, Vercel env reconciliation reads `.env.*` files from
+`.vertile-iac/env/shared` and `.vertile-iac/env/<project-key>`.
 
-When the old compatibility files exist, they are used directly:
+The default source of truth for all Vercel compatibility commands is now
+`infrastructure/iac/iac.json`. Old compatibility files are still readable, but
+only when no `iac.json` exists or when the legacy path is passed explicitly:
 
 ```text
 infrastructure/iac/env-manifest.json
@@ -128,30 +150,32 @@ infrastructure/iac/project-settings.json
 infrastructure/iac/project-domains.json
 ```
 
-When they do not exist, the Vercel commands derive equivalent manifests from
-`iac.json`:
+When `iac.json` is used, the Vercel commands derive equivalent manifests from
+the unified manifest:
 
 - `providers.vercel.teamSlug` or `providers.vercel.team` becomes the Vercel team.
-- `env.sourceDir` selects the env source folder and defaults to `infrastructure`.
+- `env.sourceDir` selects the env source folder and defaults to `.vertile-iac/env`.
+- `env.environments.<name>.files` maps logical environments to ordered env files.
 - `apps[].key`, `apps[].id` or `apps[].projectId`, and `apps[].name` become managed Vercel projects.
 - `apps[].rootDirectory`, `apps[].nodeVersion`, and
   `apps[].enableAffectedProjectsDeployments` become project settings.
 - `apps[].domains` and top-level `domains[]` become project domains.
 
-Vercel targets map to env files as follows:
+Vercel targets map to logical environments as follows by default:
 
-- `development` -> `.env.development`
-- `preview` -> `.env.staging`
-- `production` -> `.env.production`
+- `development` -> `development`
+- `preview` -> `staging`
+- `production` -> `production`
 
-Pure local env files such as `.env.local` are intentionally not synced to
-Vercel. The default manifest location can be overridden:
+Those logical environments then resolve through `env.environments`. For example,
+`staging` defaults to `.env.staging`, but can be configured as
+`"staging": { "files": [".env.preview", ".env.staging"] }`.
+The legacy env manifest can still be selected explicitly:
 
 ```bash
 vertile-iac env \
   --repo-root ../some-project \
-  --manifest ./deploy/env-manifest.json \
-  --infra-dir infrastructure
+  --manifest ./deploy/env-manifest.json
 ```
 
 ## Env File Sync
@@ -162,13 +186,54 @@ which reconciles Vercel remote environment variables.
 
 The boundary is:
 
-- `env.sourceDir` is the source tree, defaulting to `infrastructure`.
+- `env.sourceDir` is the source tree, defaulting to `.vertile-iac/env`.
+- `env.environments.<name>.files` declares ordered source files for any logical
+  environment, including custom names such as `uat`, `nightly`, or `qa`.
 - `env.sync.sharedKey` is the shared source folder, defaulting to `shared`.
 - `env.sync.apps` limits which `apps[]` are materialized locally. Without it,
   all apps are synced.
+- `env.sync.patchVariantsFromExample: true` creates missing selected variant
+  files from `.env.example` and appends missing example keys before package env
+  files are generated. The CLI also accepts `--patch-variants-from-example`.
+- Env metadata should be declared in `iac.json` under
+  `env.metadata.<source-key>`, where source keys are `shared` and app source
+  keys such as `web`, `admin`, or `api`.
+- File-based `<env.sourceDir>/<source-key>/.env.json` metadata is still
+  supported as a compatibility fallback when embedded metadata is absent, but
+  new setups should keep metadata in `iac.json`.
+- `--reconcile-delete` reconciles selected variant files against env metadata,
+  preserving current values for declared keys and removing keys that are absent
+  from metadata. If metadata is absent, it warns and leaves that source file
+  unchanged.
+- Every key in a source folder's `.env.*` files must be declared with `key`,
+  `example`, `encrypted`, and `browser` when metadata exists for that source.
+- Metadata may use either `variables: [{ key, ...metadata }]` or object-map form
+  such as `vars: { DATABASE_URL: { ...metadata } }`.
+- `encrypted` controls the Vercel env var type used by `vertile-iac env`.
+  `encrypted: true` writes an encrypted value; `encrypted: false` writes a plain
+  value when the provider supports it.
+- `browser` marks values that are safe to project into browser-facing bundles.
+  Shared-prefix projection refuses to expose a key marked `browser: false`.
+- `includeInExample: false` keeps a declared key out of generated
+  `.env.example` files when `sync-env --write-examples` is used.
+- `includeEnv` and `excludeEnv` control which real env files receive a key when
+  `sync-env` populates from `.env.example`, reconciles metadata, or layers
+  non-strict examples into generated package env files. The top-level
+  `environments` list is the available set; stale include/exclude names outside
+  that list are ignored. With only `includeEnv`, the key is populated only for
+  those available environments. With only `excludeEnv`, the key is populated for
+  all available environments except those listed. When both are present,
+  excluded environments are removed first, then the include list is applied to
+  what remains.
 - Each app reads from `<env.sourceDir>/<app.key>` by default.
 - Each app writes into `apps[].rootDirectory` by default.
 - `apps[].env.sourceKey` and `apps[].env.outputDir` override those defaults.
+- When the same key exists in shared and app-specific files, the app-specific
+  value wins in generated package `.env.*` files.
+- `env.sync.disallowSharedOverrides: true` changes that merge policy and rejects
+  app-specific keys that would override shared keys.
+- `env.sync.requiredSharedAliases` can require canonical shared keys to have
+  app-prefixed aliases for apps that use `apps[].env.sharedPrefix`.
 - `apps[].env.sharedPrefix` projects prefixed shared keys into one app, strips
   the prefix in that app's generated file, and keeps those prefixed keys out of
   other generated app env files.
@@ -178,7 +243,6 @@ Examples:
 ```json
 {
   "env": {
-    "sourceDir": "infrastructure",
     "sync": {
       "apps": ["landing", "web-client", "web-server"],
       "sharedKey": "shared"
@@ -194,17 +258,78 @@ Examples:
 }
 ```
 
-Supported local sync variants are `local`, `staging`, `preview`, `production`,
-and `test`. `preview` is an alias for `.env.staging`.
+Example embedded env metadata:
+
+```json
+{
+  "env": {
+    "metadata": {
+      "shared": {
+        "variables": [
+          {
+            "key": "DATABASE_URL",
+            "example": "postgres://user:password@host/db",
+            "encrypted": true,
+            "browser": false
+          },
+          {
+            "key": "WEB_CLIENT_NEXT_PUBLIC_BASE_URL",
+            "example": "https://app.example.com",
+            "encrypted": false,
+            "browser": true,
+            "includeEnv": ["preview"],
+            "excludeEnv": ["production"]
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+Object-map metadata:
+
+```json
+{
+  "env": {
+    "metadata": {
+      "web": {
+        "vars": {
+          "DATABASE_URL": {
+            "example": "postgres://user:password@host/db",
+            "encrypted": true,
+            "browser": false,
+            "includeInExample": false
+          },
+          "NEXT_PUBLIC_BASE_URL": {
+            "example": "https://app.example.com",
+            "encrypted": false,
+            "browser": true
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Export `.env.example` files from metadata:
+
+```bash
+vertile-iac sync-env --repo-root ../noop --write-examples --dry-run
+```
+
+Built-in local sync variants are `local`, `staging`, `preview`, `production`,
+and `test`. Custom variants declared in `env.environments` can also be selected
+with `--variants`, such as `--variants=uat,nightly`.
 
 ## Shared Options
 
 - `--repo-root <path>`: product repo root containing `infrastructure/`.
 - `--iac-dir <path>`: manifest directory, default `infrastructure/iac`.
-- `--manifest <path>`: env manifest path.
+- `--manifest <path>`: explicit legacy env manifest path.
 - `--project-settings <path>`: project settings manifest path.
 - `--project-domains <path>`: project domains manifest path.
-- `--infra-dir <path>`: override `env-manifest.json` `infraDir`.
 - `--token-file <path>`: token file, default `<repo-root>/.vercel.token`.
 - `--auto-create-keys <a,b>`: project keys allowed for Vercel auto-create.
 - `--auto-create-prefixes <a,b>`: project key prefixes allowed for Vercel auto-create.
@@ -212,6 +337,7 @@ and `test`. `preview` is an alias for `.env.staging`.
 - `--out <path>`: generated Terraform root, default `.vertile/terraform`.
 - `--target <name|all>`: `vercel`, `aws`, `digitalocean`, or `all`.
 - `--env <name>`: environment to render, plan, or apply, default `production`.
+- `--deployment <name>`: provider deployment/stage name, such as `uat` or `prod`.
 - `--terraform-bin <path>`: Terraform executable for `plan`, default `terraform`.
 - `--yes`: allow non-interactive `apply` with Terraform auto-approve.
 

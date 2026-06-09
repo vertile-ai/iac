@@ -5,7 +5,15 @@
     "key": "next-monorepo",
     "name": "next-monorepo"
   },
-  "environments": ["development", "preview", "production"],
+  "environments": [
+    "development",
+    "test",
+    "uat",
+    "nightly",
+    "staging",
+    "preview",
+    "production"
+  ],
   "providers": {
     "vercel": {
       "teamSlug": "vertile-ai",
@@ -18,8 +26,105 @@
   "env": {
     "sourceDir": "infrastructure",
     "sync": {
-      "apps": ["web", "admin"],
+      "apps": [
+        "web",
+        "admin"
+      ],
       "sharedKey": "shared"
+    },
+    "environments": {
+      "development": {
+        "files": [
+          ".env.development"
+        ]
+      },
+      "test": {
+        "files": [
+          ".env.test"
+        ]
+      },
+      "uat": {
+        "files": [
+          ".env.uat"
+        ]
+      },
+      "nightly": {
+        "files": [
+          ".env.nightly"
+        ]
+      },
+      "staging": {
+        "files": [
+          ".env.staging"
+        ]
+      },
+      "production": {
+        "files": [
+          ".env.production"
+        ]
+      }
+    },
+    "metadata": {
+      "shared": {
+        "variables": [
+          {
+            "key": "NEXT_PUBLIC_APP_ENV",
+            "example": "development",
+            "encrypted": false,
+            "browser": true
+          },
+          {
+            "key": "NEXT_PUBLIC_API_BASE_URL",
+            "example": "http://localhost:3000",
+            "encrypted": false,
+            "browser": true
+          },
+          {
+            "key": "ADMIN_NEXT_PUBLIC_APP_ENV",
+            "example": "development",
+            "encrypted": false,
+            "browser": true
+          },
+          {
+            "key": "ADMIN_NEXT_PUBLIC_API_BASE_URL",
+            "example": "http://localhost:3001",
+            "encrypted": false,
+            "browser": true
+          }
+        ]
+      },
+      "web": {
+        "variables": [
+          {
+            "key": "DATABASE_URL",
+            "example": "postgres://user:password@localhost:5432/dynomic",
+            "encrypted": true,
+            "browser": false
+          },
+          {
+            "key": "STRIPE_SECRET_KEY",
+            "example": "stripe-test-placeholder",
+            "encrypted": true,
+            "browser": false
+          }
+        ]
+      },
+      "admin": {
+        "variables": [
+          {
+            "key": "ADMIN_DATABASE_URL",
+            "example": "postgres://user:password@localhost:5432/dynomic_admin",
+            "encrypted": true,
+            "browser": false
+          },
+          {
+            "key": "ADMIN_SESSION_SECRET",
+            "example": "admin-session-placeholder",
+            "encrypted": true,
+            "browser": false
+          }
+        ]
+      }
     }
   },
   "apps": [
