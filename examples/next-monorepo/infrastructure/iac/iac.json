@@ -5,7 +5,15 @@
     "key": "next-monorepo",
     "name": "next-monorepo"
   },
-  "environments": ["development", "preview", "production"],
+  "environments": [
+    "development",
+    "test",
+    "uat",
+    "nightly",
+    "staging",
+    "preview",
+    "production"
+  ],
   "providers": {
     "vercel": {
       "teamSlug": "vertile-ai",
@@ -21,7 +29,9 @@
             "project_id": "prj_next_monorepo_placeholder",
             "key": "ESCAPE_HATCH_EXAMPLE",
             "value": "configured-through-provider-resource",
-            "target": ["preview"]
+            "target": [
+              "preview"
+            ]
           }
         }
       ]
@@ -40,7 +50,41 @@
             "name": "next-monorepo-events"
           }
         }
-      ]
+      ],
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "us-east-1",
+          "profile": "next-monorepo-dev",
+          "tags": {
+            "Stage": "dev"
+          }
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "us-east-1",
+          "profile": "next-monorepo-uat",
+          "tags": {
+            "Stage": "uat"
+          }
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "us-east-1",
+          "profile": "next-monorepo-nightly",
+          "tags": {
+            "Stage": "nightly"
+          }
+        },
+        "prod": {
+          "environment": "production",
+          "region": "us-east-1",
+          "profile": "next-monorepo-prod",
+          "tags": {
+            "Stage": "prod"
+          }
+        }
+      }
     },
     "digitalocean": {
       "region": "nyc3",
@@ -59,8 +103,105 @@
   "env": {
     "sourceDir": "infrastructure",
     "sync": {
-      "apps": ["web", "admin"],
+      "apps": [
+        "web",
+        "admin"
+      ],
       "sharedKey": "shared"
+    },
+    "environments": {
+      "development": {
+        "files": [
+          ".env.development"
+        ]
+      },
+      "test": {
+        "files": [
+          ".env.test"
+        ]
+      },
+      "uat": {
+        "files": [
+          ".env.uat"
+        ]
+      },
+      "nightly": {
+        "files": [
+          ".env.nightly"
+        ]
+      },
+      "staging": {
+        "files": [
+          ".env.staging"
+        ]
+      },
+      "production": {
+        "files": [
+          ".env.production"
+        ]
+      }
+    },
+    "metadata": {
+      "shared": {
+        "variables": [
+          {
+            "key": "NEXT_PUBLIC_APP_ENV",
+            "example": "development",
+            "encrypted": false,
+            "browser": true
+          },
+          {
+            "key": "NEXT_PUBLIC_API_BASE_URL",
+            "example": "http://localhost:3000",
+            "encrypted": false,
+            "browser": true
+          },
+          {
+            "key": "ADMIN_NEXT_PUBLIC_APP_ENV",
+            "example": "development",
+            "encrypted": false,
+            "browser": true
+          },
+          {
+            "key": "ADMIN_NEXT_PUBLIC_API_BASE_URL",
+            "example": "http://localhost:3001",
+            "encrypted": false,
+            "browser": true
+          }
+        ]
+      },
+      "web": {
+        "variables": [
+          {
+            "key": "DATABASE_URL",
+            "example": "postgres://user:password@localhost:5432/dynomic",
+            "encrypted": true,
+            "browser": false
+          },
+          {
+            "key": "STRIPE_SECRET_KEY",
+            "example": "stripe-test-placeholder",
+            "encrypted": true,
+            "browser": false
+          }
+        ]
+      },
+      "admin": {
+        "variables": [
+          {
+            "key": "ADMIN_DATABASE_URL",
+            "example": "postgres://user:password@localhost:5432/dynomic_admin",
+            "encrypted": true,
+            "browser": false
+          },
+          {
+            "key": "ADMIN_SESSION_SECRET",
+            "example": "admin-session-placeholder",
+            "encrypted": true,
+            "browser": false
+          }
+        ]
+      }
     }
   },
   "apps": [

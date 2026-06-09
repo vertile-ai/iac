@@ -5,7 +5,15 @@
     "key": "next-monorepo",
     "name": "next-monorepo"
   },
-  "environments": ["development", "preview", "production"],
+  "environments": [
+    "development",
+    "test",
+    "uat",
+    "nightly",
+    "staging",
+    "preview",
+    "production"
+  ],
   "providers": {
     "aws": {
       "region": "us-east-1",
@@ -21,7 +29,41 @@
             "name": "next-monorepo-events"
           }
         }
-      ]
+      ],
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "us-east-1",
+          "profile": "next-monorepo-dev",
+          "tags": {
+            "Stage": "dev"
+          }
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "us-east-1",
+          "profile": "next-monorepo-uat",
+          "tags": {
+            "Stage": "uat"
+          }
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "us-east-1",
+          "profile": "next-monorepo-nightly",
+          "tags": {
+            "Stage": "nightly"
+          }
+        },
+        "prod": {
+          "environment": "production",
+          "region": "us-east-1",
+          "profile": "next-monorepo-prod",
+          "tags": {
+            "Stage": "prod"
+          }
+        }
+      }
     }
   },
   "apps": [
@@ -92,5 +134,39 @@
         }
       }
     }
-  ]
+  ],
+  "env": {
+    "environments": {
+      "development": {
+        "files": [
+          ".env.development"
+        ]
+      },
+      "test": {
+        "files": [
+          ".env.test"
+        ]
+      },
+      "uat": {
+        "files": [
+          ".env.uat"
+        ]
+      },
+      "nightly": {
+        "files": [
+          ".env.nightly"
+        ]
+      },
+      "staging": {
+        "files": [
+          ".env.staging"
+        ]
+      },
+      "production": {
+        "files": [
+          ".env.production"
+        ]
+      }
+    }
+  }
 }

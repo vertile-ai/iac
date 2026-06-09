@@ -12,6 +12,7 @@ Generated Terraform is an implementation detail:
 .vertile/terraform/vercel/
 .vertile/terraform/aws/
 .vertile/terraform/digitalocean/
+.vertile/terraform/<provider>/<deployment>/
 ```
 
 ## Minimal Manifest
@@ -21,10 +22,26 @@ Generated Terraform is an implementation detail:
   "$schema": "./node_modules/@vertile-ai/iac/schema/iac.schema.json",
   "version": 1,
   "project": { "name": "example" },
-  "environments": ["development", "preview", "production"],
+  "environments": ["development", "uat", "production"],
   "providers": {
     "vercel": { "team": "example-team" },
-    "aws": { "region": "us-east-1" },
+    "aws": {
+      "region": "us-east-1",
+      "deployments": {
+        "uat": {
+          "environment": "uat",
+          "region": "us-east-1",
+          "profile": "example-uat",
+          "tags": { "Stage": "uat" }
+        },
+        "prod": {
+          "environment": "production",
+          "region": "us-east-1",
+          "profile": "example-prod",
+          "tags": { "Stage": "prod" }
+        }
+      }
+    },
     "digitalocean": {}
   },
   "apps": [
@@ -41,7 +58,14 @@ Generated Terraform is an implementation detail:
   "databases": [{ "key": "appdb", "engine": "postgres" }],
   "queues": [{ "key": "jobs" }],
   "sandboxes": [{ "key": "runner" }],
-  "clusters": [{ "key": "workers", "size": 2 }]
+  "clusters": [{ "key": "workers", "size": 2 }],
+  "env": {
+    "environments": {
+      "development": { "files": [".env.development"] },
+      "uat": { "files": [".env.uat"] },
+      "production": { "files": [".env.production"] }
+    }
+  }
 }
 ```
 
@@ -94,6 +118,23 @@ Provider-specific Terraform resources can be expressed under
 Use this as a bridge, not as the primary authoring model. The long-term goal is
 to promote common patterns into first-class portable concepts.
 
+## Environments And Deployments
+
+Logical environments control env file selection. By default, env sources live in
+`.vertile-iac/env/shared` and `.vertile-iac/env/<app-key>`.
+
+Env metadata is authored in the same manifest under `env.metadata.<source-key>`.
+Each source key maps to a source folder such as `shared`, `web`, or `api`, and
+declares every managed key with `example`, `encrypted`, and `browser`.
+`includeEnv` and `excludeEnv` may narrow which top-level `environments` receive
+a key. The top-level list is the available set, so stale include/exclude names
+are ignored. Exclusions run first; inclusions then select from the remaining
+environments.
+
+Provider deployments map stage names such as `uat` or `prod` to a logical
+environment plus provider-specific inputs. AWS uses deployment values for
+region/profile, generated workspace path, resource names, and default tags.
+
 ## Supported Concepts
 
 | Concept | Vercel | AWS | DigitalOcean |
@@ -120,11 +161,11 @@ vertile-iac render --target=all --env=production
 Preview changes with Terraform:
 
 ```bash
-vertile-iac plan --target=aws --env=production
+vertile-iac plan --target=aws --deployment=prod
 ```
 
 Apply changes with explicit non-interactive approval:
 
 ```bash
-vertile-iac apply --target=aws --env=production --yes
+vertile-iac apply --target=aws --deployment=prod --yes
 ```

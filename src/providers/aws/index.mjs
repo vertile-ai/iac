@@ -16,38 +16,54 @@ import {
   terraformVariableName,
 } from '../../core/concepts.mjs'
 
-function providerBlock(manifest, environment) {
-  const config = manifest.providers.aws || {}
-  const body = {
-    region: config.region,
-  }
-  const tags = {
-    Project: manifest.project.name,
-    Environment: environment,
-    ...(config.defaultTags || {}),
-  }
-
-  const provider = block('provider', ['aws'], body)
-  if (Object.keys(tags).length === 0) return provider
-
-  return `${provider.slice(0, -1)}\n  ${nestedBlock('default_tags', { tags }).replace(/\n/g, '\n  ')}\n}`
+function deploymentLabel(environment, deployment = {}) {
+  return deployment.name || environment
 }
 
-function objectStorageBlocks(manifest, environment) {
+function providerBlock(manifest, environment, deployment = {}) {
+  const config = manifest.providers.aws || {}
+  const deploymentValues = deployment.values || {}
+  const body = {
+    region: deploymentValues.region || config.region,
+    profile: deploymentValues.profile || config.profile,
+  }
+  const tags = compactBody({
+    Project: manifest.project.name,
+    Environment: environment,
+    Deployment: deployment.name || undefined,
+    ...(config.defaultTags || {}),
+    ...(deploymentValues.tags || {}),
+  })
+
+  const provider = block('provider', ['aws'], body)
+  const assumeRole = deploymentValues.assumeRole || deploymentValues.assume_role || config.assumeRole || config.assume_role
+  const assumeRoleBlock = assumeRole
+    ? `\n  ${nestedBlock('assume_role', assumeRole).replace(/\n/g, '\n  ')}`
+    : ''
+  const defaultTagsBlock = Object.keys(tags).length > 0
+    ? `\n  ${nestedBlock('default_tags', { tags }).replace(/\n/g, '\n  ')}`
+    : ''
+
+  return `${provider.slice(0, -1)}${assumeRoleBlock}${defaultTagsBlock}\n}`
+}
+
+function objectStorageBlocks(manifest, environment, deployment = {}) {
+  const nameEnvironment = deploymentLabel(environment, deployment)
   return manifest.objectStorage.map((item) => {
     const values = providerValues(item, 'aws')
     return block('resource', ['aws_s3_bucket', resourceName('object_storage', item.key)], compactBody({
-      bucket: values.bucket || providerResourceName(manifest, environment, item),
+      bucket: values.bucket || providerResourceName(manifest, nameEnvironment, item),
       force_destroy: values.forceDestroy,
     }))
   })
 }
 
-function queueBlocks(manifest, environment) {
+function queueBlocks(manifest, environment, deployment = {}) {
+  const nameEnvironment = deploymentLabel(environment, deployment)
   return manifest.queues.map((item) => {
     const values = providerValues(item, 'aws')
     const fifo = values.fifo || item.kind === 'fifo'
-    const baseName = values.name || providerResourceName(manifest, environment, item)
+    const baseName = values.name || providerResourceName(manifest, nameEnvironment, item)
     return block('resource', ['aws_sqs_queue', resourceName('queue', item.key)], compactBody({
       name: fifo && !baseName.endsWith('.fifo') ? `${baseName}.fifo` : baseName,
       fifo_queue: fifo || undefined,
@@ -57,12 +73,13 @@ function queueBlocks(manifest, environment) {
   })
 }
 
-function databaseBlocks(manifest, environment) {
+function databaseBlocks(manifest, environment, deployment = {}) {
+  const nameEnvironment = deploymentLabel(environment, deployment)
   return manifest.databases.map((item) => {
     const values = providerValues(item, 'aws')
     const variable = terraformVariableName('database', item.key, 'password')
     return block('resource', ['aws_db_instance', resourceName('database', item.key)], compactBody({
-      identifier: values.identifier || providerResourceName(manifest, environment, item),
+      identifier: values.identifier || providerResourceName(manifest, nameEnvironment, item),
       engine: values.engine || item.engine || 'postgres',
       engine_version: values.engineVersion,
       instance_class: values.instanceClass || 'db.t4g.micro',
@@ -101,19 +118,21 @@ function amazonLinuxDataSource() {
   ].join('\n')
 }
 
-function computeBlocks(manifest, environment, field, prefix) {
+function computeBlocks(manifest, environment, deployment, field, prefix) {
+  const nameEnvironment = deploymentLabel(environment, deployment)
   return manifest[field].map((item) => {
     const values = providerValues(item, 'aws')
     return block('resource', ['aws_instance', resourceName(prefix, item.key)], compactBody({
       ami: values.ami ? values.ami : raw('data.aws_ami.amazon_linux.id'),
       instance_type: values.instanceType || 't3.micro',
       count: field === 'clusters' ? values.size || item.size || 1 : undefined,
-      tags: {
-        Name: values.name || providerResourceName(manifest, environment, item),
+      tags: compactBody({
+        Name: values.name || providerResourceName(manifest, nameEnvironment, item),
         Project: manifest.project.name,
         Environment: environment,
+        Deployment: deployment.name || undefined,
         Kind: prefix,
-      },
+      }),
     }))
   })
 }
@@ -127,19 +146,19 @@ function outputBlocks(manifest) {
   ))
 }
 
-export function renderTerraform({ manifest, environment }) {
+export function renderTerraform({ manifest, environment, deployment = {} }) {
   const config = manifest.providers.aws || {}
   const resources = renderGenericResources(config.resources)
   const needsAmazonLinux = manifest.sandboxes.length > 0 || manifest.clusters.length > 0
   const mainBlocks = [
-    renderLocals(manifest, environment),
-    providerBlock(manifest, environment),
+    renderLocals(manifest, environment, deployment),
+    providerBlock(manifest, environment, deployment),
     needsAmazonLinux ? amazonLinuxDataSource() : '',
-    ...objectStorageBlocks(manifest, environment),
-    ...queueBlocks(manifest, environment),
-    ...databaseBlocks(manifest, environment),
-    ...computeBlocks(manifest, environment, 'sandboxes', 'sandbox'),
-    ...computeBlocks(manifest, environment, 'clusters', 'cluster'),
+    ...objectStorageBlocks(manifest, environment, deployment),
+    ...queueBlocks(manifest, environment, deployment),
+    ...databaseBlocks(manifest, environment, deployment),
+    ...computeBlocks(manifest, environment, deployment, 'sandboxes', 'sandbox'),
+    ...computeBlocks(manifest, environment, deployment, 'clusters', 'cluster'),
     resources,
   ].filter(Boolean)
   const variableBlocks = databaseVariables(manifest)

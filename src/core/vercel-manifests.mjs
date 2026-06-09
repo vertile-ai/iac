@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { envSourceDir } from './env-source.mjs'
 import { readManifest } from './manifest.mjs'
 
 const projectSettingKeys = [
@@ -27,7 +28,15 @@ function readLegacyOrUnified({
   context,
   derive,
 }) {
-  if (fs.existsSync(legacyPath) || explicitLegacyPath) {
+  if (explicitLegacyPath) {
+    return readJSON(legacyPath)
+  }
+
+  if (fs.existsSync(context.iacManifestPath)) {
+    return derive(readUnifiedManifest(context, legacyPath))
+  }
+
+  if (fs.existsSync(legacyPath)) {
     return readJSON(legacyPath)
   }
 
@@ -48,16 +57,6 @@ function appVercelValues(app) {
 function teamSlugFromManifest(manifest) {
   const config = vercelConfig(manifest)
   return config.teamSlug || config.team || ''
-}
-
-function envSourceDir(manifest) {
-  return (
-    manifest.env.sourceDir ||
-    manifest.env.dir ||
-    manifest.env.infraDir ||
-    manifest.infraDir ||
-    'infrastructure'
-  )
 }
 
 function configuredProjects(manifest) {
@@ -130,9 +129,20 @@ function projectDomains(manifest) {
 }
 
 export function vercelEnvManifestFromIac(manifest, context = {}) {
+  const config = vercelConfig(manifest)
   return {
     teamSlug: teamSlugFromManifest(manifest),
-    infraDir: context.infraDir || envSourceDir(manifest),
+    sourceDir: envSourceDir(manifest),
+    environments: manifest.environments,
+    env: {
+      metadata: manifest.env?.metadata,
+      metadataFile: manifest.env?.metadataFile,
+      sync: {
+        metadataFile: manifest.env?.sync?.metadataFile,
+      },
+    },
+    environmentFiles: manifest.env?.environments || {},
+    targets: config.env?.targets || {},
     projects: configuredProjects(manifest),
   }
 }

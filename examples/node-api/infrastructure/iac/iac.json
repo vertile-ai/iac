@@ -5,10 +5,52 @@
     "key": "node-api",
     "name": "node-api"
   },
-  "environments": ["development", "preview", "production"],
+  "environments": [
+    "development",
+    "test",
+    "uat",
+    "nightly",
+    "staging",
+    "preview",
+    "production"
+  ],
   "providers": {
     "aws": {
-      "region": "us-east-1"
+      "region": "us-east-1",
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "us-east-1",
+          "profile": "node-api-dev",
+          "tags": {
+            "Stage": "dev"
+          }
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "us-east-1",
+          "profile": "node-api-uat",
+          "tags": {
+            "Stage": "uat"
+          }
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "us-east-1",
+          "profile": "node-api-nightly",
+          "tags": {
+            "Stage": "nightly"
+          }
+        },
+        "prod": {
+          "environment": "production",
+          "region": "us-east-1",
+          "profile": "node-api-prod",
+          "tags": {
+            "Stage": "prod"
+          }
+        }
+      }
     },
     "digitalocean": {
       "region": "nyc3"
@@ -31,5 +73,39 @@
     {
       "key": "api-runner"
     }
-  ]
+  ],
+  "env": {
+    "environments": {
+      "development": {
+        "files": [
+          ".env.development"
+        ]
+      },
+      "test": {
+        "files": [
+          ".env.test"
+        ]
+      },
+      "uat": {
+        "files": [
+          ".env.uat"
+        ]
+      },
+      "nightly": {
+        "files": [
+          ".env.nightly"
+        ]
+      },
+      "staging": {
+        "files": [
+          ".env.staging"
+        ]
+      },
+      "production": {
+        "files": [
+          ".env.production"
+        ]
+      }
+    }
+  }
 }

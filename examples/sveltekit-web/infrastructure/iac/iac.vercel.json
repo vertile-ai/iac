@@ -5,7 +5,15 @@
     "key": "sveltekit-web",
     "name": "sveltekit-web"
   },
-  "environments": ["development", "preview", "production"],
+  "environments": [
+    "development",
+    "test",
+    "uat",
+    "nightly",
+    "staging",
+    "preview",
+    "production"
+  ],
   "providers": {
     "vercel": {
       "teamSlug": "example-team",
@@ -28,5 +36,39 @@
         }
       ]
     }
-  ]
+  ],
+  "env": {
+    "environments": {
+      "development": {
+        "files": [
+          ".env.development"
+        ]
+      },
+      "test": {
+        "files": [
+          ".env.test"
+        ]
+      },
+      "uat": {
+        "files": [
+          ".env.uat"
+        ]
+      },
+      "nightly": {
+        "files": [
+          ".env.nightly"
+        ]
+      },
+      "staging": {
+        "files": [
+          ".env.staging"
+        ]
+      },
+      "production": {
+        "files": [
+          ".env.production"
+        ]
+      }
+    }
+  }
 }

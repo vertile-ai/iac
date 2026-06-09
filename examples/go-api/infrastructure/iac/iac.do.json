@@ -5,7 +5,15 @@
     "key": "go-api",
     "name": "go-api"
   },
-  "environments": ["development", "preview", "production"],
+  "environments": [
+    "development",
+    "test",
+    "uat",
+    "nightly",
+    "staging",
+    "preview",
+    "production"
+  ],
   "providers": {
     "digitalocean": {
       "region": "nyc3",
@@ -44,5 +52,39 @@
         }
       }
     }
-  ]
+  ],
+  "env": {
+    "environments": {
+      "development": {
+        "files": [
+          ".env.development"
+        ]
+      },
+      "test": {
+        "files": [
+          ".env.test"
+        ]
+      },
+      "uat": {
+        "files": [
+          ".env.uat"
+        ]
+      },
+      "nightly": {
+        "files": [
+          ".env.nightly"
+        ]
+      },
+      "staging": {
+        "files": [
+          ".env.staging"
+        ]
+      },
+      "production": {
+        "files": [
+          ".env.production"
+        ]
+      }
+    }
+  }
 }

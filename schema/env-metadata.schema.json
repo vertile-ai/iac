@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vertile.ai/schemas/env-metadata.schema.json",
+  "title": "Vertile AI Env Metadata",
+  "description": "Metadata for environment variables managed by Vertile AI IaC.",
+  "type": "object",
+  "additionalProperties": true,
+  "anyOf": [
+    { "required": ["variables"] },
+    { "required": ["vars"] },
+    { "required": ["env"] }
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "variables": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/envVariable" },
+          "uniqueItems": true
+        },
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/envVariableMetadata" }
+        }
+      ]
+    },
+    "vars": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/envVariable" },
+          "uniqueItems": true
+        },
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/envVariableMetadata" }
+        }
+      ]
+    },
+    "env": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/envVariable" },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "envVariableMetadata": {
+      "type": "object",
+      "required": ["example", "encrypted", "browser"],
+      "additionalProperties": true,
+      "properties": {
+        "example": {
+          "type": "string"
+        },
+        "encrypted": {
+          "type": "boolean"
+        },
+        "browser": {
+          "type": "boolean"
+        },
+        "includeInExample": {
+          "type": "boolean"
+        },
+        "includeEnv": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            }
+          ]
+        },
+        "excludeEnv": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            }
+          ]
+        }
+      }
+    },
+    "envVariable": {
+      "type": "object",
+      "required": ["key", "example", "encrypted", "browser"],
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+        },
+        "example": {
+          "type": "string"
+        },
+        "encrypted": {
+          "type": "boolean"
+        },
+        "browser": {
+          "type": "boolean"
+        },
+        "includeInExample": {
+          "type": "boolean"
+        },
+        "includeEnv": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            }
+          ]
+        },
+        "excludeEnv": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            }
+          ]
+        }
+      }
+    }
+  }
+}

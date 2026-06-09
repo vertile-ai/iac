@@ -81,10 +81,11 @@ export function renderGenericResources(resources = []) {
     .join('\n\n')
 }
 
-export function renderLocals(manifest, environment) {
+export function renderLocals(manifest, environment, deployment = {}) {
   return block('locals', [], {
     project_name: manifest.project.name,
     environment,
+    deployment: deployment.name || undefined,
   })
 }
 

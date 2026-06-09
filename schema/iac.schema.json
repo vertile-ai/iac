@@ -46,6 +46,27 @@
                 "team": { "type": "string" },
                 "teamId": { "type": "string" },
                 "teamSlug": { "type": "string" },
+                "env": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "targets": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "oneOf": [
+                          { "type": "string", "minLength": 1 },
+                          {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "properties": {
+                              "environment": { "type": "string", "minLength": 1 }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
                 "projectDefaults": { "$ref": "#/$defs/vercelProjectSettings" },
                 "projectSettingsDefaults": { "$ref": "#/$defs/vercelProjectSettings" }
               }
@@ -59,6 +80,11 @@
               "type": "object",
               "properties": {
                 "region": { "type": "string" },
+                "profile": { "type": "string" },
+                "deployments": {
+                  "type": "object",
+                  "additionalProperties": { "$ref": "#/$defs/providerDeployment" }
+                },
                 "defaultTags": {
                   "type": "object",
                   "additionalProperties": { "type": ["string", "number", "boolean"] }
@@ -86,9 +112,22 @@
       "additionalProperties": true,
       "properties": {
         "sourceDir": { "type": "string" },
-        "dir": { "type": "string" },
-        "infraDir": { "type": "string" },
         "sharedKey": { "type": "string" },
+        "metadataFile": { "type": "string" },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/envMetadataDocument" },
+          "properties": {
+            "sources": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/envMetadataDocument" }
+            }
+          }
+        },
+        "environments": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/envEnvironment" }
+        },
         "sync": {
           "type": "object",
           "additionalProperties": true,
@@ -99,7 +138,16 @@
               "uniqueItems": true
             },
             "sharedKey": { "type": "string" },
-            "skipInVercel": { "type": "boolean" }
+            "metadataFile": { "type": "string" },
+            "skipInVercel": { "type": "boolean" },
+            "patchVariantsFromExample": { "type": "boolean" },
+            "disallowSharedOverrides": { "type": "boolean" },
+            "forbidSharedOverrides": { "type": "boolean" },
+            "requiredSharedAliases": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            }
           }
         }
       }
@@ -169,9 +217,170 @@
       "type": "object",
       "additionalProperties": true,
       "properties": {
+        "deployments": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/providerDeployment" }
+        },
         "resources": {
           "type": "array",
           "items": { "$ref": "#/$defs/providerResource" }
+        }
+      }
+    },
+    "providerDeployment": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "environment": { "type": "string", "minLength": 1 },
+        "region": { "type": "string" },
+        "profile": { "type": "string" },
+        "stateKey": { "type": "string" },
+        "tags": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number", "boolean"] }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "destination": { "type": "string" },
+            "path": { "type": "string" }
+          }
+        }
+      }
+    },
+    "envEnvironment": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "file": { "type": "string" },
+            "files": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "sources": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "output": { "type": "string" },
+            "outputFile": { "type": "string" },
+            "strict": { "type": "boolean" }
+          }
+        }
+      ]
+    },
+    "envMetadataDocument": {
+      "type": "object",
+      "additionalProperties": true,
+      "anyOf": [
+        { "required": ["variables"] },
+        { "required": ["vars"] },
+        { "required": ["env"] }
+      ],
+      "properties": {
+        "variables": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": { "$ref": "#/$defs/envVariable" },
+              "uniqueItems": true
+            },
+            {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/envVariableMetadata" }
+            }
+          ]
+        },
+        "vars": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": { "$ref": "#/$defs/envVariable" },
+              "uniqueItems": true
+            },
+            {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/envVariableMetadata" }
+            }
+          ]
+        },
+        "env": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/envVariable" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "envVariableMetadata": {
+      "type": "object",
+      "required": ["example", "encrypted", "browser"],
+      "additionalProperties": true,
+      "properties": {
+        "example": { "type": "string" },
+        "encrypted": { "type": "boolean" },
+        "browser": { "type": "boolean" },
+        "includeInExample": { "type": "boolean" },
+        "includeEnv": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            }
+          ]
+        },
+        "excludeEnv": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            }
+          ]
+        }
+      }
+    },
+    "envVariable": {
+      "type": "object",
+      "required": ["key", "example", "encrypted", "browser"],
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+        },
+        "example": { "type": "string" },
+        "encrypted": { "type": "boolean" },
+        "browser": { "type": "boolean" },
+        "includeInExample": { "type": "boolean" },
+        "includeEnv": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            }
+          ]
+        },
+        "excludeEnv": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            }
+          ]
         }
       }
     },

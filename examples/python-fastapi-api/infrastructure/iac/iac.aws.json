@@ -5,13 +5,55 @@
     "key": "python-fastapi-api",
     "name": "python-fastapi-api"
   },
-  "environments": ["development", "preview", "production"],
+  "environments": [
+    "development",
+    "test",
+    "uat",
+    "nightly",
+    "staging",
+    "preview",
+    "production"
+  ],
   "providers": {
     "aws": {
       "region": "us-east-1",
       "defaultTags": {
         "Example": "python-fastapi-api",
         "Runtime": "python"
+      },
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "us-east-1",
+          "profile": "python-fastapi-api-dev",
+          "tags": {
+            "Stage": "dev"
+          }
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "us-east-1",
+          "profile": "python-fastapi-api-uat",
+          "tags": {
+            "Stage": "uat"
+          }
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "us-east-1",
+          "profile": "python-fastapi-api-nightly",
+          "tags": {
+            "Stage": "nightly"
+          }
+        },
+        "prod": {
+          "environment": "production",
+          "region": "us-east-1",
+          "profile": "python-fastapi-api-prod",
+          "tags": {
+            "Stage": "prod"
+          }
+        }
       }
     }
   },
@@ -49,5 +91,39 @@
         }
       }
     }
-  ]
+  ],
+  "env": {
+    "environments": {
+      "development": {
+        "files": [
+          ".env.development"
+        ]
+      },
+      "test": {
+        "files": [
+          ".env.test"
+        ]
+      },
+      "uat": {
+        "files": [
+          ".env.uat"
+        ]
+      },
+      "nightly": {
+        "files": [
+          ".env.nightly"
+        ]
+      },
+      "staging": {
+        "files": [
+          ".env.staging"
+        ]
+      },
+      "production": {
+        "files": [
+          ".env.production"
+        ]
+      }
+    }
+  }
 }

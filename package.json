@@ -1,6 +1,6 @@
 {
   "name": "@vertile-ai/iac",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "App-first portable infrastructure intent for Vercel, AWS, and DigitalOcean.",
   "type": "module",
   "repository": {

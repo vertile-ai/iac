@@ -20,11 +20,25 @@ async function createFixture() {
       {
         version: 1,
         project: { name: 'example' },
-        environments: ['preview', 'production'],
+        environments: ['preview', 'uat', 'production'],
         providers: {
           vercel: { team: 'example-team' },
           aws: {
             region: 'us-east-1',
+            deployments: {
+              uat: {
+                environment: 'uat',
+                region: 'us-east-2',
+                profile: 'example-uat',
+                tags: { Stage: 'uat' },
+              },
+              prod: {
+                environment: 'production',
+                region: 'us-east-1',
+                profile: 'example-prod',
+                tags: { Stage: 'prod' },
+              },
+            },
             resources: [
               {
                 type: 'aws_s3_bucket',
@@ -88,7 +102,7 @@ test('resolves and reads the neutral iac.json manifest', async () => {
 
     const manifest = readManifest(context.manifestPath)
     assert.equal(manifest.project.name, 'example')
-    assert.deepEqual(manifest.environments, ['preview', 'production'])
+    assert.deepEqual(manifest.environments, ['preview', 'uat', 'production'])
     assert.equal(manifest.apps[0].name, 'example-web')
     assert.equal(manifest.objectStorage[0].key, 'uploads')
     assert.equal(manifest.databases[0].key, 'appdb')
@@ -122,6 +136,37 @@ test('validates malformed provider escape hatch resources', async () => {
     assert.throws(
       () => readManifest(manifestPath),
       /providers\.aws\.resources items must include type and name/,
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('validates provider deployment environment references', async () => {
+  const root = await createFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+
+  try {
+    await writeFile(
+      manifestPath,
+      JSON.stringify({
+        version: 1,
+        project: { name: 'bad' },
+        environments: ['production'],
+        providers: {
+          aws: {
+            deployments: {
+              uat: { environment: 'uat' },
+            },
+          },
+        },
+        apps: [{ key: 'app' }],
+      }) + '\n',
+    )
+
+    assert.throws(
+      () => readManifest(manifestPath),
+      /providers\.aws\.deployments\.uat\.environment must be one of: production/,
     )
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -169,6 +214,37 @@ test('renders deterministic Terraform files for each provider', async () => {
 
     const awsVariables = await readFile(path.join(root, '.vertile', 'terraform', 'aws', 'variables.tf'), 'utf8')
     assert.match(awsVariables, /variable "database_appdb_password"/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('renders AWS deployment names as Terraform workspace and provider inputs', async () => {
+  const root = await createFixture()
+
+  try {
+    const result = await execNode([
+      path.join(packageRoot, 'src', 'cli.mjs'),
+      'render',
+      '--repo-root',
+      root,
+      '--target=aws',
+      '--deployment=uat',
+    ], packageRoot)
+
+    assert.equal(result.code, 0)
+    assert.equal(result.stderr, '')
+    assert.match(result.stdout, /\.vertile\/terraform\/aws\/uat/)
+
+    const awsMain = await readFile(path.join(root, '.vertile', 'terraform', 'aws', 'uat', 'main.tf'), 'utf8')
+
+    assert.match(awsMain, /environment = "uat"/)
+    assert.match(awsMain, /deployment = "uat"/)
+    assert.match(awsMain, /region = "us-east-2"/)
+    assert.match(awsMain, /profile = "example-uat"/)
+    assert.match(awsMain, /Deployment = "uat"/)
+    assert.match(awsMain, /Stage = "uat"/)
+    assert.match(awsMain, /bucket = "example_uat_uploads"/)
   } finally {
     await rm(root, { recursive: true, force: true })
   }

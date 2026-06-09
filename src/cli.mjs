@@ -45,6 +45,7 @@ ${sharedOptionsHelp()}
   --out <path>                Generated Terraform root. Defaults to .vertile/terraform.
   --target <name|all>         Target provider: vercel, aws, digitalocean, or all.
   --env <name>                Environment to render, plan, or apply. Defaults to production.
+  --deployment <name>         Provider deployment/stage name, such as uat or prod.
   --terraform-bin <path>      Terraform executable. Defaults to terraform.
   --yes                       Allow non-interactive apply with Terraform auto-approve.
 `)

@@ -3,6 +3,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { environmentFiles } from './core/env-files.mjs'
+import { applyEnvMetadata } from './core/env-metadata.mjs'
 import { readVercelEnvManifest } from './core/vercel-manifests.mjs'
 import { resolveIacContext } from './shared.mjs'
 
@@ -140,6 +142,20 @@ function parseEnvFile(filePath) {
   return entries
 }
 
+function mergeEntries(layers) {
+  const order = []
+  const values = new Map()
+
+  for (const layer of layers) {
+    for (const { key, value } of layer) {
+      if (!values.has(key)) order.push(key)
+      values.set(key, value)
+    }
+  }
+
+  return order.map((key) => ({ key, value: values.get(key) }))
+}
+
 function readTokenFromFile(filePath) {
   if (!fs.existsSync(filePath)) return ''
 
@@ -162,24 +178,51 @@ function readTokenFromFile(filePath) {
   return ''
 }
 
-// Maps a Vercel target name to the .env filename used in infrastructure folders.
-const targetToEnvFile = {
-  development: '.env.development',
-  staging: '.env.staging',
-  production: '.env.production',
+function targetEnvironment(manifest, target) {
+  const configured = manifest.targets?.[target]
+  if (typeof configured === 'string') return configured
+  if (configured && typeof configured === 'object' && configured.environment) {
+    return configured.environment
+  }
+  return target === 'preview' ? 'staging' : target
 }
 
-function readInfraScopedEntries(infraDir, target, projects) {
-  const envFile = targetToEnvFile[target]
+function targetEnvFiles(manifest, environment) {
+  return environmentFiles({ env: { environments: manifest.environmentFiles || {} } }, environment)
+}
 
-  const teamEntries = parseEnvFile(path.join(rootDir, infraDir, 'shared', envFile))
+function readEnvFiles(baseDir, files, { requireFiles = false, manifest } = {}) {
+  const filePaths = files.map((file) => path.join(baseDir, file))
+  const missing = filePaths.filter((filePath) => !fs.existsSync(filePath))
 
-  const projectEntries = Object.fromEntries(
-    projects.map((project) => [
-      project.key,
-      parseEnvFile(path.join(rootDir, infraDir, project.key, envFile)),
-    ]),
-  )
+  if (requireFiles && missing.length > 0) {
+    throw new Error(
+      `Missing required env source file(s) for --reconcile-delete: ${missing.map((filePath) => path.relative(rootDir, filePath)).join(', ')}`,
+    )
+  }
+
+  const entries = mergeEntries(filePaths.map(parseEnvFile))
+  return applyEnvMetadata({ baseDir, entries, manifest })
+}
+
+function readSourceScopedEntries(sourceDir, environment, projects, files, options = {}) {
+  const {
+    readTeam = true,
+    readProjects = true,
+    ...readOptions
+  } = options
+  const teamEntries = readTeam
+    ? readEnvFiles(path.join(rootDir, sourceDir, 'shared'), files, readOptions)
+    : []
+
+  const projectEntries = readProjects
+    ? Object.fromEntries(
+        projects.map((project) => [
+          project.key,
+          readEnvFiles(path.join(rootDir, sourceDir, project.key), files, readOptions),
+        ]),
+      )
+    : {}
 
   return { teamEntries, projectEntries }
 }
@@ -211,6 +254,28 @@ function chunkEntries(entries, size) {
     chunks.push(entries.slice(index, index + size))
   }
   return chunks
+}
+
+function vercelEnvType(entry) {
+  return entry.encrypted === false ? 'plain' : 'encrypted'
+}
+
+function groupEntriesByVercelType(entries) {
+  const grouped = new Map()
+  for (const entry of entries) {
+    const type = vercelEnvType(entry)
+    if (!grouped.has(type)) grouped.set(type, [])
+    grouped.get(type).push(entry)
+  }
+  return [...grouped.entries()].map(([type, rows]) => ({ type, rows }))
+}
+
+function toVercelCreateEnv(entry) {
+  return {
+    key: entry.key,
+    value: entry.value,
+    comment: managedComment,
+  }
 }
 
 function readRetryAfterMs(response, attempt) {
@@ -446,7 +511,7 @@ async function upsertTeamShared({
     if (match) {
       updates[match.id] = {
         value: entry.value,
-        type: 'encrypted',
+        type: vercelEnvType(entry),
         target: [target],
         projectIdUpdates: { link: projectIds },
         comment: managedComment,
@@ -504,28 +569,30 @@ async function upsertTeamShared({
   }
 
   if (creates.length > 0) {
-    try {
-      await requestJSON({
-        token,
-        method: 'POST',
-        pathname: '/v1/env',
-        query: { slug: teamSlug },
-        body: {
-          evs: creates,
-          type: 'encrypted',
-          target: [target],
-          projectId: projectIds,
-        },
-      })
-    } catch (error) {
-      if (isOnlyExistingKeyAndTargetError(error)) {
-        console.log(
-          c.yellow(
-            `[team:${target}] create request contained only existing keys; continuing`,
-          ),
-        )
-      } else {
-        throw error
+    for (const group of groupEntriesByVercelType(creates)) {
+      try {
+        await requestJSON({
+          token,
+          method: 'POST',
+          pathname: '/v1/env',
+          query: { slug: teamSlug },
+          body: {
+            evs: group.rows.map(toVercelCreateEnv),
+            type: group.type,
+            target: [target],
+            projectId: projectIds,
+          },
+        })
+      } catch (error) {
+        if (isOnlyExistingKeyAndTargetError(error)) {
+          console.log(
+            c.yellow(
+              `[team:${target}] create request contained only existing keys; continuing`,
+            ),
+          )
+        } else {
+          throw error
+        }
       }
     }
   }
@@ -568,7 +635,7 @@ async function upsertProjectEnv({
     const payload = entries.map((entry) => ({
       key: entry.key,
       value: entry.value,
-      type: 'encrypted',
+      type: vercelEnvType(entry),
       target: [target],
       comment: managedComment,
     }))
@@ -631,13 +698,13 @@ async function main() {
   const teamSlug = manifest.teamSlug
   const projects = Array.isArray(manifest.projects) ? manifest.projects : []
   const configuredProjects = [...projects]
-  const infraDir = iacContext.infraDir || manifest.infraDir
+  const sourceDir = manifest.sourceDir
 
   if (!teamSlug) {
     throw new Error('Missing "teamSlug" in env manifest')
   }
-  if (!infraDir) {
-    throw new Error('Missing "infraDir" in env manifest')
+  if (!sourceDir) {
+    throw new Error('Missing "sourceDir" in env manifest')
   }
 
   let teamId = ''
@@ -746,12 +813,16 @@ async function main() {
     `${c.bold('Mode:')} ${dryRun ? c.yellow('dry-run') : c.green('apply')} ${c.gray('|')} scope=${c.cyan(args.scope)} ${c.gray('|')} targets=${c.cyan(args.targets.join(','))} ${c.gray('|')} reconcile-delete=${c.cyan(args.reconcileDelete ? 'on' : 'off')}`,
   )
 
-  // preview deployments read from the staging env files
-  const resolvedTarget = (target) => (target === 'preview' ? 'staging' : target)
-
   if (args.scope === 'team' || args.scope === 'all') {
     for (const target of args.targets) {
-      const parsed = readInfraScopedEntries(infraDir, resolvedTarget(target), projects)
+      const environment = targetEnvironment(manifest, target)
+      const parsed = readSourceScopedEntries(
+        sourceDir,
+        environment,
+        [],
+        targetEnvFiles(manifest, environment),
+        { requireFiles: args.reconcileDelete, readProjects: false, manifest },
+      )
       await upsertTeamShared({
         token,
         dryRun,
@@ -767,10 +838,13 @@ async function main() {
   if (args.scope === 'projects' || args.scope === 'all') {
     const parsedByTarget = {}
     for (const target of args.targets) {
-      parsedByTarget[target] = readInfraScopedEntries(
-        infraDir,
-        resolvedTarget(target),
+      const environment = targetEnvironment(manifest, target)
+      parsedByTarget[target] = readSourceScopedEntries(
+        sourceDir,
+        environment,
         selectedProjects,
+        targetEnvFiles(manifest, environment),
+        { requireFiles: args.reconcileDelete, readTeam: false, manifest },
       )
     }
 

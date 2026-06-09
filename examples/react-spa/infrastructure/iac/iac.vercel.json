@@ -5,7 +5,15 @@
     "key": "react-spa",
     "name": "react-spa"
   },
-  "environments": ["development", "preview", "production"],
+  "environments": [
+    "development",
+    "test",
+    "uat",
+    "nightly",
+    "staging",
+    "preview",
+    "production"
+  ],
   "providers": {
     "vercel": {
       "teamSlug": "example-team",
@@ -21,12 +29,48 @@
       "framework": "vite",
       "rootDirectory": ".",
       "outputDir": "dist",
-      "domains": ["react-spa.example.com"],
+      "domains": [
+        "react-spa.example.com"
+      ],
       "providers": {
         "vercel": {
           "enableAffectedProjectsDeployments": false
         }
       }
     }
-  ]
+  ],
+  "env": {
+    "environments": {
+      "development": {
+        "files": [
+          ".env.development"
+        ]
+      },
+      "test": {
+        "files": [
+          ".env.test"
+        ]
+      },
+      "uat": {
+        "files": [
+          ".env.uat"
+        ]
+      },
+      "nightly": {
+        "files": [
+          ".env.nightly"
+        ]
+      },
+      "staging": {
+        "files": [
+          ".env.staging"
+        ]
+      },
+      "production": {
+        "files": [
+          ".env.production"
+        ]
+      }
+    }
+  }
 }
