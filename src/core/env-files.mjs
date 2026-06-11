@@ -18,7 +18,7 @@ function asFiles(value) {
 }
 
 export function environmentConfig(manifest, environment) {
-  const configured = asObject(asObject(manifest.env).environments)[environment]
+  const configured = asObject(manifest.environmentFiles)[environment]
   if (typeof configured === 'string' || Array.isArray(configured)) {
     return { files: asFiles(configured) }
   }

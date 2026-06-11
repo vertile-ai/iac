@@ -51,7 +51,6 @@ export function resolveIacContext(argv, defaults = {}) {
     repoRoot,
     readOption(argv, '--iac-dir') || defaults.iacDir || 'infrastructure/iac',
   )
-  const manifestArg = readOption(argv, '--manifest')
   const projectSettingsArg = readOption(argv, '--project-settings')
   const projectDomainsArg = readOption(argv, '--project-domains')
   const iacManifestArg = readOption(argv, '--iac-manifest')
@@ -68,10 +67,6 @@ export function resolveIacContext(argv, defaults = {}) {
   return {
     repoRoot,
     iacDir,
-    manifestPath: resolveFrom(
-      repoRoot,
-      manifestArg || path.relative(repoRoot, path.join(iacDir, 'env-manifest.json')),
-    ),
     projectSettingsPath: resolveFrom(
       repoRoot,
       projectSettingsArg || path.relative(repoRoot, path.join(iacDir, 'project-settings.json')),
@@ -88,7 +83,6 @@ export function resolveIacContext(argv, defaults = {}) {
       repoRoot,
       readOption(argv, '--token-file') || defaults.tokenFile || '.vercel.token',
     ),
-    explicitManifestPath: Boolean(manifestArg),
     explicitProjectSettingsPath: Boolean(projectSettingsArg),
     explicitProjectDomainsPath: Boolean(projectDomainsArg),
     explicitIacManifestPath: Boolean(iacManifestArg),
@@ -102,7 +96,6 @@ export function sharedOptionsHelp() {
   return `Shared options:
   --repo-root <path>              Project root containing infrastructure/.
   --iac-dir <path>                Directory containing project IaC manifests. Defaults to infrastructure/iac.
-  --manifest <path>               Explicit legacy env manifest path.
   --project-settings <path>       Project settings manifest path.
   --project-domains <path>        Project domains manifest path.
   --iac-manifest <path>           Unified IaC manifest path. Defaults to <iac-dir>/iac.json.

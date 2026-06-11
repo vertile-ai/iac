@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { environmentFiles } from './core/env-files.mjs'
-import { applyEnvMetadata } from './core/env-metadata.mjs'
+import { applyEnvMetadata, manifestEnvEntries } from './core/env-metadata.mjs'
 import { readVercelEnvManifest } from './core/vercel-manifests.mjs'
 import { resolveIacContext } from './shared.mjs'
 
@@ -188,10 +188,18 @@ function targetEnvironment(manifest, target) {
 }
 
 function targetEnvFiles(manifest, environment) {
-  return environmentFiles({ env: { environments: manifest.environmentFiles || {} } }, environment)
+  return environmentFiles({ environmentFiles: manifest.environmentFiles || {} }, environment)
 }
 
-function readEnvFiles(baseDir, files, { requireFiles = false, manifest } = {}) {
+function readEnvFiles(baseDir, files, {
+  requireFiles = false,
+  manifest,
+  sourceKey = '',
+  environment = '',
+} = {}) {
+  const manifestLayer = manifestEnvEntries({ baseDir, manifest, sourceKey, environment })
+  if (manifestLayer) return manifestLayer.entries
+
   const filePaths = files.map((file) => path.join(baseDir, file))
   const missing = filePaths.filter((filePath) => !fs.existsSync(filePath))
 
@@ -212,14 +220,22 @@ function readSourceScopedEntries(sourceDir, environment, projects, files, option
     ...readOptions
   } = options
   const teamEntries = readTeam
-    ? readEnvFiles(path.join(rootDir, sourceDir, 'shared'), files, readOptions)
+    ? readEnvFiles(
+        path.join(rootDir, sourceDir, 'shared'),
+        files,
+        { ...readOptions, sourceKey: 'shared', environment },
+      )
     : []
 
   const projectEntries = readProjects
     ? Object.fromEntries(
         projects.map((project) => [
           project.key,
-          readEnvFiles(path.join(rootDir, sourceDir, project.key), files, readOptions),
+          readEnvFiles(
+            path.join(rootDir, sourceDir, project.key),
+            files,
+            { ...readOptions, sourceKey: project.key, environment },
+          ),
         ]),
       )
     : {}
@@ -701,10 +717,10 @@ async function main() {
   const sourceDir = manifest.sourceDir
 
   if (!teamSlug) {
-    throw new Error('Missing "teamSlug" in env manifest')
+    throw new Error('Missing Vercel team slug in iac.json')
   }
   if (!sourceDir) {
-    throw new Error('Missing "sourceDir" in env manifest')
+    throw new Error('Missing env.sourceDir in iac.json')
   }
 
   let teamId = ''
@@ -739,7 +755,7 @@ async function main() {
         if (dryRun) {
           console.log(
             c.yellow(
-              `[plan] ${project.key}: would create Vercel project "${projectName}" because env-manifest id is missing`,
+              `[plan] ${project.key}: would create Vercel project "${projectName}" because iac.json project id is missing`,
             ),
           )
           continue

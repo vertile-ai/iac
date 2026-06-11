@@ -5,15 +5,39 @@
     "key": "next-monorepo",
     "name": "next-monorepo"
   },
-  "environments": [
-    "development",
-    "test",
-    "uat",
-    "nightly",
-    "staging",
-    "preview",
-    "production"
-  ],
+  "environments": {
+    "development": {
+      "files": [
+        ".env.development"
+      ]
+    },
+    "test": {
+      "files": [
+        ".env.test"
+      ]
+    },
+    "uat": {
+      "files": [
+        ".env.uat"
+      ]
+    },
+    "nightly": {
+      "files": [
+        ".env.nightly"
+      ]
+    },
+    "staging": {
+      "files": [
+        ".env.staging"
+      ]
+    },
+    "preview": {},
+    "production": {
+      "files": [
+        ".env.production"
+      ]
+    }
+  },
   "providers": {
     "vercel": {
       "teamSlug": "vertile-ai",
@@ -108,38 +132,6 @@
         "admin"
       ],
       "sharedKey": "shared"
-    },
-    "environments": {
-      "development": {
-        "files": [
-          ".env.development"
-        ]
-      },
-      "test": {
-        "files": [
-          ".env.test"
-        ]
-      },
-      "uat": {
-        "files": [
-          ".env.uat"
-        ]
-      },
-      "nightly": {
-        "files": [
-          ".env.nightly"
-        ]
-      },
-      "staging": {
-        "files": [
-          ".env.staging"
-        ]
-      },
-      "production": {
-        "files": [
-          ".env.production"
-        ]
-      }
     },
     "metadata": {
       "shared": {

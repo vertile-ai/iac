@@ -11,6 +11,7 @@ import {
   assertBrowserProjectionAllowed,
   isAllowedInEnv,
   loadEnvMetadata,
+  manifestEnvEntries,
 } from './core/env-metadata.mjs'
 import { readManifest } from './core/manifest.mjs'
 import { readOption } from './shared.mjs'
@@ -36,7 +37,7 @@ function splitList(value) {
 
 function configuredVariants(manifest) {
   const variants = { ...defaultVariants }
-  const configured = manifest.env?.environments || {}
+  const configured = manifest.environmentFiles || {}
   for (const [name, config] of Object.entries(configured)) {
     const strict = config && typeof config === 'object' && !Array.isArray(config)
       ? config.strict ?? true
@@ -75,7 +76,27 @@ function parseEnvLine(line) {
   const key = line.slice(0, eqIndex).trim()
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) return null
 
-  return { key, value: line.slice(eqIndex + 1) }
+  return { key, value: parseEnvValue(line.slice(eqIndex + 1)) }
+}
+
+function parseEnvValue(rawValue) {
+  const trimmed = rawValue.trim()
+  if (trimmed.length < 2) return rawValue
+
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      return typeof parsed === 'string' ? parsed : rawValue
+    } catch {
+      return rawValue
+    }
+  }
+
+  if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
+    return trimmed.slice(1, -1)
+  }
+
+  return rawValue
 }
 
 function readEnvFile(filePath) {
@@ -99,7 +120,7 @@ function mergeLayers(layers) {
 }
 
 function entriesToLines(entries) {
-  return entries.map(({ key, value }) => `${key}=${value}`)
+  return entries.map(({ key, value }) => `${key}=${JSON.stringify(String(value))}`)
 }
 
 function ensureTrailingNewline(content) {
@@ -240,11 +261,195 @@ function writeEnvExampleFromMetadata({ rootDir, baseDir, sourceKey, manifest, dr
   return path.relative(rootDir, outputPath)
 }
 
+function configuredMetadataSourceKeys(manifest) {
+  const configured = manifest.env?.metadata || manifest.env?.envJson
+  if (!configured || typeof configured !== 'object' || Array.isArray(configured)) return []
+
+  const keys = []
+  for (const key of Object.keys(configured)) {
+    if (key !== 'sources') keys.push(key)
+  }
+  const sources = configured.sources
+  if (sources && typeof sources === 'object' && !Array.isArray(sources)) {
+    keys.push(...Object.keys(sources))
+  }
+  return [...new Set(keys)]
+}
+
+function usesDirectOutputs(manifest) {
+  const sync = manifest.env?.sync || {}
+  if (
+    sync.directOutputs === true ||
+    sync.targetedOutputs === true ||
+    sync.targetedMetadata === true
+  ) {
+    return true
+  }
+
+  for (const sourceKey of configuredMetadataSourceKeys(manifest)) {
+    const metadata = loadEnvMetadata({ baseDir: sourceKey, sourceKey, manifest })
+    if ([...metadata.entries.values()].some((entry) => entry.packages.length > 0)) return true
+  }
+  return false
+}
+
+function packageRefForPackage(entry, packageConfig) {
+  return entry.packages.find((packageRef) => packageRef.package === packageConfig.key)
+}
+
+function valueForMetadataEntry({ entry, environment, metadata }) {
+  if (!entry.valuesConfigured) return undefined
+
+  const hasEnvironmentValue = Object.hasOwn(entry.values, environment)
+  const hasDefaultValue = Object.hasOwn(entry.values, 'default')
+  const hasValue = entry.value !== undefined
+  if (!hasEnvironmentValue && !hasDefaultValue && !hasValue) {
+    throw new Error(
+      `${metadataDisplayPath(metadata, process.cwd())} metadata for ${entry.key} must define value, values.default, or values.${environment}.`,
+    )
+  }
+
+  return hasEnvironmentValue
+    ? entry.values[environment]
+    : hasDefaultValue
+      ? entry.values.default
+      : entry.value
+}
+
+function directOutputEntriesForApp({
+  rootDir,
+  sourceRoot,
+  sourceKeys,
+  app,
+  variant,
+  manifest,
+  example = false,
+}) {
+  const layers = []
+  const sourceLabels = []
+
+  for (const sourceKey of sourceKeys) {
+    const baseDir = path.join(sourceRoot, sourceKey)
+    const metadata = loadEnvMetadata({ baseDir, sourceKey, manifest })
+    if (!metadata.required) continue
+
+    const entries = []
+    for (const entry of metadata.entries.values()) {
+      const packageRef = packageRefForPackage(entry, app)
+      if (!packageRef) continue
+      if (!example && !isAllowedInEnv(entry, variant.name)) continue
+      if (example && entry.includeInExample === false) continue
+
+      const outputKey = packageRef.key || entry.key
+      const outputEntry = {
+        ...entry,
+        key: outputKey,
+        value: example
+          ? entry.example
+          : valueForMetadataEntry({ entry, environment: variant.name, metadata }),
+        metadata: entry,
+      }
+      if (!example && outputEntry.value === undefined) continue
+
+      assertBrowserProjectionAllowed({
+        entries: [outputEntry],
+        prefix: '',
+        metadataPath: metadataDisplayPath(metadata, rootDir),
+      })
+      entries.push(outputEntry)
+    }
+
+    if (entries.length > 0) {
+      layers.push(entries)
+      sourceLabels.push(
+        example
+          ? `${metadataDisplayPath(metadata, rootDir)} example`
+          : `${metadataDisplayPath(metadata, rootDir)} values.${variant.name}`,
+      )
+    }
+  }
+
+  return {
+    entries: mergeLayers(layers),
+    sourceLabel: sourceLabels.join(' + '),
+  }
+}
+
+function appExampleOutputPath(rootDir, app) {
+  const configured =
+    app.env?.examplePath ||
+    app.env?.exampleOutput ||
+    app.examplePath ||
+    app.exampleOutput
+  if (configured) {
+    return path.isAbsolute(configured) ? configured : path.join(rootDir, configured)
+  }
+  return path.join(appOutputDir(rootDir, app), '.env.example')
+}
+
+function manifestLayerForVariant({ baseDir, sourceKey, variant, manifest }) {
+  return manifestEnvEntries({
+    baseDir,
+    manifest,
+    sourceKey,
+    environment: variant.name,
+  })
+}
+
+function writeManifestValuesForVariant({ rootDir, baseDir, sourceKey, variant, manifest, dryRun }) {
+  const manifestLayer = manifestLayerForVariant({ baseDir, sourceKey, variant, manifest })
+  if (!manifestLayer) return { handled: false, patches: [] }
+
+  const outputPath = path.join(baseDir, variant.output)
+  if (manifestLayer.entries.length === 0) {
+    if (!fs.existsSync(outputPath)) return { handled: true, patches: [] }
+
+    const before = fs.readFileSync(outputPath, 'utf8')
+    const beforeEnv = linesToEnvMap(before.split(/\r?\n/))
+    if (!dryRun) fs.rmSync(outputPath, { force: true })
+    return {
+      handled: true,
+      patches: [...beforeEnv.keys()].map((key) => ({
+        envFile: path.relative(rootDir, outputPath),
+        key,
+        action: 'manifest-values-removed',
+      })),
+    }
+  }
+
+  const content = `${entriesToLines(manifestLayer.entries).join('\n')}\n`
+  const before = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf8') : ''
+  if (before === content) return { handled: true, patches: [] }
+
+  if (!dryRun) {
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true })
+    fs.writeFileSync(outputPath, content, 'utf8')
+  }
+
+  const beforeEnv = linesToEnvMap(before.split(/\r?\n/))
+  const afterEnv = linesToEnvMap(content.split(/\r?\n/))
+  const patches = diffEnvMaps(beforeEnv, afterEnv).map((change) => ({
+    envFile: path.relative(rootDir, outputPath),
+    key: change.key,
+    action: `manifest-values-${change.type}`,
+  }))
+
+  return { handled: true, patches }
+}
+
 function resolveLayer({ rootDir, baseDir, sourceKey, variant, manifest }) {
   const examplePath = path.join(baseDir, '.env.example')
   const sourcePaths = variant.sources.map((source) => path.join(baseDir, source))
   const existingSourcePaths = sourcePaths.filter((sourcePath) => fs.existsSync(sourcePath))
   const metadata = loadEnvMetadata({ baseDir, manifest, sourceKey })
+  const manifestLayer = manifestLayerForVariant({ baseDir, sourceKey, variant, manifest })
+  if (manifestLayer) {
+    return {
+      entries: manifestLayer.entries,
+      metadataPath: metadataDisplayPath(metadata, rootDir),
+      sourceLabel: manifestLayer.sourceLabel,
+    }
+  }
 
   if (variant.strict) {
     if (existingSourcePaths.length === 0) {
@@ -374,7 +579,7 @@ function assertRequiredSharedAliases({ sharedLayer, projectedLayer, app, require
   }
 
   throw new Error(
-    `shared env projection parity failed for app "${app.key}": ${details.join('; ')}`,
+    `shared prefix projection parity failed for app "${app.key}": ${details.join('; ')}`,
   )
 }
 
@@ -425,19 +630,48 @@ function diffEnvMaps(before, after) {
   return changes
 }
 
-function syncApps(manifest) {
-  const configured = manifest.env.sync?.apps
+function normalizePackageConfig(item) {
+  if (typeof item === 'string' && item.trim()) {
+    return { key: item.trim(), name: item.trim(), rootDirectory: item.trim() }
+  }
+
+  const config = item && typeof item === 'object' && !Array.isArray(item) ? item : null
+  if (!config) return null
+
+  const key = config.key || config.name
+  if (typeof key !== 'string' || key.trim() === '') return null
+
+  return {
+    ...config,
+    key: key.trim(),
+    name: typeof config.name === 'string' && config.name.trim() ? config.name.trim() : key.trim(),
+    rootDirectory: config.directory || config.dir || config.path || config.rootDirectory,
+  }
+}
+
+function manifestPackages(manifest) {
+  const configured = Array.isArray(manifest.packages)
+    ? manifest.packages
+    : Array.isArray(manifest.env?.packages)
+      ? manifest.env.packages
+      : manifest.apps
+  return (configured || []).map(normalizePackageConfig).filter(Boolean)
+}
+
+function syncPackages(manifest) {
+  const configured = manifest.env.sync?.packages || manifest.env.sync?.apps
+  const packages = manifestPackages(manifest)
   if (Array.isArray(configured) && configured.length > 0) {
     const keys = new Set(configured)
-    return manifest.apps.filter((app) => keys.has(app.key))
+    return packages.filter((packageConfig) => keys.has(packageConfig.key))
   }
-  return manifest.apps
+  return packages
 }
 
 function appOutputDir(rootDir, app) {
   const configured = app.env?.outputDir || app.outputDir || app.rootDirectory
   if (!configured) {
-    throw new Error(`Missing rootDirectory or env.outputDir for app "${app.key}"`)
+    throw new Error(`Missing directory, rootDirectory, or env.outputDir for package "${app.key}"`)
   }
   return path.isAbsolute(configured) ? configured : path.join(rootDir, configured)
 }
@@ -476,9 +710,14 @@ async function main() {
 
   const sourceRoot = path.join(context.repoRoot, envSourceDir(manifest))
   const sharedKey = manifest.env.sync?.sharedKey || manifest.env.sharedKey || 'shared'
-  const apps = syncApps(manifest)
+  const apps = syncPackages(manifest)
   const sharedPrefixes = apps.map(appSharedPrefix).filter(Boolean)
-  const sourceKeys = new Set([sharedKey, ...apps.map(appSourceKey)])
+  const sourceKeys = new Set([
+    sharedKey,
+    ...apps.map(appSourceKey),
+    ...configuredMetadataSourceKeys(manifest),
+  ])
+  const directOutputs = usesDirectOutputs(manifest)
   const shouldPatchVariants =
     hasFlag(argv, '--patch-variants-from-example') ||
     manifest.env?.sync?.patchVariantsFromExample === true
@@ -487,7 +726,36 @@ async function main() {
     manifest.env?.sync?.forbidSharedOverrides === true
   const sharedAliases = requiredSharedAliases(manifest)
 
-  if (writeExamples) {
+  if (writeExamples && directOutputs) {
+    for (const app of apps) {
+      const result = directOutputEntriesForApp({
+        rootDir: context.repoRoot,
+        sourceRoot,
+        sourceKeys,
+        app,
+        variant: { name: 'example' },
+        manifest,
+        example: true,
+      })
+      if (result.entries.length === 0) continue
+
+      const outputPath = appExampleOutputPath(context.repoRoot, app)
+      const content = [
+        '# AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY.',
+        `# Source: ${result.sourceLabel}`,
+        '',
+        ...entriesToLines(result.entries),
+        '',
+      ].join('\n')
+      const before = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf8') : ''
+      if (before === content) continue
+      if (!dryRun) {
+        fs.mkdirSync(path.dirname(outputPath), { recursive: true })
+        fs.writeFileSync(outputPath, content, 'utf8')
+      }
+      console.log(`${dryRun ? 'Would write' : 'Wrote'} ${path.relative(context.repoRoot, outputPath)}`)
+    }
+  } else if (writeExamples) {
     for (const sourceKey of sourceKeys) {
       const writtenPath = writeEnvExampleFromMetadata({
         rootDir: context.repoRoot,
@@ -503,10 +771,32 @@ async function main() {
   }
 
   const variantPatches = []
-  if (shouldPatchVariants || reconcileDelete) {
+  const manifestValueVariants = new Set()
+  if (!directOutputs) {
     for (const sourceKey of sourceKeys) {
       const baseDir = path.join(sourceRoot, sourceKey)
       for (const variant of variants) {
+        const result = writeManifestValuesForVariant({
+          rootDir: context.repoRoot,
+          baseDir,
+          sourceKey,
+          variant,
+          manifest,
+          dryRun,
+        })
+        if (result.handled) {
+          manifestValueVariants.add(`${sourceKey}:${variant.name}`)
+          variantPatches.push(...result.patches)
+        }
+      }
+    }
+  }
+
+  if (!directOutputs && (shouldPatchVariants || reconcileDelete)) {
+    for (const sourceKey of sourceKeys) {
+      const baseDir = path.join(sourceRoot, sourceKey)
+      for (const variant of variants) {
+        if (manifestValueVariants.has(`${sourceKey}:${variant.name}`)) continue
         if (shouldPatchVariants) {
           variantPatches.push(...patchVariantFromExample({
             rootDir: context.repoRoot,
@@ -538,6 +828,54 @@ async function main() {
 
   for (const app of apps) {
     for (const variant of variants) {
+      if (directOutputs) {
+        const result = directOutputEntriesForApp({
+          rootDir: context.repoRoot,
+          sourceRoot,
+          sourceKeys,
+          app,
+          variant,
+          manifest,
+        })
+        const mergedLines = entriesToLines(result.entries)
+        const outputPath = path.join(appOutputDir(context.repoRoot, app), variant.output)
+        const before = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf8') : ''
+        const content = [
+          '# AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY.',
+          `# Source: ${result.sourceLabel}`,
+          '',
+          ...mergedLines,
+          '',
+        ].join('\n')
+
+        if (before === content) continue
+
+        const beforeEnv = linesToEnvMap(before.split(/\r?\n/))
+        const afterEnv = linesToEnvMap(mergedLines)
+        const changes = diffEnvMaps(beforeEnv, afterEnv)
+
+        if (!dryRun) {
+          fs.mkdirSync(path.dirname(outputPath), { recursive: true })
+          fs.writeFileSync(outputPath, content, 'utf8')
+        }
+
+        for (const change of changes) {
+          const verb = dryRun
+            ? change.type === 'added'
+              ? 'Would add'
+              : change.type === 'removed'
+                ? 'Would remove'
+                : 'Would update'
+            : change.type === 'added'
+              ? 'Added'
+              : change.type === 'removed'
+                ? 'Removed'
+                : 'Updated'
+          console.log(`${verb} ${path.relative(context.repoRoot, outputPath)} ${change.key}`)
+        }
+        continue
+      }
+
       const shared = resolveLayer({
         rootDir: context.repoRoot,
         baseDir: path.join(sourceRoot, sharedKey),

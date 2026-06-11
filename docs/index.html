@@ -225,7 +225,11 @@
         <pre><code>{
   "version": 1,
   "project": { "name": "example" },
-  "environments": ["development", "preview", "production"],
+  "environments": {
+    "development": { "files": [".env.development"] },
+    "preview": { "files": [".env.staging"] },
+    "production": { "files": [".env.production"] }
+  },
   "providers": {
     "vercel": { "team": "example-team" },
     "aws": { "region": "us-east-1" },

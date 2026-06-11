@@ -24,12 +24,27 @@ async function createFixture() {
   await mkdir(path.join(root, 'infrastructure', 'app'), { recursive: true })
 
   await writeFile(
-    path.join(root, 'infrastructure', 'iac', 'env-manifest.json'),
+    path.join(root, 'infrastructure', 'iac', 'iac.json'),
     JSON.stringify(
       {
-        teamSlug: 'example-team',
-        sourceDir: 'infrastructure',
-        projects: [{ key: 'app', id: 'prj_test', name: 'example-app' }],
+        version: 1,
+        project: { name: 'example' },
+        environments: ['staging', 'production'],
+        providers: {
+          vercel: {
+            teamSlug: 'example-team',
+          },
+        },
+        env: {
+          sourceDir: 'infrastructure',
+        },
+        apps: [
+          {
+            key: 'app',
+            id: 'prj_test',
+            name: 'example-app',
+          },
+        ],
       },
       null,
       2,
@@ -65,7 +80,14 @@ async function createUnifiedFixture() {
       {
         version: 1,
         project: { name: 'example' },
-        environments: ['preview', 'production'],
+        environments: {
+          preview: {},
+          production: {},
+          uat: {
+            files: ['.env.uat', '.env.uat.local'],
+            output: '.env.uat',
+          },
+        },
         providers: {
           vercel: {
             teamSlug: 'example-team',
@@ -78,9 +100,16 @@ async function createUnifiedFixture() {
         env: {
           sourceDir: 'config/env',
           sync: {
-            apps: ['app'],
+            packages: ['app'],
           },
         },
+        packages: [
+          {
+            key: 'app',
+            name: 'example-app',
+            directory: 'packages/app',
+          },
+        ],
         apps: [
           {
             key: 'app',
@@ -126,9 +155,17 @@ async function createEnvMetadataFixture() {
         env: {
           sourceDir: 'config/env',
           sync: {
-            apps: ['web'],
+            packages: ['web'],
           },
         },
+        packages: [
+          {
+            key: 'web',
+            name: 'env-metadata-web',
+            directory: 'packages/web',
+            env: { sharedPrefix: 'WEB_' },
+          },
+        ],
         apps: [
           {
             key: 'web',
@@ -219,7 +256,14 @@ async function createDefaultEnvSourceFixture() {
       {
         version: 1,
         project: { name: 'default-env-source' },
-        environments: ['preview', 'production'],
+        environments: {
+          preview: {},
+          production: {},
+          uat: {
+            files: ['.env.uat', '.env.uat.local'],
+            output: '.env.uat',
+          },
+        },
         providers: {
           vercel: {
             teamSlug: 'example-team',
@@ -230,14 +274,7 @@ async function createDefaultEnvSourceFixture() {
             },
           },
         },
-        env: {
-          environments: {
-            uat: {
-              files: ['.env.uat', '.env.uat.local'],
-              output: '.env.uat',
-            },
-          },
-        },
+        env: {},
         apps: [
           {
             key: 'api',
@@ -283,6 +320,11 @@ function declaredTargets(manifest) {
   return supportedTargets.filter((target) => manifest.providers[target])
 }
 
+function environmentObject(environments) {
+  if (!Array.isArray(environments)) return environments
+  return Object.fromEntries(environments.map((environment) => [environment, {}]))
+}
+
 test('resolves explicit project paths and auto-create controls', async () => {
   const root = await createFixture()
 
@@ -295,7 +337,6 @@ test('resolves explicit project paths and auto-create controls', async () => {
     ])
 
     assert.equal(context.repoRoot, root)
-    assert.equal(context.manifestPath, path.join(root, 'infrastructure', 'iac', 'env-manifest.json'))
     assert.equal(context.iacManifestPath, path.join(root, 'infrastructure', 'iac', 'iac.json'))
     assert.equal(context.shouldAutoCreateProject('app'), true)
     assert.equal(context.shouldAutoCreateProject('template-demo'), true)
@@ -324,8 +365,8 @@ test('syncs package env files from unified iac.json env source', async () => {
 
     const content = await readFile(path.join(root, 'packages', 'app', '.env.staging'), 'utf8')
     assert.match(content, /Source: config\/env\/shared\/\.env\.staging \+ config\/env\/app\/\.env\.staging/)
-    assert.match(content, /^SHARED=value$/m)
-    assert.match(content, /^APP=value$/m)
+    assert.match(content, /^SHARED="value"$/m)
+    assert.match(content, /^APP="value"$/m)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -354,7 +395,7 @@ test('syncs single-source apps without layering the same source twice', async ()
     const content = await readFile(path.join(root, 'packages', 'app', '.env.staging'), 'utf8')
     assert.match(content, /Source: config\/env\/app\/\.env\.staging/)
     assert.doesNotMatch(content, /config\/env\/app\/\.env\.staging \+ config\/env\/app\/\.env\.staging/)
-    assert.match(content, /^APP=value$/m)
+    assert.match(content, /^APP="value"$/m)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -368,7 +409,8 @@ test('patches and reconciles selected env variants from examples', async () => {
   try {
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
     manifest.env.sync.patchVariantsFromExample = true
-    manifest.env.environments = {
+    manifest.environments = {
+      ...environmentObject(manifest.environments),
       local: { files: ['.env.local'], strict: false },
     }
     await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
@@ -445,7 +487,7 @@ test('patches and reconciles selected env variants from examples', async () => {
     assert.match(reconcileResult.stdout, /Patched config\/env\/app\/\.env\.local STALE \(removed-stale-key\)/)
 
     const appLocal = await readFile(path.join(root, 'config', 'env', 'app', '.env.local'), 'utf8')
-    assert.match(appLocal, /^APP=kept$/m)
+    assert.match(appLocal, /^APP="kept"$/m)
     assert.doesNotMatch(appLocal, /^STALE=/m)
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -500,8 +542,8 @@ test('reconcile-delete treats env metadata as the source of truth', async () => 
     assert.equal(result.stderr, '')
 
     const webStaging = await readFile(path.join(root, 'config', 'env', 'web', '.env.staging'), 'utf8')
-    assert.match(webStaging, /^PORT=3000$/m)
-    assert.match(webStaging, /^PRIVATE_TOKEN=secret$/m)
+    assert.match(webStaging, /^PORT="3000"$/m)
+    assert.match(webStaging, /^PRIVATE_TOKEN="secret"$/m)
     assert.doesNotMatch(webStaging, /^STALE=/m)
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -591,15 +633,249 @@ test('uses iac.json env metadata and respects excludeEnv when populating variant
     assert.equal(result.stderr, '')
 
     const previewSource = await readFile(path.join(root, 'config', 'env', 'app', '.env.staging'), 'utf8')
-    assert.match(previewSource, /^PREVIEW_ONLY=preview-only$/m)
+    assert.match(previewSource, /^PREVIEW_ONLY="preview-only"$/m)
 
     const productionSource = await readFile(path.join(root, 'config', 'env', 'app', '.env.production'), 'utf8')
-    assert.match(productionSource, /^APP=app$/m)
+    assert.match(productionSource, /^APP="app"$/m)
     assert.doesNotMatch(productionSource, /^PREVIEW_ONLY=/m)
 
     const productionPackage = await readFile(path.join(root, 'packages', 'app', '.env.production'), 'utf8')
-    assert.match(productionPackage, /^APP=app$/m)
+    assert.match(productionPackage, /^APP="app"$/m)
     assert.doesNotMatch(productionPackage, /^PREVIEW_ONLY=/m)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('generates source and package env files from iac.json metadata values', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+
+  try {
+    await rm(path.join(root, 'config', 'env', 'shared', '.env.staging'), { force: true })
+    await rm(path.join(root, 'config', 'env', 'app', '.env.staging'), { force: true })
+
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.environments = {
+      staging: { files: ['.env.staging'] },
+      production: { files: ['.env.production'] },
+    }
+    manifest.env.metadata = {
+      shared: {
+        variables: [
+          {
+            key: 'SHARED',
+            example: 'shared-example',
+            encrypted: true,
+            browser: false,
+            values: {
+              staging: 'shared-staging',
+              production: 'shared-production',
+            },
+          },
+        ],
+      },
+      app: {
+        variables: [
+          {
+            key: 'APP',
+            example: 'app-example',
+            encrypted: true,
+            browser: false,
+            values: {
+              staging: 'app-staging',
+              production: 'app-production',
+            },
+          },
+          {
+            key: 'COMMON',
+            example: 'common-example',
+            encrypted: false,
+            browser: false,
+            value: 'common-value',
+          },
+          {
+            key: 'METADATA_ONLY',
+            example: 'metadata-only-example',
+            encrypted: false,
+            browser: false,
+          },
+        ],
+      },
+    }
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+
+    const result = await execNode([
+      path.join(packageRoot, 'src', 'cli.mjs'),
+      'sync-env',
+      '--repo-root',
+      root,
+      '--variants=staging,production',
+    ], packageRoot)
+
+    assert.equal(result.code, 0, result.stderr)
+    assert.equal(result.stderr, '')
+
+    const sharedStaging = await readFile(path.join(root, 'config', 'env', 'shared', '.env.staging'), 'utf8')
+    assert.match(sharedStaging, /^SHARED="shared-staging"$/m)
+
+    const appProductionSource = await readFile(path.join(root, 'config', 'env', 'app', '.env.production'), 'utf8')
+    assert.match(appProductionSource, /^APP="app-production"$/m)
+    assert.match(appProductionSource, /^COMMON="common-value"$/m)
+
+    await writeFile(path.join(root, 'config', 'env', 'app', '.env.staging'), 'STALE=stale\n')
+    manifest.env.metadata.app.variables = [
+      {
+        key: 'PRODUCTION_ONLY',
+        example: 'production-only-example',
+        encrypted: false,
+        browser: false,
+        values: {
+          production: 'production-only',
+        },
+        includeEnv: ['production'],
+      },
+    ]
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+
+    const cleanupResult = await execNode([
+      path.join(packageRoot, 'src', 'cli.mjs'),
+      'sync-env',
+      '--repo-root',
+      root,
+      '--variants=staging',
+    ], packageRoot)
+
+    assert.equal(cleanupResult.code, 0, cleanupResult.stderr)
+    await assert.rejects(
+      stat(path.join(root, 'config', 'env', 'app', '.env.staging')),
+      { code: 'ENOENT' },
+    )
+
+    manifest.env.metadata.app.variables = [
+      {
+        key: 'APP',
+        example: 'app-example',
+        encrypted: true,
+        browser: false,
+        values: {
+          staging: 'app-staging',
+          production: 'app-production',
+        },
+      },
+      {
+        key: 'COMMON',
+        example: 'common-example',
+        encrypted: false,
+        browser: false,
+        value: 'common-value',
+      },
+      {
+        key: 'METADATA_ONLY',
+        example: 'metadata-only-example',
+        encrypted: false,
+        browser: false,
+      },
+    ]
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+    await execNode([
+      path.join(packageRoot, 'src', 'cli.mjs'),
+      'sync-env',
+      '--repo-root',
+      root,
+      '--variants=staging',
+    ], packageRoot)
+
+    const appStagingPackage = await readFile(path.join(root, 'packages', 'app', '.env.staging'), 'utf8')
+    assert.match(appStagingPackage, /^SHARED="shared-staging"$/m)
+    assert.match(appStagingPackage, /^APP="app-staging"$/m)
+    assert.match(appStagingPackage, /^COMMON="common-value"$/m)
+    assert.doesNotMatch(appStagingPackage, /^METADATA_ONLY=/m)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('generates targeted package env and examples directly from iac.json metadata', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+
+  try {
+    await rm(path.join(root, 'config', 'env', 'shared', '.env.staging'), { force: true })
+    await rm(path.join(root, 'config', 'env', 'app', '.env.staging'), { force: true })
+
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.env.sync.directOutputs = true
+    manifest.env.metadata = {
+      platform: {
+        variables: [
+          {
+            key: 'DATABASE_URL',
+            example: 'postgres://user:password@host/db',
+            encrypted: true,
+            browser: false,
+            targets: ['app'],
+            values: {
+              staging: 'postgres://staging',
+              production: 'postgres://production',
+            },
+          },
+          {
+            key: 'PUBLIC_BASE_URL',
+            example: 'https://example.com',
+            encrypted: false,
+            browser: true,
+            targets: [{ app: 'app', key: 'NEXT_PUBLIC_BASE_URL' }],
+            value: 'https://app.example.com',
+          },
+          {
+            key: 'HIDDEN_INTERNAL',
+            example: 'hidden-example',
+            encrypted: true,
+            browser: false,
+            includeInExample: false,
+            targets: ['app'],
+            value: 'hidden-value',
+          },
+        ],
+      },
+    }
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+
+    const result = await execNode([
+      path.join(packageRoot, 'src', 'cli.mjs'),
+      'sync-env',
+      '--repo-root',
+      root,
+      '--variants=staging',
+      '--write-examples',
+    ], packageRoot)
+
+    assert.equal(result.code, 0, result.stderr)
+    assert.equal(result.stderr, '')
+    assert.match(result.stdout, /Wrote packages\/app\/\.env\.example/)
+    assert.doesNotMatch(result.stdout, /config\/env\/platform\/\.env/)
+
+    const packageEnv = await readFile(path.join(root, 'packages', 'app', '.env.staging'), 'utf8')
+    assert.match(packageEnv, /^DATABASE_URL="postgres:\/\/staging"$/m)
+    assert.match(packageEnv, /^NEXT_PUBLIC_BASE_URL="https:\/\/app\.example\.com"$/m)
+    assert.match(packageEnv, /^HIDDEN_INTERNAL="hidden-value"$/m)
+    assert.doesNotMatch(packageEnv, /^PUBLIC_BASE_URL=/m)
+
+    const packageExample = await readFile(path.join(root, 'packages', 'app', '.env.example'), 'utf8')
+    assert.match(packageExample, /^DATABASE_URL="postgres:\/\/user:password@host\/db"$/m)
+    assert.match(packageExample, /^NEXT_PUBLIC_BASE_URL="https:\/\/example\.com"$/m)
+    assert.doesNotMatch(packageExample, /^HIDDEN_INTERNAL=/m)
+    assert.doesNotMatch(packageExample, /^PUBLIC_BASE_URL=/m)
+
+    await assert.rejects(
+      stat(path.join(root, 'config', 'env', 'platform', '.env.staging')),
+      { code: 'ENOENT' },
+    )
+    await assert.rejects(
+      stat(path.join(root, 'config', 'env', 'platform', '.env.example')),
+      { code: 'ENOENT' },
+    )
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -673,11 +949,11 @@ test('respects includeEnv and excludeEnv precedence when populating variants', a
     assert.equal(result.stderr, '')
 
     const previewSource = await readFile(path.join(root, 'config', 'env', 'app', '.env.staging'), 'utf8')
-    assert.match(previewSource, /^INCLUDE_PREVIEW_ONLY=preview$/m)
-    assert.match(previewSource, /^INCLUDE_AFTER_EXCLUDE=preview-after-exclude$/m)
+    assert.match(previewSource, /^INCLUDE_PREVIEW_ONLY="preview"$/m)
+    assert.match(previewSource, /^INCLUDE_AFTER_EXCLUDE="preview-after-exclude"$/m)
 
     const productionSource = await readFile(path.join(root, 'config', 'env', 'app', '.env.production'), 'utf8')
-    assert.match(productionSource, /^APP=app$/m)
+    assert.match(productionSource, /^APP="app"$/m)
     assert.doesNotMatch(productionSource, /^INCLUDE_PREVIEW_ONLY=/m)
     assert.doesNotMatch(productionSource, /^INCLUDE_AFTER_EXCLUDE=/m)
   } finally {
@@ -737,7 +1013,8 @@ test('respects includeEnv and excludeEnv when non-strict variants layer examples
 
   try {
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
-    manifest.env.environments = {
+    manifest.environments = {
+      ...environmentObject(manifest.environments),
       production: {
         files: ['.env.production'],
         strict: false,
@@ -793,7 +1070,7 @@ test('respects includeEnv and excludeEnv when non-strict variants layer examples
     assert.equal(result.stderr, '')
 
     const productionPackage = await readFile(path.join(root, 'packages', 'app', '.env.production'), 'utf8')
-    assert.match(productionPackage, /^APP=prod$/m)
+    assert.match(productionPackage, /^APP="prod"$/m)
     assert.doesNotMatch(productionPackage, /^LOCAL_ONLY=/m)
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -846,7 +1123,7 @@ test('ignores env metadata excludeEnv values outside manifest environments', asy
     assert.equal(result.stderr, '')
 
     const previewSource = await readFile(path.join(root, 'config', 'env', 'app', '.env.staging'), 'utf8')
-    assert.match(previewSource, /^PREVIEW_ONLY=preview$/m)
+    assert.match(previewSource, /^PREVIEW_ONLY="preview"$/m)
 
     const productionSource = await readFile(path.join(root, 'config', 'env', 'app', '.env.production'), 'utf8')
     assert.doesNotMatch(productionSource, /^PREVIEW_ONLY=/m)
@@ -907,7 +1184,7 @@ test('ignores env metadata includeEnv values outside manifest environments', asy
     assert.equal(result.stderr, '')
 
     const previewSource = await readFile(path.join(root, 'config', 'env', 'app', '.env.staging'), 'utf8')
-    assert.match(previewSource, /^PREVIEW_OR_UNKNOWN=preview$/m)
+    assert.match(previewSource, /^PREVIEW_OR_UNKNOWN="preview"$/m)
     assert.doesNotMatch(previewSource, /^UNKNOWN_ONLY=/m)
 
     const productionSource = await readFile(path.join(root, 'config', 'env', 'app', '.env.production'), 'utf8')
@@ -918,7 +1195,7 @@ test('ignores env metadata includeEnv values outside manifest environments', asy
   }
 })
 
-test('derives Vercel env manifest with embedded iac env metadata', async () => {
+test('derives Vercel env config with embedded iac env metadata', async () => {
   const root = await createUnifiedFixture()
   const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
 
@@ -941,36 +1218,9 @@ test('derives Vercel env manifest with embedded iac env metadata', async () => {
     const manifest = readManifest(manifestPath)
     const envManifest = vercelEnvManifestFromIac(manifest)
 
-    assert.deepEqual(envManifest.environments, ['preview', 'production'])
+    assert.deepEqual(envManifest.environments, ['preview', 'production', 'uat'])
     assert.equal(envManifest.env.metadata.app.variables[0].key, 'APP')
     assert.equal(envManifest.env.metadata.app.variables[0].encrypted, false)
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test('defaults to iac.json when legacy env manifest is also present', async () => {
-  const root = await createUnifiedFixture()
-  await writeFile(
-    path.join(root, 'infrastructure', 'iac', 'env-manifest.json'),
-    JSON.stringify(
-      {
-        teamSlug: 'legacy-team',
-        sourceDir: 'legacy-env',
-        projects: [{ key: 'legacy', id: 'prj_legacy', name: 'legacy-app' }],
-      },
-      null,
-      2,
-    ) + '\n',
-  )
-
-  try {
-    const context = resolveIacContext(['--repo-root', root])
-    const manifest = readVercelEnvManifest(context)
-
-    assert.equal(manifest.teamSlug, 'example-team')
-    assert.equal(manifest.sourceDir, 'config/env')
-    assert.deepEqual(manifest.projects.map(({ key }) => key), ['app'])
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -1020,8 +1270,8 @@ test('validates .env.json metadata and projects browser-safe shared keys', async
     assert.equal(result.stderr, '')
 
     const content = await readFile(path.join(root, 'packages', 'web', '.env.staging'), 'utf8')
-    assert.match(content, /^NEXT_PUBLIC_BASE_URL=https:\/\/staging\.example\.com$/m)
-    assert.match(content, /^PORT=3000$/m)
+    assert.match(content, /^NEXT_PUBLIC_BASE_URL="https:\/\/staging\.example\.com"$/m)
+    assert.match(content, /^PORT="3000"$/m)
     assert.doesNotMatch(content, /^DATABASE_URL=/m)
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -1095,11 +1345,11 @@ test('exports .env.example from object-map .env.json metadata', async () => {
     assert.match(result.stdout, /Wrote config\/env\/shared\/\.env\.example/)
 
     const example = await readFile(path.join(root, 'config', 'env', 'shared', '.env.example'), 'utf8')
-    assert.match(example, /^WEB_NEXT_PUBLIC_BASE_URL=https:\/\/example\.com$/m)
+    assert.match(example, /^WEB_NEXT_PUBLIC_BASE_URL="https:\/\/example\.com"$/m)
     assert.doesNotMatch(example, /^DATABASE_URL=/m)
 
     const synced = await readFile(path.join(root, 'packages', 'web', '.env.staging'), 'utf8')
-    assert.match(synced, /^NEXT_PUBLIC_BASE_URL=https:\/\/staging\.example\.com$/m)
+    assert.match(synced, /^NEXT_PUBLIC_BASE_URL="https:\/\/staging\.example\.com"$/m)
     assert.doesNotMatch(synced, /^DATABASE_URL=/m)
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -1256,10 +1506,10 @@ test('defaults iac.json env source to .vertile-iac/env for single-package apps',
 
     const content = await readFile(path.join(root, '.env.staging'), 'utf8')
     assert.match(content, /Source: \.vertile-iac\/env\/shared\/\.env\.staging \+ \.vertile-iac\/env\/api\/\.env\.staging/)
-    assert.match(content, /^SHARED=value$/m)
-    assert.match(content, /^API=value$/m)
-    assert.match(content, /^OVERRIDE=api$/m)
-    assert.doesNotMatch(content, /^OVERRIDE=shared$/m)
+    assert.match(content, /^SHARED="value"$/m)
+    assert.match(content, /^API="value"$/m)
+    assert.match(content, /^OVERRIDE="api"$/m)
+    assert.doesNotMatch(content, /^OVERRIDE="shared"$/m)
 
     const uatResult = await execNode([
       path.join(packageRoot, 'src', 'cli.mjs'),
@@ -1274,8 +1524,8 @@ test('defaults iac.json env source to .vertile-iac/env for single-package apps',
 
     const uatContent = await readFile(path.join(root, '.env.uat'), 'utf8')
     assert.match(uatContent, /Source: \.vertile-iac\/env\/shared\/\.env\.uat \+ \.vertile-iac\/env\/shared\/\.env\.uat\.local \+ \.vertile-iac\/env\/api\/\.env\.uat/)
-    assert.match(uatContent, /^SHARED_UAT=local$/m)
-    assert.match(uatContent, /^API_UAT=value$/m)
+    assert.match(uatContent, /^SHARED_UAT="local"$/m)
+    assert.match(uatContent, /^API_UAT="value"$/m)
 
     const envResult = await execNode([
       path.join(packageRoot, 'src', 'cli.mjs'),
@@ -1479,13 +1729,13 @@ test('published Next.js monorepo example exercises Vercel env and render flows',
     assert.equal(syncResult.stderr, '')
 
     const stagingEnv = await readFile(path.join(root, 'apps', 'web', '.env.staging'), 'utf8')
-    assert.match(stagingEnv, /^NEXT_PUBLIC_APP_ENV=preview$/m)
-    assert.match(stagingEnv, /^DATABASE_URL=postgres:\/\/preview-user/m)
+    assert.match(stagingEnv, /^NEXT_PUBLIC_APP_ENV="preview"$/m)
+    assert.match(stagingEnv, /^DATABASE_URL="postgres:\/\/preview-user/m)
     assert.doesNotMatch(stagingEnv, /^ADMIN_NEXT_PUBLIC_APP_ENV=/m)
 
     const adminStagingEnv = await readFile(path.join(root, 'apps', 'admin', '.env.staging'), 'utf8')
-    assert.match(adminStagingEnv, /^NEXT_PUBLIC_APP_ENV=preview$/m)
-    assert.match(adminStagingEnv, /^ADMIN_DATABASE_URL=postgres:\/\/preview-admin/m)
+    assert.match(adminStagingEnv, /^NEXT_PUBLIC_APP_ENV="preview"$/m)
+    assert.match(adminStagingEnv, /^ADMIN_DATABASE_URL="postgres:\/\/preview-admin/m)
 
     const envResult = await execNode([
       path.join(packageRoot, 'src', 'cli.mjs'),

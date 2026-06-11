@@ -5,15 +5,39 @@
     "key": "bun-hono-api",
     "name": "bun-hono-api"
   },
-  "environments": [
-    "development",
-    "test",
-    "uat",
-    "nightly",
-    "staging",
-    "preview",
-    "production"
-  ],
+  "environments": {
+    "development": {
+      "files": [
+        ".env.development"
+      ]
+    },
+    "test": {
+      "files": [
+        ".env.test"
+      ]
+    },
+    "uat": {
+      "files": [
+        ".env.uat"
+      ]
+    },
+    "nightly": {
+      "files": [
+        ".env.nightly"
+      ]
+    },
+    "staging": {
+      "files": [
+        ".env.staging"
+      ]
+    },
+    "preview": {},
+    "production": {
+      "files": [
+        ".env.production"
+      ]
+    }
+  },
   "providers": {
     "digitalocean": {
       "region": "sfo3",
@@ -49,39 +73,5 @@
         }
       }
     }
-  ],
-  "env": {
-    "environments": {
-      "development": {
-        "files": [
-          ".env.development"
-        ]
-      },
-      "test": {
-        "files": [
-          ".env.test"
-        ]
-      },
-      "uat": {
-        "files": [
-          ".env.uat"
-        ]
-      },
-      "nightly": {
-        "files": [
-          ".env.nightly"
-        ]
-      },
-      "staging": {
-        "files": [
-          ".env.staging"
-        ]
-      },
-      "production": {
-        "files": [
-          ".env.production"
-        ]
-      }
-    }
-  }
+  ]
 }

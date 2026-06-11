@@ -24,7 +24,7 @@ infrastructure/iac/iac.json
 ```
 
 Env sync and Vercel compatibility metadata are also authored in this manifest
-under `env.sourceDir`, `env.environments`, `env.sync`, and
+under top-level `environments`, `env.sourceDir`, `env.sync`, and
 `env.metadata.<source-key>`.
 
 Generated Terraform lives under:
