@@ -15,9 +15,9 @@ function readJSON(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'))
 }
 
-function readUnifiedManifest(context, fallbackPath) {
+function readUnifiedManifest(context) {
   if (!fs.existsSync(context.iacManifestPath)) {
-    throw new Error(`Missing required file: ${fallbackPath} or ${context.iacManifestPath}`)
+    throw new Error(`Missing required file: ${context.iacManifestPath}`)
   }
   return readManifest(context.iacManifestPath)
 }
@@ -33,14 +33,14 @@ function readLegacyOrUnified({
   }
 
   if (fs.existsSync(context.iacManifestPath)) {
-    return derive(readUnifiedManifest(context, legacyPath))
+    return derive(readUnifiedManifest(context))
   }
 
   if (fs.existsSync(legacyPath)) {
     return readJSON(legacyPath)
   }
 
-  return derive(readUnifiedManifest(context, legacyPath))
+  return derive(readUnifiedManifest(context))
 }
 
 function vercelConfig(manifest) {
@@ -54,13 +54,21 @@ function appVercelValues(app) {
   }
 }
 
+function isDeployableVercelApp(app) {
+  return app.deploy !== false && app.providers?.vercel?.deploy !== false
+}
+
+function deployableApps(manifest) {
+  return manifest.apps.filter(isDeployableVercelApp)
+}
+
 function teamSlugFromManifest(manifest) {
   const config = vercelConfig(manifest)
   return config.teamSlug || config.team || ''
 }
 
 function configuredProjects(manifest) {
-  return manifest.apps.map((app) => {
+  return deployableApps(manifest).map((app) => {
     const values = appVercelValues(app)
     return {
       key: app.key,
@@ -77,7 +85,7 @@ function compactObject(value) {
 }
 
 function projectSettings(manifest) {
-  return manifest.apps.map((app) => {
+  return deployableApps(manifest).map((app) => {
     const values = appVercelValues(app)
     const entry = { key: app.key }
     for (const key of projectSettingKeys) {
@@ -105,9 +113,10 @@ function domainConfig(domain) {
 }
 
 function projectDomains(manifest) {
-  const domainsByProject = new Map(manifest.apps.map((app) => [app.key, []]))
+  const apps = deployableApps(manifest)
+  const domainsByProject = new Map(apps.map((app) => [app.key, []]))
 
-  for (const app of manifest.apps) {
+  for (const app of apps) {
     const values = appVercelValues(app)
     const domains = Array.isArray(values.domains) ? values.domains : []
     for (const domain of domains) {
@@ -141,7 +150,7 @@ export function vercelEnvManifestFromIac(manifest, context = {}) {
         metadataFile: manifest.env?.sync?.metadataFile,
       },
     },
-    environmentFiles: manifest.env?.environments || {},
+    environmentFiles: manifest.environmentFiles || {},
     targets: config.env?.targets || {},
     projects: configuredProjects(manifest),
   }
@@ -162,12 +171,7 @@ export function vercelProjectDomainsFromIac(manifest) {
 }
 
 export function readVercelEnvManifest(context) {
-  return readLegacyOrUnified({
-    legacyPath: context.manifestPath,
-    explicitLegacyPath: context.explicitManifestPath,
-    context,
-    derive: (manifest) => vercelEnvManifestFromIac(manifest, context),
-  })
+  return vercelEnvManifestFromIac(readUnifiedManifest(context), context)
 }
 
 export function readVercelProjectSettingsManifest(context) {

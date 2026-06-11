@@ -26,6 +26,10 @@ function appDomains(app) {
   return domains.map((domain) => domainResource(domain, app.key))
 }
 
+function deployableApps(manifest) {
+  return manifest.apps.filter((app) => app.deploy !== false && app.providers?.vercel?.deploy !== false)
+}
+
 function domainResource(domain, appKey) {
   const name = typeof domain === 'string' ? domain : domain.name
   const targetApp = appKey || domain.app || domain.project
@@ -40,8 +44,9 @@ function domainResource(domain, appKey) {
 
 export function renderTerraform({ manifest, environment }) {
   const config = manifest.providers.vercel || {}
-  const appBlocks = manifest.apps.map(appProject)
-  const appDomainBlocks = manifest.apps.flatMap(appDomains)
+  const apps = deployableApps(manifest)
+  const appBlocks = apps.map(appProject)
+  const appDomainBlocks = apps.flatMap(appDomains)
   const topLevelDomainBlocks = manifest.domains.map((domain) => domainResource(domain))
   const genericResources = renderGenericResources(config.resources)
   const mainBlocks = [

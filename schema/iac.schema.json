@@ -28,9 +28,17 @@
       ]
     },
     "environments": {
-      "type": "array",
-      "items": { "type": "string", "minLength": 1 },
-      "uniqueItems": true,
+      "oneOf": [
+        {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/envEnvironment" }
+        }
+      ],
       "default": ["development", "preview", "production"]
     },
     "providers": {
@@ -124,10 +132,6 @@
             }
           }
         },
-        "environments": {
-          "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/envEnvironment" }
-        },
         "sync": {
           "type": "object",
           "additionalProperties": true,
@@ -137,9 +141,17 @@
               "items": { "type": "string", "minLength": 1 },
               "uniqueItems": true
             },
+            "packages": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
             "sharedKey": { "type": "string" },
             "metadataFile": { "type": "string" },
             "skipInVercel": { "type": "boolean" },
+            "directOutputs": { "type": "boolean" },
+            "targetedOutputs": { "type": "boolean" },
+            "targetedMetadata": { "type": "boolean" },
             "patchVariantsFromExample": { "type": "boolean" },
             "disallowSharedOverrides": { "type": "boolean" },
             "forbidSharedOverrides": { "type": "boolean" },
@@ -155,6 +167,10 @@
     "apps": {
       "type": "array",
       "items": { "$ref": "#/$defs/app" }
+    },
+    "packages": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/package" }
     },
     "domains": {
       "type": "array",
@@ -324,9 +340,41 @@
       "additionalProperties": true,
       "properties": {
         "example": { "type": "string" },
+        "value": { "type": "string" },
+        "values": { "$ref": "#/$defs/envVariableValues" },
         "encrypted": { "type": "boolean" },
         "browser": { "type": "boolean" },
         "includeInExample": { "type": "boolean" },
+        "packages": {
+          "oneOf": [
+            { "$ref": "#/$defs/envVariablePackage" },
+            {
+              "type": "array",
+              "items": { "$ref": "#/$defs/envVariablePackage" },
+              "uniqueItems": true
+            }
+          ]
+        },
+        "targets": {
+          "oneOf": [
+            { "$ref": "#/$defs/envVariableTarget" },
+            {
+              "type": "array",
+              "items": { "$ref": "#/$defs/envVariableTarget" },
+              "uniqueItems": true
+            }
+          ]
+        },
+        "targetApps": {
+          "oneOf": [
+            { "$ref": "#/$defs/envVariableTarget" },
+            {
+              "type": "array",
+              "items": { "$ref": "#/$defs/envVariableTarget" },
+              "uniqueItems": true
+            }
+          ]
+        },
         "includeEnv": {
           "oneOf": [
             { "type": "string", "minLength": 1 },
@@ -359,9 +407,41 @@
           "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
         },
         "example": { "type": "string" },
+        "value": { "type": "string" },
+        "values": { "$ref": "#/$defs/envVariableValues" },
         "encrypted": { "type": "boolean" },
         "browser": { "type": "boolean" },
         "includeInExample": { "type": "boolean" },
+        "packages": {
+          "oneOf": [
+            { "$ref": "#/$defs/envVariablePackage" },
+            {
+              "type": "array",
+              "items": { "$ref": "#/$defs/envVariablePackage" },
+              "uniqueItems": true
+            }
+          ]
+        },
+        "targets": {
+          "oneOf": [
+            { "$ref": "#/$defs/envVariableTarget" },
+            {
+              "type": "array",
+              "items": { "$ref": "#/$defs/envVariableTarget" },
+              "uniqueItems": true
+            }
+          ]
+        },
+        "targetApps": {
+          "oneOf": [
+            { "$ref": "#/$defs/envVariableTarget" },
+            {
+              "type": "array",
+              "items": { "$ref": "#/$defs/envVariableTarget" },
+              "uniqueItems": true
+            }
+          ]
+        },
         "includeEnv": {
           "oneOf": [
             { "type": "string", "minLength": 1 },
@@ -383,6 +463,60 @@
           ]
         }
       }
+    },
+    "envVariableValues": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "envVariableTarget": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "required": ["app"],
+          "additionalProperties": true,
+          "properties": {
+            "app": { "type": "string", "minLength": 1 },
+            "key": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            },
+            "envKey": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            },
+            "outputKey": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            }
+          }
+        }
+      ]
+    },
+    "envVariablePackage": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "required": ["package"],
+          "additionalProperties": true,
+          "properties": {
+            "package": { "type": "string", "minLength": 1 },
+            "key": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            },
+            "envKey": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            },
+            "outputKey": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            }
+          }
+        }
+      ]
     },
     "providerResource": {
       "type": "object",
@@ -431,12 +565,40 @@
           "properties": {
             "sourceKey": { "type": "string" },
             "outputDir": { "type": "string" },
+            "examplePath": { "type": "string" },
+            "exampleOutput": { "type": "string" },
             "sharedPrefix": { "type": "string" }
           }
         },
         "providers": {
           "type": "object",
           "additionalProperties": true
+        }
+      }
+    },
+    "package": {
+      "type": "object",
+      "required": ["key", "directory"],
+      "additionalProperties": true,
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "directory": { "type": "string", "minLength": 1 },
+        "dir": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "rootDirectory": { "type": "string", "minLength": 1 },
+        "outputDir": { "type": "string" },
+        "sourceKey": { "type": "string" },
+        "env": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "sourceKey": { "type": "string" },
+            "outputDir": { "type": "string" },
+            "examplePath": { "type": "string" },
+            "exampleOutput": { "type": "string" },
+            "sharedPrefix": { "type": "string" }
+          }
         }
       }
     },

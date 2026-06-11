@@ -73,7 +73,11 @@ Minimal `iac.json` example:
   "$schema": "./node_modules/@vertile-ai/iac/schema/iac.schema.json",
   "version": 1,
   "project": { "name": "example" },
-  "environments": ["development", "uat", "production"],
+  "environments": {
+    "development": { "files": [".env.development"] },
+    "uat": { "files": [".env.uat"] },
+    "production": { "files": [".env.production"] }
+  },
   "providers": {
     "vercel": { "team": "example-team" },
     "aws": {
@@ -105,11 +109,6 @@ Minimal `iac.json` example:
     }
   ],
   "env": {
-    "environments": {
-      "development": { "files": [".env.development"] },
-      "uat": { "files": [".env.uat"] },
-      "production": { "files": [".env.production"] }
-    },
     "sync": {
       "apps": ["web"]
     }
@@ -140,12 +139,11 @@ and default tags. The logical environment still controls env file selection.
 By default, Vercel env reconciliation reads `.env.*` files from
 `.vertile-iac/env/shared` and `.vertile-iac/env/<project-key>`.
 
-The default source of truth for all Vercel compatibility commands is now
-`infrastructure/iac/iac.json`. Old compatibility files are still readable, but
-only when no `iac.json` exists or when the legacy path is passed explicitly:
+The source of truth for Vercel env reconciliation is
+`infrastructure/iac/iac.json`. Project settings and domain compatibility files
+can still be read explicitly or as fallbacks for those commands:
 
 ```text
-infrastructure/iac/env-manifest.json
 infrastructure/iac/project-settings.json
 infrastructure/iac/project-domains.json
 ```
@@ -155,7 +153,7 @@ the unified manifest:
 
 - `providers.vercel.teamSlug` or `providers.vercel.team` becomes the Vercel team.
 - `env.sourceDir` selects the env source folder and defaults to `.vertile-iac/env`.
-- `env.environments.<name>.files` maps logical environments to ordered env files.
+- Top-level `environments.<name>.files` maps logical environments to ordered env files.
 - `apps[].key`, `apps[].id` or `apps[].projectId`, and `apps[].name` become managed Vercel projects.
 - `apps[].rootDirectory`, `apps[].nodeVersion`, and
   `apps[].enableAffectedProjectsDeployments` become project settings.
@@ -167,16 +165,10 @@ Vercel targets map to logical environments as follows by default:
 - `preview` -> `staging`
 - `production` -> `production`
 
-Those logical environments then resolve through `env.environments`. For example,
+Those logical environments then resolve through top-level `environments`. For example,
 `staging` defaults to `.env.staging`, but can be configured as
 `"staging": { "files": [".env.preview", ".env.staging"] }`.
-The legacy env manifest can still be selected explicitly:
-
-```bash
-vertile-iac env \
-  --repo-root ../some-project \
-  --manifest ./deploy/env-manifest.json
-```
+Legacy Vercel env fallback manifests are no longer supported.
 
 ## Env File Sync
 
@@ -187,9 +179,12 @@ which reconciles Vercel remote environment variables.
 The boundary is:
 
 - `env.sourceDir` is the source tree, defaulting to `.vertile-iac/env`.
-- `env.environments.<name>.files` declares ordered source files for any logical
+- Top-level `environments.<name>.files` declares ordered source files for any logical
   environment, including custom names such as `uat`, `nightly`, or `qa`.
-- `env.sync.sharedKey` is the shared source folder, defaulting to `shared`.
+- `env.sync.directOutputs: true` writes package `.env.*` files directly from
+  manifest metadata values instead of materializing intermediate source env
+  files.
+- `env.sync.sharedKey` is the compatibility shared source folder, defaulting to `shared`.
 - `env.sync.apps` limits which `apps[]` are materialized locally. Without it,
   all apps are synced.
 - `env.sync.patchVariantsFromExample: true` creates missing selected variant
@@ -197,7 +192,9 @@ The boundary is:
   files are generated. The CLI also accepts `--patch-variants-from-example`.
 - Env metadata should be declared in `iac.json` under
   `env.metadata.<source-key>`, where source keys are `shared` and app source
-  keys such as `web`, `admin`, or `api`.
+  keys such as `web`, `admin`, or `api` in compatibility mode. In direct-output
+  mode, source keys are metadata groups and package ownership is controlled by
+  variable `targets`.
 - File-based `<env.sourceDir>/<source-key>/.env.json` metadata is still
   supported as a compatibility fallback when embedded metadata is absent, but
   new setups should keep metadata in `iac.json`.
@@ -209,6 +206,14 @@ The boundary is:
   `example`, `encrypted`, and `browser` when metadata exists for that source.
 - Metadata may use either `variables: [{ key, ...metadata }]` or object-map form
   such as `vars: { DATABASE_URL: { ...metadata } }`.
+- Metadata may also own real env values. Use `value` for one value shared by all
+  selected environments, or `values` as an object keyed by environment name such
+  as `{ "staging": "...", "production": "..." }`. When any key in a source owns
+  manifest values, `sync-env` generates that source's `.env.<suffix>` file from
+  `iac.json`; `example` remains sample data for generated `.env.example` files.
+- Metadata rows may declare `targets` to choose generated package outputs. A
+  target can be an app key (`"web"`) or an object that renames the generated key,
+  such as `{ "app": "web", "key": "NEXT_PUBLIC_BASE_URL" }`.
 - `encrypted` controls the Vercel env var type used by `vertile-iac env`.
   `encrypted: true` writes an encrypted value; `encrypted: false` writes a plain
   value when the provider supports it.
@@ -234,9 +239,11 @@ The boundary is:
   app-specific keys that would override shared keys.
 - `env.sync.requiredSharedAliases` can require canonical shared keys to have
   app-prefixed aliases for apps that use `apps[].env.sharedPrefix`.
-- `apps[].env.sharedPrefix` projects prefixed shared keys into one app, strips
-  the prefix in that app's generated file, and keeps those prefixed keys out of
-  other generated app env files.
+- In compatibility mode, `apps[].env.sharedPrefix` projects prefixed shared keys
+  into one app, strips the prefix in that app's generated file, and keeps those
+  prefixed keys out of other generated app env files.
+- In direct-output mode, `sync-env --write-examples` writes `.env.example` to
+  each app output directory, or to `apps[].env.examplePath` when configured.
 
 Examples:
 
@@ -245,7 +252,7 @@ Examples:
   "env": {
     "sync": {
       "apps": ["landing", "web-client", "web-server"],
-      "sharedKey": "shared"
+      "directOutputs": true
     }
   },
   "apps": [
@@ -270,13 +277,20 @@ Example embedded env metadata:
             "key": "DATABASE_URL",
             "example": "postgres://user:password@host/db",
             "encrypted": true,
-            "browser": false
+            "browser": false,
+            "targets": ["web-server"],
+            "values": {
+              "staging": "postgres://staging-user:password@host/db",
+              "production": "postgres://prod-user:password@host/db"
+            }
           },
           {
             "key": "WEB_CLIENT_NEXT_PUBLIC_BASE_URL",
             "example": "https://app.example.com",
             "encrypted": false,
             "browser": true,
+            "targets": [{ "app": "web-client", "key": "NEXT_PUBLIC_BASE_URL" }],
+            "value": "https://app.example.com",
             "includeEnv": ["preview"],
             "excludeEnv": ["production"]
           }
@@ -320,14 +334,13 @@ vertile-iac sync-env --repo-root ../noop --write-examples --dry-run
 ```
 
 Built-in local sync variants are `local`, `staging`, `preview`, `production`,
-and `test`. Custom variants declared in `env.environments` can also be selected
+and `test`. Custom variants declared in top-level `environments` can also be selected
 with `--variants`, such as `--variants=uat,nightly`.
 
 ## Shared Options
 
 - `--repo-root <path>`: product repo root containing `infrastructure/`.
 - `--iac-dir <path>`: manifest directory, default `infrastructure/iac`.
-- `--manifest <path>`: explicit legacy env manifest path.
 - `--project-settings <path>`: project settings manifest path.
 - `--project-domains <path>`: project domains manifest path.
 - `--token-file <path>`: token file, default `<repo-root>/.vercel.token`.

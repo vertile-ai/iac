@@ -353,7 +353,7 @@ async function main() {
 
   const teamSlug = envManifest.teamSlug
   if (!teamSlug || typeof teamSlug !== 'string') {
-    throw new Error('Missing or invalid teamSlug in the env manifest')
+    throw new Error('Missing or invalid Vercel team slug in iac.json')
   }
   const projectByKey = new Map(
     configuredProjects
@@ -396,7 +396,7 @@ async function main() {
       if (!resolvedId && shouldAutoCreateProject(project.key)) {
         if (dryRun) {
           console.log(
-            `[plan] ${project.key}: would create Vercel project "${projectName}" because env-manifest id is missing`,
+            `[plan] ${project.key}: would create Vercel project "${projectName}" because iac.json project id is missing`,
           )
           continue
         }
@@ -429,7 +429,7 @@ async function main() {
 
     const configured = projectByKey.get(entry.key)
     if (!configured) {
-      console.log(`[skip] ${entry.key}: missing Vercel project ID in env-manifest`)
+      console.log(`[skip] ${entry.key}: missing Vercel project ID in iac.json`)
       continue
     }
 

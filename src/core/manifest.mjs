@@ -43,6 +43,28 @@ function assertStringArray(value, field) {
   }
 }
 
+function normalizeEnvironments(environments) {
+  if (Array.isArray(environments)) {
+    return {
+      names: environments,
+      files: {},
+    }
+  }
+
+  const configured = asObject(environments)
+  if (Object.keys(configured).length === 0) {
+    return {
+      names: ['development', 'preview', 'production'],
+      files: {},
+    }
+  }
+
+  return {
+    names: Object.keys(configured),
+    files: configured,
+  }
+}
+
 function validateProviderResources(providers) {
   for (const [provider, config] of Object.entries(providers)) {
     const resources = config && Array.isArray(config.resources) ? config.resources : []
@@ -84,14 +106,13 @@ export function validateManifest(manifest) {
 
 export function normalizeManifest(rawManifest) {
   const manifest = asObject(rawManifest)
-  const environments = Array.isArray(manifest.environments)
-    ? manifest.environments
-    : ['development', 'preview', 'production']
+  const environments = normalizeEnvironments(manifest.environments)
 
   const normalized = {
     version: manifest.version || 1,
     project: normalizeProject(manifest.project),
-    environments,
+    environments: environments.names,
+    environmentFiles: environments.files,
     providers: asObject(manifest.providers),
     apps: Array.isArray(manifest.apps) ? manifest.apps.map(normalizeApp) : [],
     domains: Array.isArray(manifest.domains) ? manifest.domains : [],

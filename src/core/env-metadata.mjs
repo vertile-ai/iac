@@ -56,6 +56,72 @@ function asStringList(value, field) {
   throw new Error(`${field} must be a non-empty string or array of non-empty strings.`)
 }
 
+function manifestPackageKeys(manifest = {}) {
+  const configured = Array.isArray(manifest.packages)
+    ? manifest.packages
+    : Array.isArray(manifest.env?.packages)
+      ? manifest.env.packages
+      : Array.isArray(manifest.apps)
+        ? manifest.apps
+        : []
+  const keys = []
+
+  for (const item of configured) {
+    if (typeof item === 'string' && item.trim()) {
+      keys.push(item.trim())
+      continue
+    }
+
+    const config = asObject(item, null)
+    const key = config?.key || config?.name
+    if (typeof key === 'string' && key.trim()) keys.push(key.trim())
+  }
+
+  return new Set(keys)
+}
+
+function normalizePackageList(value, field, packageKeys) {
+  if (value === undefined) return []
+  const values = Array.isArray(value) ? value : [value]
+  const packages = []
+
+  for (const item of values) {
+    if (typeof item === 'string' && item.trim()) {
+      const packageKey = item.trim()
+      if (packageKeys.size > 0 && !packageKeys.has(packageKey)) {
+        throw new Error(`${field} references unknown package "${packageKey}".`)
+      }
+      packages.push({ package: packageKey })
+      continue
+    }
+
+    const packageRef = asObject(item, null)
+    if (!packageRef) {
+      throw new Error(`${field} must contain package keys or package objects.`)
+    }
+
+    const packageKey = packageRef.package || packageRef.app
+    if (typeof packageKey !== 'string' || packageKey.trim() === '') {
+      throw new Error(`${field} package entry must define non-empty package.`)
+    }
+    if (packageKeys.size > 0 && !packageKeys.has(packageKey.trim())) {
+      throw new Error(`${field} references unknown package "${packageKey.trim()}".`)
+    }
+
+    const outputKey = packageRef.key || packageRef.envKey || packageRef.outputKey || packageRef.name
+    if (outputKey !== undefined && (typeof outputKey !== 'string' || !envKeyPattern.test(outputKey))) {
+      throw new Error(`${field} package ${packageKey} has invalid output key.`)
+    }
+
+    packages.push({
+      package: packageKey.trim(),
+      key: typeof outputKey === 'string' ? outputKey : undefined,
+    })
+  }
+
+  return packages
+}
+
 function envList(value, field, environments, validEnvironments) {
   const items = asStringList(value, field)
   if (validEnvironments.size === 0) return items
@@ -67,10 +133,30 @@ function envList(value, field, environments, validEnvironments) {
   return available
 }
 
+function normalizeEnvValues(value, field) {
+  if (value === undefined) return {}
+  const values = asObject(value, null)
+  if (!values) {
+    throw new Error(`${field} must be an object of string values.`)
+  }
+
+  for (const [environment, envValue] of Object.entries(values)) {
+    if (typeof environment !== 'string' || environment.trim() === '') {
+      throw new Error(`${field} must use non-empty environment names.`)
+    }
+    if (typeof envValue !== 'string') {
+      throw new Error(`${field}.${environment} must be a string.`)
+    }
+  }
+
+  return values
+}
+
 function normalizeMetadataRows({ rows, label, manifest }) {
   const entries = new Map()
   const environments = Array.isArray(manifest.environments) ? manifest.environments : []
   const validEnvironments = new Set(environments)
+  const packageKeys = manifestPackageKeys(manifest)
 
   for (const row of rows) {
     const item = asObject(row)
@@ -89,6 +175,9 @@ function normalizeMetadataRows({ rows, label, manifest }) {
     }
     if (typeof item.browser !== 'boolean') {
       throw new Error(`${label} metadata for ${key} must define boolean browser.`)
+    }
+    if (Object.hasOwn(item, 'value') && typeof item.value !== 'string') {
+      throw new Error(`${label} metadata for ${key} value must be a string.`)
     }
 
     const excludeEnv = envList(
@@ -109,10 +198,18 @@ function normalizeMetadataRows({ rows, label, manifest }) {
       example: item.example,
       encrypted: item.encrypted,
       browser: item.browser,
+      value: typeof item.value === 'string' ? item.value : undefined,
+      values: normalizeEnvValues(item.values, `${label} metadata for ${key} values`),
+      valuesConfigured: Object.hasOwn(item, 'value') || Object.hasOwn(item, 'values'),
       includeInExample: item.includeInExample !== false,
       excludeEnv,
       includeEnv,
       includeEnvConfigured: Object.hasOwn(item, 'includeEnv'),
+      packages: normalizePackageList(
+        item.packages ?? item.targets ?? item.targetApps ?? item.apps,
+        `${label} metadata for ${key} packages`,
+        packageKeys,
+      ),
     })
   }
 
@@ -184,6 +281,7 @@ export function applyEnvMetadata({ baseDir, entries, manifest, sourceKey = '' })
       excludeEnv: config.excludeEnv,
       includeEnv: config.includeEnv,
       includeEnvConfigured: config.includeEnvConfigured,
+      packages: config.packages,
     }
   })
 }
@@ -201,6 +299,52 @@ export function envExampleEntries({ baseDir, manifest, sourceKey = '' }) {
   return [...metadata.entries.values()]
     .filter((entry) => entry.includeInExample !== false)
     .map(({ key, example }) => ({ key, value: example }))
+}
+
+export function manifestEnvEntries({ baseDir, manifest, sourceKey = '', environment }) {
+  const metadata = loadEnvMetadata({ baseDir, manifest, sourceKey })
+  if (!metadata.required) return null
+
+  const metadataEntries = [...metadata.entries.values()]
+  if (!metadataEntries.some((entry) => entry.valuesConfigured)) return null
+
+  const entries = []
+  for (const entry of metadataEntries) {
+    if (!entry.valuesConfigured) continue
+    if (!isAllowedInEnv(entry, environment)) continue
+
+    const hasEnvironmentValue = Object.hasOwn(entry.values, environment)
+    const hasDefaultValue = Object.hasOwn(entry.values, 'default')
+    const hasValue = entry.value !== undefined
+    if (!hasEnvironmentValue && !hasDefaultValue && !hasValue) {
+      throw new Error(
+        `${metadataLabel(metadata)} metadata for ${entry.key} must define value, values.default, or values.${environment}.`,
+      )
+    }
+
+    entries.push({
+      key: entry.key,
+      value: hasEnvironmentValue
+        ? entry.values[environment]
+        : hasDefaultValue
+          ? entry.values.default
+          : entry.value,
+      metadata: entry,
+      encrypted: entry.encrypted,
+      browser: entry.browser,
+      includeInExample: entry.includeInExample,
+      excludeEnv: entry.excludeEnv,
+      includeEnv: entry.includeEnv,
+      includeEnvConfigured: entry.includeEnvConfigured,
+      packages: entry.packages,
+    })
+  }
+
+  return {
+    entries,
+    metadata,
+    sourceLabel: `${metadataLabel(metadata)} values.${environment}`,
+  }
 }
 
 export function isExcludedFromEnv(entry, environment) {

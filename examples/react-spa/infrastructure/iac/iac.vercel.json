@@ -5,15 +5,39 @@
     "key": "react-spa",
     "name": "react-spa"
   },
-  "environments": [
-    "development",
-    "test",
-    "uat",
-    "nightly",
-    "staging",
-    "preview",
-    "production"
-  ],
+  "environments": {
+    "development": {
+      "files": [
+        ".env.development"
+      ]
+    },
+    "test": {
+      "files": [
+        ".env.test"
+      ]
+    },
+    "uat": {
+      "files": [
+        ".env.uat"
+      ]
+    },
+    "nightly": {
+      "files": [
+        ".env.nightly"
+      ]
+    },
+    "staging": {
+      "files": [
+        ".env.staging"
+      ]
+    },
+    "preview": {},
+    "production": {
+      "files": [
+        ".env.production"
+      ]
+    }
+  },
   "providers": {
     "vercel": {
       "teamSlug": "example-team",
@@ -38,39 +62,5 @@
         }
       }
     }
-  ],
-  "env": {
-    "environments": {
-      "development": {
-        "files": [
-          ".env.development"
-        ]
-      },
-      "test": {
-        "files": [
-          ".env.test"
-        ]
-      },
-      "uat": {
-        "files": [
-          ".env.uat"
-        ]
-      },
-      "nightly": {
-        "files": [
-          ".env.nightly"
-        ]
-      },
-      "staging": {
-        "files": [
-          ".env.staging"
-        ]
-      },
-      "production": {
-        "files": [
-          ".env.production"
-        ]
-      }
-    }
-  }
+  ]
 }
