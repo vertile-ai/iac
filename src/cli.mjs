@@ -16,6 +16,7 @@ const commands = new Map([
   ['apply', path.join(root, 'apply.mjs')],
   ['sync-env', path.join(root, 'sync-env.mjs')],
   ['env', path.join(root, 'provision-env.mjs')],
+  ['github-actions', path.join(root, 'github-actions.mjs')],
   ['projects', path.join(root, 'reconcile-project-settings.mjs')],
   ['domains', path.join(root, 'reconcile-project-domains.mjs')],
 ])
@@ -29,6 +30,7 @@ Usage:
   vertile-iac apply --target=vercel|aws|digitalocean|all --env=<name> [options]
   vertile-iac sync-env [options]
   vertile-iac env [options]
+  vertile-iac github-actions [options]
   vertile-iac projects [options]
   vertile-iac domains [options]
 
@@ -38,6 +40,8 @@ Commands:
   apply      Render Terraform workspaces and run terraform apply.
   sync-env   Generate package .env files from the configured env source tree.
   env        Compatibility: reconcile Vercel team and project environment variables.
+  github-actions
+             Reconcile GitHub Actions environment secrets and variables.
   projects   Compatibility: reconcile Vercel project settings.
   domains    Compatibility: reconcile Vercel project domains.
 

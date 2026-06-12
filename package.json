@@ -18,6 +18,7 @@
     "vertile-iac-apply": "src/apply.mjs",
     "vertile-iac-sync-env": "src/sync-env.mjs",
     "vertile-iac-env": "src/provision-env.mjs",
+    "vertile-iac-github-actions": "src/github-actions.mjs",
     "vertile-iac-projects": "src/reconcile-project-settings.mjs",
     "vertile-iac-domains": "src/reconcile-project-domains.mjs"
   },
@@ -36,6 +37,8 @@
     "sync-env": "node src/sync-env.mjs",
     "env:dry-run": "node src/provision-env.mjs",
     "env:apply": "node src/provision-env.mjs --apply",
+    "github-actions:dry-run": "node src/github-actions.mjs",
+    "github-actions:apply": "node src/github-actions.mjs --apply",
     "projects:dry-run": "node src/reconcile-project-settings.mjs",
     "projects:apply": "node src/reconcile-project-settings.mjs --apply",
     "domains:dry-run": "node src/reconcile-project-domains.mjs",

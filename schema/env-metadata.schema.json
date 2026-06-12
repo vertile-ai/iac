@@ -80,26 +80,6 @@
             }
           ]
         },
-        "targets": {
-          "oneOf": [
-            { "$ref": "#/$defs/envVariableTarget" },
-            {
-              "type": "array",
-              "items": { "$ref": "#/$defs/envVariableTarget" },
-              "uniqueItems": true
-            }
-          ]
-        },
-        "targetApps": {
-          "oneOf": [
-            { "$ref": "#/$defs/envVariableTarget" },
-            {
-              "type": "array",
-              "items": { "$ref": "#/$defs/envVariableTarget" },
-              "uniqueItems": true
-            }
-          ]
-        },
         "includeEnv": {
           "oneOf": [
             { "type": "string", "minLength": 1 },
@@ -159,26 +139,6 @@
             }
           ]
         },
-        "targets": {
-          "oneOf": [
-            { "$ref": "#/$defs/envVariableTarget" },
-            {
-              "type": "array",
-              "items": { "$ref": "#/$defs/envVariableTarget" },
-              "uniqueItems": true
-            }
-          ]
-        },
-        "targetApps": {
-          "oneOf": [
-            { "$ref": "#/$defs/envVariableTarget" },
-            {
-              "type": "array",
-              "items": { "$ref": "#/$defs/envVariableTarget" },
-              "uniqueItems": true
-            }
-          ]
-        },
         "includeEnv": {
           "oneOf": [
             { "type": "string", "minLength": 1 },
@@ -206,31 +166,6 @@
       "additionalProperties": {
         "type": "string"
       }
-    },
-    "envVariableTarget": {
-      "oneOf": [
-        { "type": "string", "minLength": 1 },
-        {
-          "type": "object",
-          "required": ["app"],
-          "additionalProperties": true,
-          "properties": {
-            "app": { "type": "string", "minLength": 1 },
-            "key": {
-              "type": "string",
-              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
-            },
-            "envKey": {
-              "type": "string",
-              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
-            },
-            "outputKey": {
-              "type": "string",
-              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
-            }
-          }
-        }
-      ]
     },
     "envVariablePackage": {
       "oneOf": [

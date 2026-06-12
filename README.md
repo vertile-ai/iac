@@ -170,6 +170,69 @@ Those logical environments then resolve through top-level `environments`. For ex
 `"staging": { "files": [".env.preview", ".env.staging"] }`.
 Legacy Vercel env fallback manifests are no longer supported.
 
+## GitHub Actions Environment Sync
+
+`vertile-iac github-actions` reconciles GitHub Actions deployment
+environment variables and secrets from the same `iac.json` env metadata used by
+package env sync and Vercel env sync.
+
+Configure GitHub once in the provider block:
+
+```json
+{
+  "providers": {
+    "github": {
+      "repository": "owner/repo",
+      "actions": {
+        "environments": {
+          "staging": {
+            "name": "staging",
+            "branches": ["beta"],
+            "env": [
+              { "source": "NEXT_PUBLIC_BASE_URL", "key": "E2E_BASE_URL" },
+              "AUTH_SERVICE_URL",
+              "WEB_SERVER_URL",
+              "PREVIEW_BASE_URL",
+              "E2E_PASSWORD_LOGIN_EMAIL",
+              "E2E_PASSWORD_LOGIN_PASSWORD",
+              { "source": "AUTH_INTERNAL_SECRET", "key": "E2E_AUTH_INTERNAL_SECRET" }
+            ]
+          },
+          "production": {
+            "branches": ["main"],
+            "env": []
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Each environment key (`staging`, `production`) is a logical IaC environment.
+`name` is the GitHub Actions environment name. `branches` creates custom
+deployment branch policies for that GitHub environment. Each `env` item reads a
+metadata key from `env.metadata`; encrypted metadata is synced as a GitHub
+Actions environment secret, and plaintext metadata is synced as a GitHub
+Actions environment variable. Object entries can rename the output key.
+
+Dry-run a single environment:
+
+```bash
+vertile-iac github-actions --repo-root ../noop --env=staging
+```
+
+Apply with GitHub CLI authentication:
+
+```bash
+vertile-iac github-actions --repo-root ../noop --env=staging --apply
+```
+
+Apply mode uses the GitHub CLI. Local apply can use `gh auth login`; automation
+can pass `GH_TOKEN` only when the automation has access to the IaC manifest.
+The token must be able to update GitHub Actions environments and deployment
+branch policies, and to write environment secrets and variables.
+
 ## Env File Sync
 
 `vertile-iac sync-env` generates package-local `.env.*` files from the env
@@ -185,8 +248,13 @@ The boundary is:
   manifest metadata values instead of materializing intermediate source env
   files.
 - `env.sync.sharedKey` is the compatibility shared source folder, defaulting to `shared`.
-- `env.sync.apps` limits which `apps[]` are materialized locally. Without it,
-  all apps are synced.
+- Top-level `packages` registers env-output package keys and directories. Each
+  package `directory` is resolved relative to the repo root, which comes from
+  `--repo-root` or from walking upward from the current directory until
+  `package.json` and `infrastructure/` are found.
+- `env.sync.packages` limits which package registry entries are materialized
+  locally. Without it, all registered packages are synced. `env.sync.apps` is
+  accepted only for older manifests.
 - `env.sync.patchVariantsFromExample: true` creates missing selected variant
   files from `.env.example` and appends missing example keys before package env
   files are generated. The CLI also accepts `--patch-variants-from-example`.
@@ -194,7 +262,7 @@ The boundary is:
   `env.metadata.<source-key>`, where source keys are `shared` and app source
   keys such as `web`, `admin`, or `api` in compatibility mode. In direct-output
   mode, source keys are metadata groups and package ownership is controlled by
-  variable `targets`.
+  variable `packages`.
 - File-based `<env.sourceDir>/<source-key>/.env.json` metadata is still
   supported as a compatibility fallback when embedded metadata is absent, but
   new setups should keep metadata in `iac.json`.
@@ -211,9 +279,11 @@ The boundary is:
   as `{ "staging": "...", "production": "..." }`. When any key in a source owns
   manifest values, `sync-env` generates that source's `.env.<suffix>` file from
   `iac.json`; `example` remains sample data for generated `.env.example` files.
-- Metadata rows may declare `targets` to choose generated package outputs. A
-  target can be an app key (`"web"`) or an object that renames the generated key,
-  such as `{ "app": "web", "key": "NEXT_PUBLIC_BASE_URL" }`.
+- Metadata rows may declare `packages` to choose generated package outputs. A
+  package route can be a registered package key (`"web"`) or an object that
+  renames the generated key, such as
+  `{ "package": "web", "key": "NEXT_PUBLIC_BASE_URL" }`. Unknown package keys
+  fail sync.
 - `encrypted` controls the Vercel env var type used by `vertile-iac env`.
   `encrypted: true` writes an encrypted value; `encrypted: false` writes a plain
   value when the provider supports it.
@@ -230,20 +300,21 @@ The boundary is:
   all available environments except those listed. When both are present,
   excluded environments are removed first, then the include list is applied to
   what remains.
-- Each app reads from `<env.sourceDir>/<app.key>` by default.
-- Each app writes into `apps[].rootDirectory` by default.
-- `apps[].env.sourceKey` and `apps[].env.outputDir` override those defaults.
+- In compatibility mode, each package reads from `<env.sourceDir>/<package.key>`
+  by default.
+- Each package writes into `packages[].directory` by default.
+- `packages[].env.sourceKey` and `packages[].env.outputDir` override those defaults.
 - When the same key exists in shared and app-specific files, the app-specific
   value wins in generated package `.env.*` files.
 - `env.sync.disallowSharedOverrides: true` changes that merge policy and rejects
   app-specific keys that would override shared keys.
 - `env.sync.requiredSharedAliases` can require canonical shared keys to have
-  app-prefixed aliases for apps that use `apps[].env.sharedPrefix`.
-- In compatibility mode, `apps[].env.sharedPrefix` projects prefixed shared keys
+  app-prefixed aliases for packages that use `packages[].env.sharedPrefix`.
+- In compatibility mode, `packages[].env.sharedPrefix` projects prefixed shared keys
   into one app, strips the prefix in that app's generated file, and keeps those
   prefixed keys out of other generated app env files.
 - In direct-output mode, `sync-env --write-examples` writes `.env.example` to
-  each app output directory, or to `apps[].env.examplePath` when configured.
+  each package output directory, or to `packages[].env.examplePath` when configured.
 
 Examples:
 
@@ -251,15 +322,22 @@ Examples:
 {
   "env": {
     "sync": {
-      "apps": ["landing", "web-client", "web-server"],
+      "packages": ["landing", "web-client", "web-server"],
       "directOutputs": true
     }
   },
+  "packages": [
+    {
+      "key": "web-client",
+      "name": "web-client",
+      "directory": "packages/web-client",
+      "env": { "sharedPrefix": "WEB_CLIENT_" }
+    }
+  ],
   "apps": [
     {
       "key": "web-client",
-      "rootDirectory": "packages/web-client",
-      "env": { "sharedPrefix": "WEB_CLIENT_" }
+      "rootDirectory": "packages/web-client"
     }
   ]
 }
@@ -278,7 +356,7 @@ Example embedded env metadata:
             "example": "postgres://user:password@host/db",
             "encrypted": true,
             "browser": false,
-            "targets": ["web-server"],
+            "packages": ["web-server"],
             "values": {
               "staging": "postgres://staging-user:password@host/db",
               "production": "postgres://prod-user:password@host/db"
@@ -289,7 +367,7 @@ Example embedded env metadata:
             "example": "https://app.example.com",
             "encrypted": false,
             "browser": true,
-            "targets": [{ "app": "web-client", "key": "NEXT_PUBLIC_BASE_URL" }],
+            "packages": [{ "package": "web-client", "key": "NEXT_PUBLIC_BASE_URL" }],
             "value": "https://app.example.com",
             "includeEnv": ["preview"],
             "excludeEnv": ["production"]
