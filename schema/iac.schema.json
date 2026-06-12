@@ -112,6 +112,69 @@
               }
             }
           ]
+        },
+        "github": {
+          "allOf": [
+            { "$ref": "#/$defs/providerConfig" },
+            {
+              "type": "object",
+              "properties": {
+                "repository": { "type": "string", "minLength": 1 },
+                "repo": { "type": "string", "minLength": 1 },
+                "actions": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "env": {
+                      "type": "array",
+                      "items": { "$ref": "#/$defs/githubActionsEnvEntry" }
+                    },
+                    "variables": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1 },
+                      "uniqueItems": true
+                    },
+                    "secrets": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1 },
+                      "uniqueItems": true
+                    },
+                    "environments": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "properties": {
+                          "name": { "type": "string", "minLength": 1 },
+                          "githubEnvironment": { "type": "string", "minLength": 1 },
+                          "branches": {
+                            "type": "array",
+                            "items": { "type": "string", "minLength": 1 },
+                            "uniqueItems": true
+                          },
+                          "branch": { "type": "string", "minLength": 1 },
+                          "env": {
+                            "type": "array",
+                            "items": { "$ref": "#/$defs/githubActionsEnvEntry" }
+                          },
+                          "variables": {
+                            "type": "array",
+                            "items": { "type": "string", "minLength": 1 },
+                            "uniqueItems": true
+                          },
+                          "secrets": {
+                            "type": "array",
+                            "items": { "type": "string", "minLength": 1 },
+                            "uniqueItems": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
         }
       }
     },
@@ -150,8 +213,6 @@
             "metadataFile": { "type": "string" },
             "skipInVercel": { "type": "boolean" },
             "directOutputs": { "type": "boolean" },
-            "targetedOutputs": { "type": "boolean" },
-            "targetedMetadata": { "type": "boolean" },
             "patchVariantsFromExample": { "type": "boolean" },
             "disallowSharedOverrides": { "type": "boolean" },
             "forbidSharedOverrides": { "type": "boolean" },
@@ -355,26 +416,6 @@
             }
           ]
         },
-        "targets": {
-          "oneOf": [
-            { "$ref": "#/$defs/envVariableTarget" },
-            {
-              "type": "array",
-              "items": { "$ref": "#/$defs/envVariableTarget" },
-              "uniqueItems": true
-            }
-          ]
-        },
-        "targetApps": {
-          "oneOf": [
-            { "$ref": "#/$defs/envVariableTarget" },
-            {
-              "type": "array",
-              "items": { "$ref": "#/$defs/envVariableTarget" },
-              "uniqueItems": true
-            }
-          ]
-        },
         "includeEnv": {
           "oneOf": [
             { "type": "string", "minLength": 1 },
@@ -422,26 +463,6 @@
             }
           ]
         },
-        "targets": {
-          "oneOf": [
-            { "$ref": "#/$defs/envVariableTarget" },
-            {
-              "type": "array",
-              "items": { "$ref": "#/$defs/envVariableTarget" },
-              "uniqueItems": true
-            }
-          ]
-        },
-        "targetApps": {
-          "oneOf": [
-            { "$ref": "#/$defs/envVariableTarget" },
-            {
-              "type": "array",
-              "items": { "$ref": "#/$defs/envVariableTarget" },
-              "uniqueItems": true
-            }
-          ]
-        },
         "includeEnv": {
           "oneOf": [
             { "type": "string", "minLength": 1 },
@@ -467,31 +488,6 @@
     "envVariableValues": {
       "type": "object",
       "additionalProperties": { "type": "string" }
-    },
-    "envVariableTarget": {
-      "oneOf": [
-        { "type": "string", "minLength": 1 },
-        {
-          "type": "object",
-          "required": ["app"],
-          "additionalProperties": true,
-          "properties": {
-            "app": { "type": "string", "minLength": 1 },
-            "key": {
-              "type": "string",
-              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
-            },
-            "envKey": {
-              "type": "string",
-              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
-            },
-            "outputKey": {
-              "type": "string",
-              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
-            }
-          }
-        }
-      ]
     },
     "envVariablePackage": {
       "oneOf": [
@@ -632,6 +628,23 @@
           "additionalProperties": true
         }
       }
+    },
+    "githubActionsEnvEntry": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "source": { "type": "string", "minLength": 1 },
+            "from": { "type": "string", "minLength": 1 },
+            "key": { "type": "string", "minLength": 1 },
+            "name": { "type": "string", "minLength": 1 },
+            "env": { "type": "string", "minLength": 1 },
+            "secret": { "type": "boolean" }
+          }
+        }
+      ]
     }
   }
 }

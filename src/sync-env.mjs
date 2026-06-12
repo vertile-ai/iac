@@ -278,11 +278,7 @@ function configuredMetadataSourceKeys(manifest) {
 
 function usesDirectOutputs(manifest) {
   const sync = manifest.env?.sync || {}
-  if (
-    sync.directOutputs === true ||
-    sync.targetedOutputs === true ||
-    sync.targetedMetadata === true
-  ) {
+  if (sync.directOutputs === true) {
     return true
   }
 
@@ -659,7 +655,7 @@ function manifestPackages(manifest) {
 }
 
 function syncPackages(manifest) {
-  const configured = manifest.env.sync?.packages || manifest.env.sync?.apps
+  const configured = manifest.env?.sync?.packages || manifest.env?.sync?.apps
   const packages = manifestPackages(manifest)
   if (Array.isArray(configured) && configured.length > 0) {
     const keys = new Set(configured)

@@ -7,6 +7,7 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { supportedTargets } from '../src/core/args.mjs'
 import { applyEnvMetadata } from '../src/core/env-metadata.mjs'
+import { buildGitHubActionsPlan } from '../src/core/github-actions.mjs'
 import { readManifest } from '../src/core/manifest.mjs'
 import {
   readVercelEnvManifest,
@@ -796,7 +797,7 @@ test('generates source and package env files from iac.json metadata values', asy
   }
 })
 
-test('generates targeted package env and examples directly from iac.json metadata', async () => {
+test('generates package-routed env and examples directly from iac.json metadata', async () => {
   const root = await createUnifiedFixture()
   const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
 
@@ -814,7 +815,7 @@ test('generates targeted package env and examples directly from iac.json metadat
             example: 'postgres://user:password@host/db',
             encrypted: true,
             browser: false,
-            targets: ['app'],
+            packages: ['app'],
             values: {
               staging: 'postgres://staging',
               production: 'postgres://production',
@@ -825,7 +826,7 @@ test('generates targeted package env and examples directly from iac.json metadat
             example: 'https://example.com',
             encrypted: false,
             browser: true,
-            targets: [{ app: 'app', key: 'NEXT_PUBLIC_BASE_URL' }],
+            packages: [{ package: 'app', key: 'NEXT_PUBLIC_BASE_URL' }],
             value: 'https://app.example.com',
           },
           {
@@ -834,7 +835,7 @@ test('generates targeted package env and examples directly from iac.json metadat
             encrypted: true,
             browser: false,
             includeInExample: false,
-            targets: ['app'],
+            packages: ['app'],
             value: 'hidden-value',
           },
         ],
@@ -876,6 +877,44 @@ test('generates targeted package env and examples directly from iac.json metadat
       stat(path.join(root, 'config', 'env', 'platform', '.env.example')),
       { code: 'ENOENT' },
     )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('rejects env metadata packages not registered in iac.json packages', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+
+  try {
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.env.sync.directOutputs = true
+    manifest.env.metadata = {
+      platform: {
+        variables: [
+          {
+            key: 'DATABASE_URL',
+            example: 'postgres://user:password@host/db',
+            encrypted: true,
+            browser: false,
+            packages: ['missing-package'],
+            value: 'postgres://local',
+          },
+        ],
+      },
+    }
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+
+    const result = await execNode([
+      path.join(packageRoot, 'src', 'cli.mjs'),
+      'sync-env',
+      '--repo-root',
+      root,
+      '--variants=staging',
+    ], packageRoot)
+
+    assert.equal(result.code, 1)
+    assert.match(result.stderr, /references unknown package "missing-package"/)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -1221,6 +1260,93 @@ test('derives Vercel env config with embedded iac env metadata', async () => {
     assert.deepEqual(envManifest.environments, ['preview', 'production', 'uat'])
     assert.equal(envManifest.env.metadata.app.variables[0].key, 'APP')
     assert.equal(envManifest.env.metadata.app.variables[0].encrypted, false)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('builds GitHub Actions environment sync plan from iac metadata', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+
+  try {
+    const rawManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    rawManifest.environments = ['staging', 'production']
+    rawManifest.providers.github = {
+      repository: 'example/app',
+      actions: {
+        environments: {
+          staging: {
+            name: 'staging',
+            branches: ['beta'],
+            env: [
+              'AUTH_SERVICE_URL',
+              { source: 'AUTH_INTERNAL_SECRET', key: 'E2E_AUTH_INTERNAL_SECRET' },
+            ],
+          },
+          production: {
+            branches: ['main'],
+            env: [
+              'AUTH_SERVICE_URL',
+              { source: 'AUTH_INTERNAL_SECRET', key: 'E2E_AUTH_INTERNAL_SECRET' },
+            ],
+          },
+        },
+      },
+    }
+    rawManifest.env.metadata = {
+      shared: {
+        variables: [
+          {
+            key: 'AUTH_SERVICE_URL',
+            example: 'https://auth.example.com',
+            encrypted: false,
+            browser: false,
+            values: {
+              staging: 'https://auth-beta.example.com',
+              production: 'https://auth.example.com',
+            },
+          },
+          {
+            key: 'AUTH_INTERNAL_SECRET',
+            example: '<AUTH_INTERNAL_SECRET>',
+            encrypted: true,
+            browser: false,
+            values: {
+              staging: 'staging-secret',
+              production: 'production-secret',
+            },
+          },
+        ],
+      },
+    }
+    await writeFile(manifestPath, JSON.stringify(rawManifest, null, 2) + '\n')
+
+    const manifest = readManifest(manifestPath)
+    const plan = buildGitHubActionsPlan({
+      manifest,
+      sourceRoot: path.join(root, 'config', 'env'),
+      selectedEnvironments: ['staging'],
+    })
+
+    assert.equal(plan.repo, 'example/app')
+    assert.equal(plan.environments.length, 1)
+    assert.equal(plan.environments[0].name, 'staging')
+    assert.deepEqual(plan.environments[0].branches, ['beta'])
+    assert.deepEqual(plan.environments[0].outputs, [
+      {
+        source: 'AUTH_SERVICE_URL',
+        key: 'AUTH_SERVICE_URL',
+        value: 'https://auth-beta.example.com',
+        secret: false,
+      },
+      {
+        source: 'AUTH_INTERNAL_SECRET',
+        key: 'E2E_AUTH_INTERNAL_SECRET',
+        value: 'staging-secret',
+        secret: true,
+      },
+    ])
   } finally {
     await rm(root, { recursive: true, force: true })
   }

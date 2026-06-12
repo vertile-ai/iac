@@ -206,7 +206,7 @@ function normalizeMetadataRows({ rows, label, manifest }) {
       includeEnv,
       includeEnvConfigured: Object.hasOwn(item, 'includeEnv'),
       packages: normalizePackageList(
-        item.packages ?? item.targets ?? item.targetApps ?? item.apps,
+        item.packages,
         `${label} metadata for ${key} packages`,
         packageKeys,
       ),
