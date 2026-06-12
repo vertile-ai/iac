@@ -34,6 +34,9 @@
   "scripts": {
     "test": "node --test",
     "check": "find src -name '*.mjs' -print0 | xargs -0 -n1 node --check",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "changeset publish",
     "sync-env": "node src/sync-env.mjs",
     "env:dry-run": "node src/provision-env.mjs",
     "env:apply": "node src/provision-env.mjs --apply",
@@ -50,5 +53,8 @@
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@10.33.0"
+  "packageManager": "pnpm@10.33.0",
+  "devDependencies": {
+    "@changesets/cli": "2.31.0"
+  }
 }
