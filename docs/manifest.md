@@ -89,6 +89,42 @@ only where the provider really differs.
 }
 ```
 
+## Vercel Automation Bypass
+
+Vercel automation bypass secrets are project protection configuration. They are
+not application runtime environment variables, so do not model them under
+`env.metadata` unless a deployed app must read the value.
+
+Use `providers.vercel.protectionBypassForAutomation.ensure` for repeatable
+sync. Vertile AI IaC treats `note` as the unique identifier by exact match,
+reads the Vercel project `protectionBypass` metadata, and then sends the
+provider API operation:
+
+- `update` when exactly one existing automation bypass has the same note.
+- `generate` when no automation bypass has that note.
+- an error when Vercel does not expose protection-bypass note metadata or when
+  the note matches more than one bypass.
+
+```json
+{
+  "providers": {
+    "vercel": {
+      "teamSlug": "example-team",
+      "protectionBypassForAutomation": {
+        "ensure": {
+          "secret": "0123456789abcdefghijklmnopqrstuv",
+          "note": "Playwright E2E"
+        }
+      }
+    }
+  }
+}
+```
+
+Set `apps[].providers.vercel.protectionBypassForAutomation` to override the
+provider-level default for one project, or set it to `false` to opt that project
+out.
+
 ## Escape Hatch
 
 Provider-specific Terraform resources can be expressed under

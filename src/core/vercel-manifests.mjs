@@ -8,6 +8,8 @@ const projectSettingKeys = [
   'enableAffectedProjectsDeployments',
 ]
 
+const protectionBypassOperations = ['ensure', 'generate', 'update', 'revoke']
+
 function readJSON(filePath) {
   if (!fs.existsSync(filePath)) {
     throw new Error(`Missing required file: ${filePath}`)
@@ -85,14 +87,51 @@ function compactObject(value) {
 }
 
 function projectSettings(manifest) {
+  const config = vercelConfig(manifest)
+  const defaultProtectionBypass = config.protectionBypassForAutomation
+
   return deployableApps(manifest).map((app) => {
     const values = appVercelValues(app)
     const entry = { key: app.key }
     for (const key of projectSettingKeys) {
       if (values[key] !== undefined) entry[key] = values[key]
     }
+    const appProtectionBypass = values.protectionBypassForAutomation
+    const protectionBypass =
+      appProtectionBypass === false
+        ? undefined
+        : appProtectionBypass || defaultProtectionBypass
+    if (protectionBypass !== undefined) {
+      entry.protectionBypassForAutomation =
+        normalizeProtectionBypassForAutomation(protectionBypass, app.key)
+    }
     return entry
   })
+}
+
+function normalizeProtectionBypassForAutomation(config, appKey) {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) {
+    throw new Error(
+      `Vercel protectionBypassForAutomation for app "${appKey}" must be an object or false.`,
+    )
+  }
+
+  const operations = protectionBypassOperations.filter((operation) => config[operation] !== undefined)
+  if (operations.length !== 1) {
+    throw new Error(
+      `Vercel protectionBypassForAutomation for app "${appKey}" must define exactly one of ensure, generate, update, or revoke.`,
+    )
+  }
+
+  const operation = operations[0]
+  const value = config[operation]
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(
+      `Vercel protectionBypassForAutomation.${operation} for app "${appKey}" must be an object.`,
+    )
+  }
+
+  return { [operation]: { ...value } }
 }
 
 function domainTarget(domain, fallback) {

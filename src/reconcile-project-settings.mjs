@@ -215,6 +215,84 @@ function diffSettings(current, desired) {
   return { patch, diffs }
 }
 
+function protectionBypassOperation(config) {
+  if (!config || typeof config !== 'object') return ''
+  for (const key of ['ensure', 'generate', 'update', 'revoke']) {
+    if (config[key] !== undefined) return key
+  }
+  return ''
+}
+
+function protectionBypassSummary(config) {
+  const operation = protectionBypassOperation(config)
+  if (operation === 'ensure') {
+    return 'ensure Vercel protection bypass for automation by note'
+  }
+  return operation
+    ? `${operation} Vercel protection bypass for automation`
+    : 'reconcile Vercel protection bypass for automation'
+}
+
+function trimString(value) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function automationBypassEntries(project) {
+  const protectionBypass = project?.protectionBypass
+  if (!protectionBypass || typeof protectionBypass !== 'object' || Array.isArray(protectionBypass)) {
+    return null
+  }
+
+  return Object.values(protectionBypass).filter(
+    (entry) => entry && typeof entry === 'object' && entry.scope === 'automation-bypass',
+  )
+}
+
+function resolveProtectionBypassRequest({ project, desired, projectKey }) {
+  if (!desired?.ensure) return desired
+
+  const ensure = desired.ensure
+  const note = trimString(ensure.note)
+  const secret = trimString(ensure.secret)
+  if (!note) {
+    throw new Error(
+      `Vercel protectionBypassForAutomation.ensure for project "${projectKey}" requires a non-empty note.`,
+    )
+  }
+  if (!secret) {
+    throw new Error(
+      `Vercel protectionBypassForAutomation.ensure for project "${projectKey}" requires a non-empty secret.`,
+    )
+  }
+
+  const entries = automationBypassEntries(project)
+  if (!entries) {
+    throw new Error(
+      `Cannot ensure Vercel protection bypass for project "${projectKey}" because the project response did not expose protectionBypass note metadata.`,
+    )
+  }
+  if (entries.length > 0 && entries.every((entry) => !Object.hasOwn(entry, 'note'))) {
+    throw new Error(
+      `Cannot ensure Vercel protection bypass for project "${projectKey}" because automation bypass entries did not expose note metadata.`,
+    )
+  }
+
+  const matches = entries.filter((entry) => trimString(entry.note) === note)
+  if (matches.length > 1) {
+    throw new Error(
+      `Cannot ensure Vercel protection bypass for project "${projectKey}" because note "${note}" matched ${matches.length} automation bypasses.`,
+    )
+  }
+
+  const body = {
+    secret,
+    note,
+  }
+  if (typeof ensure.isEnvVar === 'boolean') body.isEnvVar = ensure.isEnvVar
+
+  return matches.length === 1 ? { update: body } : { generate: body }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2))
   const dryRun = !args.apply
@@ -329,11 +407,17 @@ async function main() {
         defaultSettings.enableAffectedProjectsDeployments ??
         null,
     }
+    let desiredProtectionBypass = entry.protectionBypassForAutomation
 
     if (!token) {
       console.log(
         `[dry-run/offline] ${entry.key}: cannot fetch remote settings without token`,
       )
+      if (desiredProtectionBypass) {
+        console.log(
+          `[plan] ${entry.key}: cannot resolve ${protectionBypassSummary(desiredProtectionBypass)} without remote project metadata`,
+        )
+      }
       continue
     }
 
@@ -343,6 +427,14 @@ async function main() {
       pathname: `/v9/projects/${encodeURIComponent(configured.id)}`,
       query: { teamId },
     })
+
+    if (desiredProtectionBypass) {
+      desiredProtectionBypass = resolveProtectionBypassRequest({
+        project,
+        desired: desiredProtectionBypass,
+        projectKey: entry.key,
+      })
+    }
 
     const current = {
       rootDirectory: project.rootDirectory ?? null,
@@ -355,27 +447,47 @@ async function main() {
 
     if (diffs.length === 0) {
       console.log(`[ok] ${entry.key}: project settings already in sync`)
+    } else {
+      console.log(`[diff] ${entry.key}`)
+      for (const change of diffs) {
+        console.log(
+          `  - ${change.key}: ${JSON.stringify(change.current)} -> ${JSON.stringify(change.desired)}`,
+        )
+      }
+
+      if (!dryRun) {
+        await requestJSON({
+          token,
+          method: 'PATCH',
+          pathname: `/v9/projects/${encodeURIComponent(configured.id)}`,
+          query: { teamId },
+          body: patch,
+        })
+
+        console.log(`[applied] ${entry.key}: updated remote project settings`)
+      }
+    }
+
+    if (!desiredProtectionBypass) continue
+
+    if (dryRun) {
+      console.log(
+        `[plan] ${entry.key}: would ${protectionBypassSummary(desiredProtectionBypass)}`,
+      )
       continue
     }
 
-    console.log(`[diff] ${entry.key}`)
-    for (const change of diffs) {
-      console.log(
-        `  - ${change.key}: ${JSON.stringify(change.current)} -> ${JSON.stringify(change.desired)}`,
-      )
-    }
-
-    if (dryRun) continue
+    console.log(`[apply] ${entry.key}: ${protectionBypassSummary(desiredProtectionBypass)}`)
 
     await requestJSON({
       token,
       method: 'PATCH',
-      pathname: `/v9/projects/${encodeURIComponent(configured.id)}`,
+      pathname: `/v1/projects/${encodeURIComponent(configured.id)}/protection-bypass`,
       query: { teamId },
-      body: patch,
+      body: desiredProtectionBypass,
     })
 
-    console.log(`[applied] ${entry.key}: updated remote project settings`)
+    console.log(`[applied] ${entry.key}: reconciled Vercel protection bypass for automation`)
   }
 }
 

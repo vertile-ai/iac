@@ -157,7 +157,65 @@ the unified manifest:
 - `apps[].key`, `apps[].id` or `apps[].projectId`, and `apps[].name` become managed Vercel projects.
 - `apps[].rootDirectory`, `apps[].nodeVersion`, and
   `apps[].enableAffectedProjectsDeployments` become project settings.
+- `providers.vercel.protectionBypassForAutomation` becomes a default Vercel
+  project automation bypass operation for every managed project. Set
+  `apps[].providers.vercel.protectionBypassForAutomation` to override it per
+  project, or `false` to opt that project out.
 - `apps[].domains` and top-level `domains[]` become project domains.
+
+Vercel's automation bypass secret is project protection configuration, not an
+application runtime env var. Keep it out of `env.metadata` unless an application
+must read it at runtime. For repeatable project sync, use the `ensure`
+operation. It treats `note` as the unique identifier by exact match, reads
+Vercel project `protectionBypass` metadata, and then:
+
+- sends `update` when one automation bypass has the same note.
+- sends `generate` when no automation bypass has that note.
+- fails when Vercel does not expose protection-bypass note metadata or the note
+  is not unique.
+
+```json
+{
+  "providers": {
+    "vercel": {
+      "teamSlug": "example-team",
+      "protectionBypassForAutomation": {
+        "ensure": {
+          "secret": "0123456789abcdefghijklmnopqrstuv",
+          "note": "Playwright E2E"
+        }
+      }
+    }
+  },
+  "apps": [
+    {
+      "key": "web",
+      "id": "prj_example",
+      "providers": {
+        "vercel": {
+          "protectionBypassForAutomation": false
+        }
+      }
+    }
+  ]
+}
+```
+
+The supported operation keys mirror Vercel's REST API:
+
+- `ensure`: Vertile IaC convenience operation for repeatable sync. It requires
+  `secret` and a unique `note`, exact-matches against Vercel-exposed
+  automation-bypass notes, then maps to `update` or `generate`.
+- `generate`: creates a new bypass, optionally with a 32-character
+  alphanumeric `secret` and `note`.
+- `update`: updates an existing bypass by `secret`, with optional `isEnvVar`
+  and `note`.
+- `revoke`: revokes a bypass by `secret` and requires `regenerate`.
+
+Leave `isEnvVar` unset unless deployments themselves need to read
+`VERCEL_AUTOMATION_BYPASS_SECRET`. Browser automation can use the configured
+secret from the IaC source or CI secret store without projecting it into app
+runtime env.
 
 Vercel targets map to logical environments as follows by default:
 
@@ -183,6 +241,7 @@ Configure GitHub once in the provider block:
   "providers": {
     "github": {
       "repository": "owner/repo",
+      "token": "github-token",
       "actions": {
         "environments": {
           "staging": {
@@ -209,12 +268,31 @@ Configure GitHub once in the provider block:
 }
 ```
 
-Each environment key (`staging`, `production`) is a logical IaC environment.
-`name` is the GitHub Actions environment name. `branches` creates custom
-deployment branch policies for that GitHub environment. Each `env` item reads a
-metadata key from `env.metadata`; encrypted metadata is synced as a GitHub
-Actions environment secret, and plaintext metadata is synced as a GitHub
-Actions environment variable. Object entries can rename the output key.
+Shape:
+
+- `providers.github.repository` is the target GitHub repository in `owner/repo`
+  form. If omitted, the CLI tries to derive it from the local `origin` remote.
+- `providers.github.token` is optional. When present, it is the primary auth
+  token passed to `gh` as `GH_TOKEN`.
+- `providers.github.actions.environments.<key>` maps a logical IaC environment
+  such as `staging` or `production` to one GitHub Actions deployment
+  environment.
+- `name` overrides the GitHub Actions environment name. Without it, the logical
+  environment key is used.
+- `branches` creates custom deployment branch policies for that GitHub
+  environment.
+- `env` selects keys from `env.metadata`. Encrypted metadata is synced as a
+  GitHub Actions environment secret; plaintext metadata is synced as a GitHub
+  Actions environment variable.
+- Object `env` entries can rename output keys, for example
+  `{ "source": "NEXT_PUBLIC_BASE_URL", "key": "E2E_BASE_URL" }`.
+
+Auth resolution for apply mode:
+
+1. `providers.github.token`
+2. Existing `GH_TOKEN`
+3. Existing `GITHUB_TOKEN`
+4. Local GitHub CLI auth from `gh auth login`
 
 Dry-run a single environment:
 
@@ -228,10 +306,11 @@ Apply with GitHub CLI authentication:
 vertile-iac github-actions --repo-root ../noop --env=staging --apply
 ```
 
-Apply mode uses the GitHub CLI. Local apply can use `gh auth login`; automation
-can pass `GH_TOKEN` only when the automation has access to the IaC manifest.
-The token must be able to update GitHub Actions environments and deployment
-branch policies, and to write environment secrets and variables.
+Apply mode uses the GitHub CLI. If `providers.github.token` is configured, it
+is passed to `gh` as `GH_TOKEN`. Otherwise local apply can use `gh auth login`,
+and automation can pass `GH_TOKEN` or `GITHUB_TOKEN`. The token must be able to
+update GitHub Actions environments and deployment branch policies, and to write
+environment secrets and variables.
 
 ## Env File Sync
 
@@ -439,6 +518,24 @@ Public-facing docs live in `docs/`. The static docs website entrypoint is:
 ```text
 docs/index.html
 ```
+
+Schema reference docs are sourced from this package and copied into the
+landing site:
+
+```bash
+pnpm sync:landing-schema-docs -- --landing-root ../vertile-landing
+```
+
+The sync publishes:
+
+- `schema/iac.schema.json` -> `public/schemas/iac.schema.json`
+- `schema/env-metadata.schema.json` -> `public/schemas/env-metadata.schema.json`
+- `docs/schema/iac-manifest.schema-doc.json` -> `public/schemas/iac-manifest.schema-doc.json`
+- `docs/schema/iac-schema-docs.schema.json` -> `public/schemas/iac-schema-docs.schema.json`
+
+The landing site also runs `pnpm sync:iac-schemas` before build, so a linked
+`@vertile-ai/iac` package keeps the rendered schema page aligned with the same
+source artifacts.
 
 ## Examples
 
