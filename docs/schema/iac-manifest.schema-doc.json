@@ -59,6 +59,12 @@
           "description": "Default Vercel project settings applied to every deployable Vercel app."
         },
         {
+          "path": "providers.<target>.deployments",
+          "type": "object",
+          "required": false,
+          "description": "Provider deployment map from stage names such as uat or prod to logical environments and provider-specific render inputs."
+        },
+        {
           "path": "providers.github.actions.environments",
           "type": "object",
           "required": false,

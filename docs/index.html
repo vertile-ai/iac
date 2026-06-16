@@ -221,7 +221,7 @@
     <main>
       <section id="manifest">
         <h2>One Source Of Truth</h2>
-        <p>The user-authored source of truth is <code>infrastructure/iac/iac.json</code>. Terraform files are generated output under <code>.vertile/terraform/&lt;provider&gt;/</code>. Env metadata also lives in this manifest under <code>env.metadata.&lt;source-key&gt;</code>.</p>
+        <p>The user-authored source of truth is <code>infrastructure/iac/iac.json</code>. Terraform files are generated output under <code>.vertile/terraform/&lt;provider&gt;/</code> or <code>.vertile/terraform/&lt;provider&gt;/&lt;deployment&gt;/</code>. Env metadata also lives in this manifest under <code>env.metadata.&lt;source-key&gt;</code>.</p>
         <pre><code>{
   "version": 1,
   "project": { "name": "example" },
@@ -231,9 +231,24 @@
     "production": { "files": [".env.production"] }
   },
   "providers": {
-    "vercel": { "team": "example-team" },
-    "aws": { "region": "us-east-1" },
-    "digitalocean": {}
+    "vercel": {
+      "team": "example-team",
+      "deployments": {
+        "prod": { "environment": "production", "team": "example-team" }
+      }
+    },
+    "aws": {
+      "region": "us-east-1",
+      "deployments": {
+        "prod": { "environment": "production", "region": "us-east-1", "profile": "example-prod" }
+      }
+    },
+    "digitalocean": {
+      "region": "nyc3",
+      "deployments": {
+        "prod": { "environment": "production", "region": "nyc3" }
+      }
+    }
   },
   "apps": [{ "key": "web", "domains": ["web.example.com"] }],
   "objectStorage": [{ "key": "uploads" }],
@@ -246,7 +261,7 @@
 
       <section id="providers">
         <h2>Provider Adapters</h2>
-        <p>Vertile AI IaC keeps portable concepts in the manifest and compiles them into provider-specific resources. Provider overrides are available when a platform has unique behavior.</p>
+        <p>Vertile AI IaC keeps portable concepts in the manifest and compiles them into provider-specific resources. Provider overrides and deployment maps are available when a platform has unique behavior.</p>
         <div class="grid">
           <div class="tile">
             <h3>Vercel</h3>

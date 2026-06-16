@@ -58,7 +58,25 @@
             ]
           }
         }
-      ]
+      ],
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "teamSlug": "vertile-ai"
+        },
+        "uat": {
+          "environment": "uat",
+          "teamSlug": "vertile-ai"
+        },
+        "nightly": {
+          "environment": "nightly",
+          "teamSlug": "vertile-ai"
+        },
+        "prod": {
+          "environment": "production",
+          "teamSlug": "vertile-ai"
+        }
+      }
     },
     "aws": {
       "region": "us-east-1",
@@ -121,7 +139,25 @@
             "name": "next-monorepo"
           }
         }
-      ]
+      ],
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "nyc3"
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "nyc3"
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "nyc3"
+        },
+        "prod": {
+          "environment": "production",
+          "region": "nyc3"
+        }
+      }
     }
   },
   "env": {

@@ -35,6 +35,9 @@ Generated Terraform lives under:
 ```
 
 Users edit the manifest. Vertile AI IaC renders provider-specific infrastructure.
+Provider deployments map stage names to logical environments and provider
+inputs; selected deployments render under
+`.vertile/terraform/<provider>/<deployment>/`.
 
 ## Commands
 

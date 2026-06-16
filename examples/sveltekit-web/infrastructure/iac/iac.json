@@ -40,10 +40,46 @@
   },
   "providers": {
     "vercel": {
-      "teamSlug": "example-team"
+      "teamSlug": "example-team",
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "teamSlug": "example-team"
+        },
+        "uat": {
+          "environment": "uat",
+          "teamSlug": "example-team"
+        },
+        "nightly": {
+          "environment": "nightly",
+          "teamSlug": "example-team"
+        },
+        "prod": {
+          "environment": "production",
+          "teamSlug": "example-team"
+        }
+      }
     },
     "digitalocean": {
-      "region": "nyc3"
+      "region": "nyc3",
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "nyc3"
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "nyc3"
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "nyc3"
+        },
+        "prod": {
+          "environment": "production",
+          "region": "nyc3"
+        }
+      }
     }
   },
   "apps": [

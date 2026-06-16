@@ -28,7 +28,13 @@ Generated Terraform is an implementation detail:
     "production": { "files": [".env.production"] }
   },
   "providers": {
-    "vercel": { "team": "example-team" },
+    "vercel": {
+      "team": "example-team",
+      "deployments": {
+        "uat": { "environment": "uat", "team": "example-team" },
+        "prod": { "environment": "production", "team": "example-team" }
+      }
+    },
     "aws": {
       "region": "us-east-1",
       "deployments": {
@@ -46,7 +52,13 @@ Generated Terraform is an implementation detail:
         }
       }
     },
-    "digitalocean": {}
+    "digitalocean": {
+      "region": "nyc3",
+      "deployments": {
+        "uat": { "environment": "uat", "region": "nyc3" },
+        "prod": { "environment": "production", "region": "nyc3" }
+      }
+    }
   },
   "apps": [
     {
@@ -173,8 +185,12 @@ are ignored. Exclusions run first; inclusions then select from the remaining
 environments.
 
 Provider deployments map stage names such as `uat` or `prod` to a logical
-environment plus provider-specific inputs. AWS uses deployment values for
-region/profile, generated workspace path, resource names, and default tags.
+environment plus provider-specific inputs. When a deployment is selected,
+generated Terraform is written to `.vertile/terraform/<provider>/<deployment>/`,
+`locals.deployment` is set, and portable provider resource names use the
+deployment stage. AWS uses deployment values for region/profile/default tags,
+DigitalOcean uses deployment region/version values, and Vercel uses deployment
+team/teamId/teamSlug values.
 
 ## Supported Concepts
 

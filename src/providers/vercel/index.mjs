@@ -7,9 +7,14 @@ import {
   sanitizeName,
 } from '../../core/hcl.mjs'
 
-function providerBody(config) {
+function providerBody(config, deploymentValues = {}) {
   return {
-    team: config.team || config.teamId || config.teamSlug,
+    team: deploymentValues.team
+      || deploymentValues.teamId
+      || deploymentValues.teamSlug
+      || config.team
+      || config.teamId
+      || config.teamSlug,
   }
 }
 
@@ -42,16 +47,21 @@ function domainResource(domain, appKey) {
   })
 }
 
-export function renderTerraform({ manifest, environment }) {
-  const config = manifest.providers.vercel || {}
+export function renderTerraform({ manifest, environment, deployment = {} }) {
+  const providerConfig = manifest.providers.vercel || {}
+  const deploymentValues = deployment.values || {}
+  const config = {
+    ...providerConfig,
+    ...deploymentValues,
+  }
   const apps = deployableApps(manifest)
   const appBlocks = apps.map(appProject)
   const appDomainBlocks = apps.flatMap(appDomains)
   const topLevelDomainBlocks = manifest.domains.map((domain) => domainResource(domain))
-  const genericResources = renderGenericResources(config.resources)
+  const genericResources = renderGenericResources(providerConfig.resources)
   const mainBlocks = [
-    renderLocals(manifest, environment),
-    block('provider', ['vercel'], providerBody(config)),
+    renderLocals(manifest, environment, deployment),
+    block('provider', ['vercel'], providerBody(config, deploymentValues)),
     ...appBlocks,
     ...appDomainBlocks,
     ...topLevelDomainBlocks,

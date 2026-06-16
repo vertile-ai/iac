@@ -40,7 +40,25 @@
   },
   "providers": {
     "vercel": {
-      "teamSlug": "example-team"
+      "teamSlug": "example-team",
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "teamSlug": "example-team"
+        },
+        "uat": {
+          "environment": "uat",
+          "teamSlug": "example-team"
+        },
+        "nightly": {
+          "environment": "nightly",
+          "teamSlug": "example-team"
+        },
+        "prod": {
+          "environment": "production",
+          "teamSlug": "example-team"
+        }
+      }
     },
     "aws": {
       "region": "us-east-1",

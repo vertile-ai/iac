@@ -79,7 +79,13 @@ Minimal `iac.json` example:
     "production": { "files": [".env.production"] }
   },
   "providers": {
-    "vercel": { "team": "example-team" },
+    "vercel": {
+      "team": "example-team",
+      "deployments": {
+        "uat": { "environment": "uat", "team": "example-team" },
+        "prod": { "environment": "production", "team": "example-team" }
+      }
+    },
     "aws": {
       "region": "us-east-1",
       "deployments": {
@@ -97,7 +103,13 @@ Minimal `iac.json` example:
         }
       }
     },
-    "digitalocean": {}
+    "digitalocean": {
+      "region": "nyc3",
+      "deployments": {
+        "uat": { "environment": "uat", "region": "nyc3" },
+        "prod": { "environment": "production", "region": "nyc3" }
+      }
+    }
   },
   "apps": [
     {
@@ -132,9 +144,13 @@ Provider-specific Terraform resources can be added under
 the manifest schema stays narrow.
 
 Provider deployments map user-defined stage names such as `uat`, `nightly`, or
-`prod` to logical environments and provider-specific inputs. AWS uses deployment
-values for provider region/profile, generated workspace path, resource names,
-and default tags. The logical environment still controls env file selection.
+`prod` to logical environments and provider-specific inputs. When a deployment
+is selected, generated Terraform is written to
+`.vertile/terraform/<target>/<deployment>/`, `locals.deployment` is set, and
+portable provider resource names use the deployment stage. AWS reads deployment
+region/profile/tags, DigitalOcean reads deployment region/version inputs, and
+Vercel reads deployment team/teamId/teamSlug inputs. The mapped logical
+environment still controls env file selection.
 
 By default, Vercel env reconciliation reads `.env.*` files from
 `.vertile-iac/env/shared` and `.vertile-iac/env/<project-key>`.

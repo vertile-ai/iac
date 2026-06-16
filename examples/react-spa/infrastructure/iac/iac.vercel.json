@@ -43,6 +43,24 @@
       "teamSlug": "example-team",
       "projectDefaults": {
         "nodeVersion": "22.x"
+      },
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "teamSlug": "example-team"
+        },
+        "uat": {
+          "environment": "uat",
+          "teamSlug": "example-team"
+        },
+        "nightly": {
+          "environment": "nightly",
+          "teamSlug": "example-team"
+        },
+        "prod": {
+          "environment": "production",
+          "teamSlug": "example-team"
+        }
       }
     }
   },

@@ -313,8 +313,12 @@
       "additionalProperties": true,
       "properties": {
         "environment": { "type": "string", "minLength": 1 },
+        "team": { "type": "string" },
+        "teamId": { "type": "string" },
+        "teamSlug": { "type": "string" },
         "region": { "type": "string" },
         "profile": { "type": "string" },
+        "version": { "type": "string" },
         "stateKey": { "type": "string" },
         "tags": {
           "type": "object",

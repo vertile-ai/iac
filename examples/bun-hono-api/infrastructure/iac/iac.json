@@ -77,7 +77,25 @@
       }
     },
     "digitalocean": {
-      "region": "sfo3"
+      "region": "sfo3",
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "sfo3"
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "sfo3"
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "sfo3"
+        },
+        "prod": {
+          "environment": "production",
+          "region": "sfo3"
+        }
+      }
     }
   },
   "apps": [
