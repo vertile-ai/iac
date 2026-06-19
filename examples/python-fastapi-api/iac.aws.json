@@ -1,9 +1,9 @@
 {
-  "$schema": "../../../../schema/iac.schema.json",
+  "$schema": "../../schema/iac.schema.json",
   "version": 1,
   "project": {
-    "key": "next-monorepo",
-    "name": "next-monorepo"
+    "key": "python-fastapi-api",
+    "name": "python-fastapi-api"
   },
   "environments": {
     "development": {
@@ -42,23 +42,14 @@
     "aws": {
       "region": "us-east-1",
       "defaultTags": {
-        "Example": "next-monorepo",
-        "Runtime": "nextjs"
+        "Example": "python-fastapi-api",
+        "Runtime": "python"
       },
-      "resources": [
-        {
-          "type": "aws_sns_topic",
-          "name": "events",
-          "values": {
-            "name": "next-monorepo-events"
-          }
-        }
-      ],
       "deployments": {
         "dev": {
           "environment": "development",
           "region": "us-east-1",
-          "profile": "next-monorepo-dev",
+          "profile": "python-fastapi-api-dev",
           "tags": {
             "Stage": "dev"
           }
@@ -66,7 +57,7 @@
         "uat": {
           "environment": "uat",
           "region": "us-east-1",
-          "profile": "next-monorepo-uat",
+          "profile": "python-fastapi-api-uat",
           "tags": {
             "Stage": "uat"
           }
@@ -74,7 +65,7 @@
         "nightly": {
           "environment": "nightly",
           "region": "us-east-1",
-          "profile": "next-monorepo-nightly",
+          "profile": "python-fastapi-api-nightly",
           "tags": {
             "Stage": "nightly"
           }
@@ -82,7 +73,7 @@
         "prod": {
           "environment": "production",
           "region": "us-east-1",
-          "profile": "next-monorepo-prod",
+          "profile": "python-fastapi-api-prod",
           "tags": {
             "Stage": "prod"
           }
@@ -92,28 +83,10 @@
   },
   "apps": [
     {
-      "key": "web",
-      "name": "next-monorepo-web",
-      "framework": "nextjs",
-      "rootDirectory": "apps/web"
-    },
-    {
-      "key": "admin",
-      "name": "next-monorepo-admin",
-      "framework": "nextjs",
-      "rootDirectory": "apps/admin"
-    }
-  ],
-  "objectStorage": [
-    {
-      "key": "uploads",
-      "visibility": "private",
-      "providers": {
-        "aws": {
-          "bucket": "next-monorepo-production-uploads",
-          "forceDestroy": true
-        }
-      }
+      "key": "api",
+      "name": "python-fastapi-api",
+      "framework": "fastapi",
+      "rootDirectory": "."
     }
   ],
   "databases": [
@@ -125,25 +98,9 @@
           "engineVersion": "16",
           "instanceClass": "db.t4g.micro",
           "allocatedStorage": 20,
-          "databaseName": "next_monorepo",
-          "username": "next_monorepo",
+          "databaseName": "fastapi",
+          "username": "fastapi",
           "skipFinalSnapshot": true
-        }
-      }
-    }
-  ],
-  "queues": [
-    {
-      "key": "jobs",
-      "kind": "fifo"
-    }
-  ],
-  "sandboxes": [
-    {
-      "key": "runner",
-      "providers": {
-        "aws": {
-          "instanceType": "t3.micro"
         }
       }
     }
@@ -154,7 +111,7 @@
       "size": 2,
       "providers": {
         "aws": {
-          "instanceType": "t3.small"
+          "instanceType": "t3.micro"
         }
       }
     }

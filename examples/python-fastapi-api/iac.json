@@ -1,9 +1,9 @@
 {
-  "$schema": "../../../../schema/iac.schema.json",
+  "$schema": "../../schema/iac.schema.json",
   "version": 1,
   "project": {
-    "key": "bun-hono-api",
-    "name": "bun-hono-api"
+    "key": "python-fastapi-api",
+    "name": "python-fastapi-api"
   },
   "environments": {
     "development": {
@@ -40,36 +40,36 @@
   },
   "providers": {
     "aws": {
-      "region": "us-west-2",
+      "region": "us-east-1",
       "deployments": {
         "dev": {
           "environment": "development",
-          "region": "us-west-2",
-          "profile": "bun-hono-api-dev",
+          "region": "us-east-1",
+          "profile": "python-fastapi-api-dev",
           "tags": {
             "Stage": "dev"
           }
         },
         "uat": {
           "environment": "uat",
-          "region": "us-west-2",
-          "profile": "bun-hono-api-uat",
+          "region": "us-east-1",
+          "profile": "python-fastapi-api-uat",
           "tags": {
             "Stage": "uat"
           }
         },
         "nightly": {
           "environment": "nightly",
-          "region": "us-west-2",
-          "profile": "bun-hono-api-nightly",
+          "region": "us-east-1",
+          "profile": "python-fastapi-api-nightly",
           "tags": {
             "Stage": "nightly"
           }
         },
         "prod": {
           "environment": "production",
-          "region": "us-west-2",
-          "profile": "bun-hono-api-prod",
+          "region": "us-east-1",
+          "profile": "python-fastapi-api-prod",
           "tags": {
             "Stage": "prod"
           }
@@ -77,23 +77,23 @@
       }
     },
     "digitalocean": {
-      "region": "sfo3",
+      "region": "nyc3",
       "deployments": {
         "dev": {
           "environment": "development",
-          "region": "sfo3"
+          "region": "nyc3"
         },
         "uat": {
           "environment": "uat",
-          "region": "sfo3"
+          "region": "nyc3"
         },
         "nightly": {
           "environment": "nightly",
-          "region": "sfo3"
+          "region": "nyc3"
         },
         "prod": {
           "environment": "production",
-          "region": "sfo3"
+          "region": "nyc3"
         }
       }
     }
@@ -101,8 +101,8 @@
   "apps": [
     {
       "key": "api",
-      "name": "bun-hono-api",
-      "framework": "bun",
+      "name": "python-fastapi-api",
+      "framework": "fastapi",
       "rootDirectory": "."
     }
   ],
@@ -110,6 +110,12 @@
     {
       "key": "appdb",
       "engine": "postgres"
+    }
+  ],
+  "clusters": [
+    {
+      "key": "workers",
+      "size": 2
     }
   ]
 }

@@ -1,9 +1,9 @@
 {
-  "$schema": "../../../../schema/iac.schema.json",
+  "$schema": "../../schema/iac.schema.json",
   "version": 1,
   "project": {
-    "key": "go-api",
-    "name": "go-api"
+    "key": "next-monorepo",
+    "name": "next-monorepo"
   },
   "environments": {
     "development": {
@@ -41,12 +41,13 @@
   "providers": {
     "digitalocean": {
       "region": "nyc3",
+      "version": ">= 2.0.0",
       "resources": [
         {
           "type": "digitalocean_project",
           "name": "main",
           "values": {
-            "name": "go-api"
+            "name": "next-monorepo"
           }
         }
       ],
@@ -72,15 +73,53 @@
   },
   "apps": [
     {
-      "key": "api",
-      "name": "go-api",
-      "framework": "go",
-      "rootDirectory": "."
+      "key": "web",
+      "name": "next-monorepo-web",
+      "framework": "nextjs",
+      "rootDirectory": "apps/web"
+    },
+    {
+      "key": "admin",
+      "name": "next-monorepo-admin",
+      "framework": "nextjs",
+      "rootDirectory": "apps/admin"
     }
   ],
-  "queues": [
+  "objectStorage": [
     {
-      "key": "jobs"
+      "key": "uploads",
+      "visibility": "private",
+      "providers": {
+        "digitalocean": {
+          "name": "next-monorepo-uploads",
+          "acl": "private",
+          "region": "nyc3"
+        }
+      }
+    }
+  ],
+  "databases": [
+    {
+      "key": "appdb",
+      "engine": "postgres",
+      "providers": {
+        "digitalocean": {
+          "engine": "pg",
+          "version": "16",
+          "size": "db-s-1vcpu-1gb",
+          "nodeCount": 1
+        }
+      }
+    }
+  ],
+  "sandboxes": [
+    {
+      "key": "runner",
+      "providers": {
+        "digitalocean": {
+          "sizeSlug": "s-1vcpu-1gb"
+        }
+      }
     }
   ],
   "clusters": [
@@ -90,7 +129,7 @@
       "providers": {
         "digitalocean": {
           "nodes": 2,
-          "sizeSlug": "s-1vcpu-1gb"
+          "sizeSlug": "s-1vcpu-2gb"
         }
       }
     }

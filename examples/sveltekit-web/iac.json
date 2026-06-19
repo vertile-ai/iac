@@ -1,9 +1,9 @@
 {
-  "$schema": "../../../../schema/iac.schema.json",
+  "$schema": "../../schema/iac.schema.json",
   "version": 1,
   "project": {
-    "key": "python-fastapi-api",
-    "name": "python-fastapi-api"
+    "key": "sveltekit-web",
+    "name": "sveltekit-web"
   },
   "environments": {
     "development": {
@@ -39,40 +39,24 @@
     }
   },
   "providers": {
-    "aws": {
-      "region": "us-east-1",
+    "vercel": {
+      "teamSlug": "example-team",
       "deployments": {
         "dev": {
           "environment": "development",
-          "region": "us-east-1",
-          "profile": "python-fastapi-api-dev",
-          "tags": {
-            "Stage": "dev"
-          }
+          "teamSlug": "example-team"
         },
         "uat": {
           "environment": "uat",
-          "region": "us-east-1",
-          "profile": "python-fastapi-api-uat",
-          "tags": {
-            "Stage": "uat"
-          }
+          "teamSlug": "example-team"
         },
         "nightly": {
           "environment": "nightly",
-          "region": "us-east-1",
-          "profile": "python-fastapi-api-nightly",
-          "tags": {
-            "Stage": "nightly"
-          }
+          "teamSlug": "example-team"
         },
         "prod": {
           "environment": "production",
-          "region": "us-east-1",
-          "profile": "python-fastapi-api-prod",
-          "tags": {
-            "Stage": "prod"
-          }
+          "teamSlug": "example-team"
         }
       }
     },
@@ -100,22 +84,19 @@
   },
   "apps": [
     {
-      "key": "api",
-      "name": "python-fastapi-api",
-      "framework": "fastapi",
-      "rootDirectory": "."
+      "key": "web",
+      "name": "sveltekit-web",
+      "framework": "sveltekit",
+      "rootDirectory": ".",
+      "domains": [
+        "sveltekit.example.com"
+      ]
     }
   ],
   "databases": [
     {
-      "key": "appdb",
+      "key": "content",
       "engine": "postgres"
-    }
-  ],
-  "clusters": [
-    {
-      "key": "workers",
-      "size": 2
     }
   ]
 }

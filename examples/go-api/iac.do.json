@@ -1,9 +1,9 @@
 {
-  "$schema": "../../../../schema/iac.schema.json",
+  "$schema": "../../schema/iac.schema.json",
   "version": 1,
   "project": {
-    "key": "bun-hono-api",
-    "name": "bun-hono-api"
+    "key": "go-api",
+    "name": "go-api"
   },
   "environments": {
     "development": {
@@ -40,32 +40,32 @@
   },
   "providers": {
     "digitalocean": {
-      "region": "sfo3",
+      "region": "nyc3",
       "resources": [
         {
           "type": "digitalocean_project",
           "name": "main",
           "values": {
-            "name": "bun-hono-api"
+            "name": "go-api"
           }
         }
       ],
       "deployments": {
         "dev": {
           "environment": "development",
-          "region": "sfo3"
+          "region": "nyc3"
         },
         "uat": {
           "environment": "uat",
-          "region": "sfo3"
+          "region": "nyc3"
         },
         "nightly": {
           "environment": "nightly",
-          "region": "sfo3"
+          "region": "nyc3"
         },
         "prod": {
           "environment": "production",
-          "region": "sfo3"
+          "region": "nyc3"
         }
       }
     }
@@ -73,21 +73,24 @@
   "apps": [
     {
       "key": "api",
-      "name": "bun-hono-api",
-      "framework": "bun",
+      "name": "go-api",
+      "framework": "go",
       "rootDirectory": "."
     }
   ],
-  "databases": [
+  "queues": [
     {
-      "key": "appdb",
-      "engine": "postgres",
+      "key": "jobs"
+    }
+  ],
+  "clusters": [
+    {
+      "key": "workers",
+      "size": 2,
       "providers": {
         "digitalocean": {
-          "engine": "pg",
-          "version": "16",
-          "size": "db-s-1vcpu-1gb",
-          "nodeCount": 1
+          "nodes": 2,
+          "sizeSlug": "s-1vcpu-1gb"
         }
       }
     }

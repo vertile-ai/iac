@@ -6,11 +6,11 @@ Vercel apps, domains, preview/production env provisioning, local env sync,
 embedded env metadata, portable storage/database/queue/compute concepts,
 provider overrides, and provider-specific escape hatch resources.
 
-It intentionally contains no real secrets. The env files use placeholder values
-so package consumers can inspect and run dry-runs without extra setup.
+It intentionally contains no real secrets. The manifest embeds placeholder env
+values so package consumers can inspect and run dry-runs without extra setup.
 
 The canonical env metadata is in
-`infrastructure/iac/iac.json` under `env.metadata.shared`,
+`iac.json` under `env.metadata.shared`,
 `env.metadata.web`, and `env.metadata.admin`.
 
 ## Commands

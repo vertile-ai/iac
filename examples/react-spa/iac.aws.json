@@ -1,0 +1,105 @@
+{
+  "$schema": "../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "react-spa",
+    "name": "react-spa"
+  },
+  "environments": {
+    "development": {
+      "files": [
+        ".env.development"
+      ]
+    },
+    "test": {
+      "files": [
+        ".env.test"
+      ]
+    },
+    "uat": {
+      "files": [
+        ".env.uat"
+      ]
+    },
+    "nightly": {
+      "files": [
+        ".env.nightly"
+      ]
+    },
+    "staging": {
+      "files": [
+        ".env.staging"
+      ]
+    },
+    "preview": {},
+    "production": {
+      "files": [
+        ".env.production"
+      ]
+    }
+  },
+  "providers": {
+    "aws": {
+      "region": "us-east-1",
+      "defaultTags": {
+        "Example": "react-spa",
+        "Runtime": "react"
+      },
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "us-east-1",
+          "profile": "react-spa-dev",
+          "tags": {
+            "Stage": "dev"
+          }
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "us-east-1",
+          "profile": "react-spa-uat",
+          "tags": {
+            "Stage": "uat"
+          }
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "us-east-1",
+          "profile": "react-spa-nightly",
+          "tags": {
+            "Stage": "nightly"
+          }
+        },
+        "prod": {
+          "environment": "production",
+          "region": "us-east-1",
+          "profile": "react-spa-prod",
+          "tags": {
+            "Stage": "prod"
+          }
+        }
+      }
+    }
+  },
+  "apps": [
+    {
+      "key": "web",
+      "name": "react-spa",
+      "framework": "vite",
+      "rootDirectory": ".",
+      "outputDir": "dist"
+    }
+  ],
+  "objectStorage": [
+    {
+      "key": "assets",
+      "visibility": "public",
+      "providers": {
+        "aws": {
+          "bucket": "react-spa-assets",
+          "forceDestroy": true
+        }
+      }
+    }
+  ]
+}

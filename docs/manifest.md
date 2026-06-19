@@ -3,7 +3,7 @@
 The manifest is the source of truth for app infrastructure intent.
 
 ```text
-infrastructure/iac/iac.json
+iac.json
 ```
 
 Generated Terraform is an implementation detail:
@@ -100,6 +100,14 @@ only where the provider really differs.
   ]
 }
 ```
+
+## Vercel API Credentials
+
+Vercel compatibility commands read API credentials from `VERCEL_TOKEN`,
+`VERCEL_API_KEY`, `providers.vercel.token`, or `providers.vercel.apiKey`.
+Process environment values take precedence. Manifest credentials keep the repo
+`iac.json` as the local source of truth; token files remain only as a
+compatibility fallback.
 
 ## Vercel Automation Bypass
 

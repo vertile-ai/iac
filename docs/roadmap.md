@@ -2,7 +2,7 @@
 
 ## Phase 1: Stable Compiler Core
 
-- Keep `infrastructure/iac/iac.json` as the only user-authored source of truth.
+- Keep `iac.json` as the only user-authored source of truth.
 - Render provider-specific Terraform into `.vertile/terraform/<provider>/`.
 - Keep legacy Vercel API reconciliation working until the Terraform path is
   verified.

@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../../schema/iac.schema.json",
+  "$schema": "../../schema/iac.schema.json",
   "version": 1,
   "project": {
     "key": "sveltekit-web",
@@ -41,6 +41,9 @@
   "providers": {
     "vercel": {
       "teamSlug": "example-team",
+      "projectDefaults": {
+        "nodeVersion": "22.x"
+      },
       "deployments": {
         "dev": {
           "environment": "development",
@@ -57,27 +60,6 @@
         "prod": {
           "environment": "production",
           "teamSlug": "example-team"
-        }
-      }
-    },
-    "digitalocean": {
-      "region": "nyc3",
-      "deployments": {
-        "dev": {
-          "environment": "development",
-          "region": "nyc3"
-        },
-        "uat": {
-          "environment": "uat",
-          "region": "nyc3"
-        },
-        "nightly": {
-          "environment": "nightly",
-          "region": "nyc3"
-        },
-        "prod": {
-          "environment": "production",
-          "region": "nyc3"
         }
       }
     }
@@ -89,14 +71,12 @@
       "framework": "sveltekit",
       "rootDirectory": ".",
       "domains": [
-        "sveltekit.example.com"
+        "sveltekit.example.com",
+        {
+          "name": "preview.sveltekit.example.com",
+          "gitBranch": "preview"
+        }
       ]
-    }
-  ],
-  "databases": [
-    {
-      "key": "content",
-      "engine": "postgres"
     }
   ]
 }

@@ -14,7 +14,7 @@ import {
   vercelEnvManifestFromIac,
   vercelProjectSettingsFromIac,
 } from '../src/core/vercel-manifests.mjs'
-import { resolveIacContext } from '../src/shared.mjs'
+import { readVercelToken, resolveIacContext } from '../src/shared.mjs'
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -346,6 +346,26 @@ test('resolves explicit project paths and auto-create controls', async () => {
     assert.equal(context.shouldAutoCreateProject('app'), true)
     assert.equal(context.shouldAutoCreateProject('template-demo'), true)
     assert.equal(context.shouldAutoCreateProject('other'), false)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('reads Vercel token from iac.json when environment token is unset', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+
+  try {
+    const rawManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    rawManifest.providers.vercel.token = 'manifest_vercel_token'
+    await writeFile(manifestPath, JSON.stringify(rawManifest, null, 2) + '\n')
+
+    const env = { ...process.env }
+    delete env.VERCEL_TOKEN
+    delete env.VERCEL_API_KEY
+
+    const context = resolveIacContext(['--repo-root', root], {})
+    assert.equal(readVercelToken(context, env), 'manifest_vercel_token')
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -1311,6 +1331,66 @@ test('derives Vercel protection bypass automation from provider and app config',
   }
 })
 
+test('uses Vercel token from iac.json for project reconciliation', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+  const fetchShimPath = path.join(root, 'fetch-shim.mjs')
+  const fetchLogPath = path.join(root, 'fetch-log.jsonl')
+
+  try {
+    const rawManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    rawManifest.providers.vercel.token = 'manifest_vercel_token'
+    await writeFile(manifestPath, JSON.stringify(rawManifest, null, 2) + '\n')
+    await writeFile(
+      fetchShimPath,
+      [
+        "import fs from 'node:fs'",
+        "globalThis.fetch = async (url, options = {}) => {",
+        "  fs.appendFileSync(process.env.FETCH_LOG_PATH, JSON.stringify({ url: String(url), method: options.method || 'GET', authorization: options.headers?.Authorization || '' }) + '\\n')",
+        "  const path = new URL(String(url)).pathname",
+        "  if (path === '/v1/teams') return Response.json({ teams: [{ id: 'team_test', slug: 'example-team' }] })",
+        "  if (path === '/v9/projects') return Response.json({ projects: [{ id: 'prj_test', name: 'example-app' }] })",
+        "  if (path === '/v9/projects/prj_test') return Response.json({ rootDirectory: 'packages/app', nodeVersion: '24.x', enableAffectedProjectsDeployments: true })",
+        "  return new Response(JSON.stringify({ error: `unexpected ${path}` }), { status: 500 })",
+        "}",
+      ].join('\n') + '\n',
+    )
+
+    const env = {
+      ...process.env,
+      FETCH_LOG_PATH: fetchLogPath,
+      VERCEL_API_THROTTLE_MS: '0',
+    }
+    delete env.VERCEL_TOKEN
+    delete env.VERCEL_API_KEY
+
+    const result = await execNode(
+      [
+        '--import',
+        fetchShimPath,
+        'src/reconcile-project-settings.mjs',
+        '--repo-root',
+        root,
+        '--projects=app',
+        '--apply',
+      ],
+      {
+        cwd: packageRoot,
+        env,
+      },
+    )
+
+    assert.equal(result.code, 0, result.stderr)
+    const calls = (await readFile(fetchLogPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    assert.equal(calls[0].authorization, 'Bearer manifest_vercel_token')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('updates Vercel protection bypass automation when an exact note match exists', async () => {
   const root = await createUnifiedFixture()
   const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
@@ -2153,8 +2233,8 @@ test('runtime examples expose base and provider-specific manifests that render',
   assert.deepEqual(examples, expectedExamples)
 
   for (const example of examples) {
-    const iacDir = path.join(examplesRoot, example, 'infrastructure', 'iac')
-    const manifestNames = (await readdir(iacDir))
+    const exampleRoot = path.join(examplesRoot, example)
+    const manifestNames = (await readdir(exampleRoot))
       .filter((name) => /^iac(\.(aws|do|vercel))?\.json$/.test(name))
       .sort()
 
@@ -2166,7 +2246,7 @@ test('runtime examples expose base and provider-specific manifests that render',
       await cp(path.join(examplesRoot, example), root, { recursive: true })
 
       try {
-        const manifestPath = path.join(root, 'infrastructure', 'iac', manifestName)
+        const manifestPath = path.join(root, manifestName)
         const manifest = readManifest(manifestPath)
         const targets = declaredTargets(manifest)
 
@@ -2204,7 +2284,7 @@ test('published Next.js monorepo example exercises Vercel env and render flows',
     const schema = JSON.parse(await readFile(path.join(packageRoot, 'schema', 'iac.schema.json'), 'utf8'))
     assert.equal(schema.$schema, 'https://json-schema.org/draft/2020-12/schema')
 
-    const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+    const manifestPath = path.join(root, 'iac.json')
     const manifest = readManifest(manifestPath)
     assert.equal(manifest.apps.length, 2)
     assert.equal(manifest.objectStorage[0].key, 'uploads')

@@ -1,9 +1,9 @@
 {
-  "$schema": "../../../../schema/iac.schema.json",
+  "$schema": "../../schema/iac.schema.json",
   "version": 1,
   "project": {
-    "key": "react-spa",
-    "name": "react-spa"
+    "key": "node-api",
+    "name": "node-api"
   },
   "environments": {
     "development": {
@@ -42,14 +42,24 @@
     "aws": {
       "region": "us-east-1",
       "defaultTags": {
-        "Example": "react-spa",
-        "Runtime": "react"
+        "Example": "node-api",
+        "Runtime": "node"
       },
+      "resources": [
+        {
+          "type": "aws_cloudwatch_log_group",
+          "name": "api",
+          "values": {
+            "name": "/examples/node-api",
+            "retention_in_days": 7
+          }
+        }
+      ],
       "deployments": {
         "dev": {
           "environment": "development",
           "region": "us-east-1",
-          "profile": "react-spa-dev",
+          "profile": "node-api-dev",
           "tags": {
             "Stage": "dev"
           }
@@ -57,7 +67,7 @@
         "uat": {
           "environment": "uat",
           "region": "us-east-1",
-          "profile": "react-spa-uat",
+          "profile": "node-api-uat",
           "tags": {
             "Stage": "uat"
           }
@@ -65,7 +75,7 @@
         "nightly": {
           "environment": "nightly",
           "region": "us-east-1",
-          "profile": "react-spa-nightly",
+          "profile": "node-api-nightly",
           "tags": {
             "Stage": "nightly"
           }
@@ -73,7 +83,7 @@
         "prod": {
           "environment": "production",
           "region": "us-east-1",
-          "profile": "react-spa-prod",
+          "profile": "node-api-prod",
           "tags": {
             "Stage": "prod"
           }
@@ -83,21 +93,28 @@
   },
   "apps": [
     {
-      "key": "web",
-      "name": "react-spa",
-      "framework": "vite",
-      "rootDirectory": ".",
-      "outputDir": "dist"
+      "key": "api",
+      "name": "node-api",
+      "framework": "node",
+      "rootDirectory": "."
     }
   ],
-  "objectStorage": [
+  "queues": [
     {
-      "key": "assets",
-      "visibility": "public",
+      "key": "jobs",
       "providers": {
         "aws": {
-          "bucket": "react-spa-assets",
-          "forceDestroy": true
+          "visibilityTimeoutSeconds": 45
+        }
+      }
+    }
+  ],
+  "sandboxes": [
+    {
+      "key": "api-runner",
+      "providers": {
+        "aws": {
+          "instanceType": "t3.micro"
         }
       }
     }

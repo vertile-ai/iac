@@ -1,9 +1,9 @@
 {
-  "$schema": "../../../../schema/iac.schema.json",
+  "$schema": "../../schema/iac.schema.json",
   "version": 1,
   "project": {
-    "key": "react-spa",
-    "name": "react-spa"
+    "key": "bun-hono-api",
+    "name": "bun-hono-api"
   },
   "environments": {
     "development": {
@@ -39,81 +39,77 @@
     }
   },
   "providers": {
-    "vercel": {
-      "teamSlug": "example-team",
-      "deployments": {
-        "dev": {
-          "environment": "development",
-          "teamSlug": "example-team"
-        },
-        "uat": {
-          "environment": "uat",
-          "teamSlug": "example-team"
-        },
-        "nightly": {
-          "environment": "nightly",
-          "teamSlug": "example-team"
-        },
-        "prod": {
-          "environment": "production",
-          "teamSlug": "example-team"
-        }
-      }
-    },
     "aws": {
-      "region": "us-east-1",
+      "region": "us-west-2",
       "deployments": {
         "dev": {
           "environment": "development",
-          "region": "us-east-1",
-          "profile": "react-spa-dev",
+          "region": "us-west-2",
+          "profile": "bun-hono-api-dev",
           "tags": {
             "Stage": "dev"
           }
         },
         "uat": {
           "environment": "uat",
-          "region": "us-east-1",
-          "profile": "react-spa-uat",
+          "region": "us-west-2",
+          "profile": "bun-hono-api-uat",
           "tags": {
             "Stage": "uat"
           }
         },
         "nightly": {
           "environment": "nightly",
-          "region": "us-east-1",
-          "profile": "react-spa-nightly",
+          "region": "us-west-2",
+          "profile": "bun-hono-api-nightly",
           "tags": {
             "Stage": "nightly"
           }
         },
         "prod": {
           "environment": "production",
-          "region": "us-east-1",
-          "profile": "react-spa-prod",
+          "region": "us-west-2",
+          "profile": "bun-hono-api-prod",
           "tags": {
             "Stage": "prod"
           }
+        }
+      }
+    },
+    "digitalocean": {
+      "region": "sfo3",
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "sfo3"
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "sfo3"
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "sfo3"
+        },
+        "prod": {
+          "environment": "production",
+          "region": "sfo3"
         }
       }
     }
   },
   "apps": [
     {
-      "key": "web",
-      "name": "react-spa",
-      "framework": "vite",
-      "rootDirectory": ".",
-      "outputDir": "dist",
-      "domains": [
-        "react-spa.example.com"
-      ]
+      "key": "api",
+      "name": "bun-hono-api",
+      "framework": "bun",
+      "rootDirectory": "."
     }
   ],
-  "objectStorage": [
+  "databases": [
     {
-      "key": "assets",
-      "visibility": "public"
+      "key": "appdb",
+      "engine": "postgres"
     }
   ]
 }

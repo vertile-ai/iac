@@ -5,5 +5,5 @@ DigitalOcean variant.
 
 ```bash
 vertile-iac render --repo-root examples/bun-hono-api --target=all --deployment=prod
-vertile-iac render --repo-root examples/bun-hono-api --iac-manifest infrastructure/iac/iac.do.json --target=digitalocean --env=production
+vertile-iac render --repo-root examples/bun-hono-api --iac-manifest iac.do.json --target=digitalocean --env=production
 ```

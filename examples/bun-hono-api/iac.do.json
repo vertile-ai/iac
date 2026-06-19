@@ -1,9 +1,9 @@
 {
-  "$schema": "../../../../schema/iac.schema.json",
+  "$schema": "../../schema/iac.schema.json",
   "version": 1,
   "project": {
-    "key": "sveltekit-web",
-    "name": "sveltekit-web"
+    "key": "bun-hono-api",
+    "name": "bun-hono-api"
   },
   "environments": {
     "development": {
@@ -39,44 +39,57 @@
     }
   },
   "providers": {
-    "vercel": {
-      "teamSlug": "example-team",
-      "projectDefaults": {
-        "nodeVersion": "22.x"
-      },
+    "digitalocean": {
+      "region": "sfo3",
+      "resources": [
+        {
+          "type": "digitalocean_project",
+          "name": "main",
+          "values": {
+            "name": "bun-hono-api"
+          }
+        }
+      ],
       "deployments": {
         "dev": {
           "environment": "development",
-          "teamSlug": "example-team"
+          "region": "sfo3"
         },
         "uat": {
           "environment": "uat",
-          "teamSlug": "example-team"
+          "region": "sfo3"
         },
         "nightly": {
           "environment": "nightly",
-          "teamSlug": "example-team"
+          "region": "sfo3"
         },
         "prod": {
           "environment": "production",
-          "teamSlug": "example-team"
+          "region": "sfo3"
         }
       }
     }
   },
   "apps": [
     {
-      "key": "web",
-      "name": "sveltekit-web",
-      "framework": "sveltekit",
-      "rootDirectory": ".",
-      "domains": [
-        "sveltekit.example.com",
-        {
-          "name": "preview.sveltekit.example.com",
-          "gitBranch": "preview"
+      "key": "api",
+      "name": "bun-hono-api",
+      "framework": "bun",
+      "rootDirectory": "."
+    }
+  ],
+  "databases": [
+    {
+      "key": "appdb",
+      "engine": "postgres",
+      "providers": {
+        "digitalocean": {
+          "engine": "pg",
+          "version": "16",
+          "size": "db-s-1vcpu-1gb",
+          "nodeCount": 1
         }
-      ]
+      }
     }
   ]
 }

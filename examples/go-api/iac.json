@@ -1,9 +1,9 @@
 {
-  "$schema": "../../../../schema/iac.schema.json",
+  "$schema": "../../schema/iac.schema.json",
   "version": 1,
   "project": {
-    "key": "node-api",
-    "name": "node-api"
+    "key": "go-api",
+    "name": "go-api"
   },
   "environments": {
     "development": {
@@ -41,25 +41,11 @@
   "providers": {
     "aws": {
       "region": "us-east-1",
-      "defaultTags": {
-        "Example": "node-api",
-        "Runtime": "node"
-      },
-      "resources": [
-        {
-          "type": "aws_cloudwatch_log_group",
-          "name": "api",
-          "values": {
-            "name": "/examples/node-api",
-            "retention_in_days": 7
-          }
-        }
-      ],
       "deployments": {
         "dev": {
           "environment": "development",
           "region": "us-east-1",
-          "profile": "node-api-dev",
+          "profile": "go-api-dev",
           "tags": {
             "Stage": "dev"
           }
@@ -67,7 +53,7 @@
         "uat": {
           "environment": "uat",
           "region": "us-east-1",
-          "profile": "node-api-uat",
+          "profile": "go-api-uat",
           "tags": {
             "Stage": "uat"
           }
@@ -75,7 +61,7 @@
         "nightly": {
           "environment": "nightly",
           "region": "us-east-1",
-          "profile": "node-api-nightly",
+          "profile": "go-api-nightly",
           "tags": {
             "Stage": "nightly"
           }
@@ -83,10 +69,31 @@
         "prod": {
           "environment": "production",
           "region": "us-east-1",
-          "profile": "node-api-prod",
+          "profile": "go-api-prod",
           "tags": {
             "Stage": "prod"
           }
+        }
+      }
+    },
+    "digitalocean": {
+      "region": "nyc3",
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "nyc3"
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "nyc3"
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "nyc3"
+        },
+        "prod": {
+          "environment": "production",
+          "region": "nyc3"
         }
       }
     }
@@ -94,29 +101,14 @@
   "apps": [
     {
       "key": "api",
-      "name": "node-api",
-      "framework": "node",
+      "name": "go-api",
+      "framework": "go",
       "rootDirectory": "."
     }
   ],
   "queues": [
     {
-      "key": "jobs",
-      "providers": {
-        "aws": {
-          "visibilityTimeoutSeconds": 45
-        }
-      }
-    }
-  ],
-  "sandboxes": [
-    {
-      "key": "api-runner",
-      "providers": {
-        "aws": {
-          "instanceType": "t3.micro"
-        }
-      }
+      "key": "jobs"
     }
   ]
 }

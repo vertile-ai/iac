@@ -1,9 +1,9 @@
 {
-  "$schema": "../../../../schema/iac.schema.json",
+  "$schema": "../../schema/iac.schema.json",
   "version": 1,
   "project": {
-    "key": "go-api",
-    "name": "go-api"
+    "key": "react-spa",
+    "name": "react-spa"
   },
   "environments": {
     "development": {
@@ -39,13 +39,34 @@
     }
   },
   "providers": {
+    "vercel": {
+      "teamSlug": "example-team",
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "teamSlug": "example-team"
+        },
+        "uat": {
+          "environment": "uat",
+          "teamSlug": "example-team"
+        },
+        "nightly": {
+          "environment": "nightly",
+          "teamSlug": "example-team"
+        },
+        "prod": {
+          "environment": "production",
+          "teamSlug": "example-team"
+        }
+      }
+    },
     "aws": {
       "region": "us-east-1",
       "deployments": {
         "dev": {
           "environment": "development",
           "region": "us-east-1",
-          "profile": "go-api-dev",
+          "profile": "react-spa-dev",
           "tags": {
             "Stage": "dev"
           }
@@ -53,7 +74,7 @@
         "uat": {
           "environment": "uat",
           "region": "us-east-1",
-          "profile": "go-api-uat",
+          "profile": "react-spa-uat",
           "tags": {
             "Stage": "uat"
           }
@@ -61,7 +82,7 @@
         "nightly": {
           "environment": "nightly",
           "region": "us-east-1",
-          "profile": "go-api-nightly",
+          "profile": "react-spa-nightly",
           "tags": {
             "Stage": "nightly"
           }
@@ -69,46 +90,30 @@
         "prod": {
           "environment": "production",
           "region": "us-east-1",
-          "profile": "go-api-prod",
+          "profile": "react-spa-prod",
           "tags": {
             "Stage": "prod"
           }
-        }
-      }
-    },
-    "digitalocean": {
-      "region": "nyc3",
-      "deployments": {
-        "dev": {
-          "environment": "development",
-          "region": "nyc3"
-        },
-        "uat": {
-          "environment": "uat",
-          "region": "nyc3"
-        },
-        "nightly": {
-          "environment": "nightly",
-          "region": "nyc3"
-        },
-        "prod": {
-          "environment": "production",
-          "region": "nyc3"
         }
       }
     }
   },
   "apps": [
     {
-      "key": "api",
-      "name": "go-api",
-      "framework": "go",
-      "rootDirectory": "."
+      "key": "web",
+      "name": "react-spa",
+      "framework": "vite",
+      "rootDirectory": ".",
+      "outputDir": "dist",
+      "domains": [
+        "react-spa.example.com"
+      ]
     }
   ],
-  "queues": [
+  "objectStorage": [
     {
-      "key": "jobs"
+      "key": "assets",
+      "visibility": "public"
     }
   ]
 }

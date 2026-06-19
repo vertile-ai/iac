@@ -6,14 +6,13 @@ import process from 'node:process'
 import { environmentFiles } from './core/env-files.mjs'
 import { applyEnvMetadata, manifestEnvEntries } from './core/env-metadata.mjs'
 import { readVercelEnvManifest } from './core/vercel-manifests.mjs'
-import { resolveIacContext } from './shared.mjs'
+import { readVercelToken, resolveIacContext } from './shared.mjs'
 
 const iacContext = resolveIacContext(process.argv.slice(2), {
   autoCreateKeys: 'landing,web-client,web-server,auth,preview,payment',
   autoCreatePrefixes: 'template-',
 })
 const rootDir = iacContext.repoRoot
-const tokenFilePath = iacContext.tokenFilePath
 const apiBase = 'https://api.vercel.com'
 const managedComment = 'managed by @vertile-ai/iac provision-env'
 const legacyManagedComment = 'managed by infrastructure/IAC/provision-env.mjs'
@@ -154,28 +153,6 @@ function mergeEntries(layers) {
   }
 
   return order.map((key) => ({ key, value: values.get(key) }))
-}
-
-function readTokenFromFile(filePath) {
-  if (!fs.existsSync(filePath)) return ''
-
-  const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/)
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) continue
-
-    if (trimmed.startsWith('VERCEL_TOKEN=')) {
-      return trimmed.slice('VERCEL_TOKEN='.length).trim()
-    }
-    if (trimmed.startsWith('VERCEL_API_KEY=')) {
-      return trimmed.slice('VERCEL_API_KEY='.length).trim()
-    }
-
-    // Also allow plain token-only files.
-    return trimmed
-  }
-
-  return ''
 }
 
 function targetEnvironment(manifest, target) {
@@ -706,10 +683,7 @@ async function upsertProjectEnv({
 async function main() {
   const args = parseArgs(process.argv.slice(2))
   const dryRun = !args.apply
-  const token =
-    process.env.VERCEL_TOKEN ||
-    process.env.VERCEL_API_KEY ||
-    readTokenFromFile(tokenFilePath)
+  const token = readVercelToken(iacContext)
   const manifest = readVercelEnvManifest(iacContext)
   const teamSlug = manifest.teamSlug
   const projects = Array.isArray(manifest.projects) ? manifest.projects : []
@@ -822,7 +796,7 @@ async function main() {
   }
 
   if (!dryRun && !token) {
-    throw new Error('Missing VERCEL_TOKEN (or VERCEL_API_KEY) for apply mode')
+    throw new Error('Missing VERCEL_TOKEN, VERCEL_API_KEY, providers.vercel.token, providers.vercel.apiKey, or token file for apply mode')
   }
 
   console.log(

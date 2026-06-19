@@ -33,8 +33,9 @@ vertile-iac projects --repo-root ../noop
 vertile-iac domains --repo-root ../noop
 ```
 
-The `render`, `plan`, and `apply` commands read `infrastructure/iac/iac.json`
-and write generated Terraform workspaces to `.vertile/terraform/<target>/`.
+The `render`, `plan`, and `apply` commands read `iac.json` from the repo root
+when present, otherwise `infrastructure/iac/iac.json`, and write generated
+Terraform workspaces to `.vertile/terraform/<target>/`.
 When `--deployment=<name>` maps to a provider deployment, the workspace is
 `.vertile/terraform/<target>/<deployment>/`.
 
@@ -44,9 +45,12 @@ Terraform `-auto-approve`.
 The `env`, `projects`, and `domains` commands reconcile Vercel through the
 Vercel API. They still read the older compatibility manifest files when those
 files exist, and otherwise derive the same desired state from
-`infrastructure/iac/iac.json`.
+`iac.json`.
 
-Apply mode requires `VERCEL_TOKEN`, `VERCEL_API_KEY`, or a token file:
+Apply mode requires `VERCEL_TOKEN`, `VERCEL_API_KEY`,
+`providers.vercel.token`, `providers.vercel.apiKey`, or a token file. Process
+environment values win over manifest values; token files are a compatibility
+fallback:
 
 ```bash
 VERCEL_TOKEN=... vertile-iac env --repo-root ../noop --apply
@@ -57,7 +61,7 @@ VERCEL_TOKEN=... vertile-iac env --repo-root ../noop --apply
 The new Terraform flow expects the target project to have:
 
 ```text
-infrastructure/iac/iac.json
+iac.json
 .vertile-iac/env/shared/.env.development
 .vertile-iac/env/shared/.env.staging
 .vertile-iac/env/shared/.env.production
@@ -155,8 +159,8 @@ environment still controls env file selection.
 By default, Vercel env reconciliation reads `.env.*` files from
 `.vertile-iac/env/shared` and `.vertile-iac/env/<project-key>`.
 
-The source of truth for Vercel env reconciliation is
-`infrastructure/iac/iac.json`. Project settings and domain compatibility files
+The source of truth for Vercel env reconciliation is `iac.json`. Project
+settings and domain compatibility files
 can still be read explicitly or as fallbacks for those commands:
 
 ```text
@@ -168,6 +172,8 @@ When `iac.json` is used, the Vercel commands derive equivalent manifests from
 the unified manifest:
 
 - `providers.vercel.teamSlug` or `providers.vercel.team` becomes the Vercel team.
+- `providers.vercel.token` or `providers.vercel.apiKey` becomes the Vercel API
+  token when `VERCEL_TOKEN` and `VERCEL_API_KEY` are unset.
 - `env.sourceDir` selects the env source folder and defaults to `.vertile-iac/env`.
 - Top-level `environments.<name>.files` maps logical environments to ordered env files.
 - `apps[].key`, `apps[].id` or `apps[].projectId`, and `apps[].name` become managed Vercel projects.
@@ -346,7 +352,7 @@ The boundary is:
 - Top-level `packages` registers env-output package keys and directories. Each
   package `directory` is resolved relative to the repo root, which comes from
   `--repo-root` or from walking upward from the current directory until
-  `package.json` and `infrastructure/` are found.
+  `package.json` and either `iac.json` or `infrastructure/` are found.
 - `env.sync.packages` limits which package registry entries are materialized
   locally. Without it, all registered packages are synced. `env.sync.apps` is
   accepted only for older manifests.
@@ -512,14 +518,14 @@ with `--variants`, such as `--variants=uat,nightly`.
 
 ## Shared Options
 
-- `--repo-root <path>`: product repo root containing `infrastructure/`.
-- `--iac-dir <path>`: manifest directory, default `infrastructure/iac`.
+- `--repo-root <path>`: product repo root containing `iac.json` or `infrastructure/`.
+- `--iac-dir <path>`: compatibility manifest directory, default `infrastructure/iac`.
 - `--project-settings <path>`: project settings manifest path.
 - `--project-domains <path>`: project domains manifest path.
-- `--token-file <path>`: token file, default `<repo-root>/.vercel.token`.
+- `--token-file <path>`: compatibility token file fallback, default `<repo-root>/.vercel.token`.
 - `--auto-create-keys <a,b>`: project keys allowed for Vercel auto-create.
 - `--auto-create-prefixes <a,b>`: project key prefixes allowed for Vercel auto-create.
-- `--iac-manifest <path>`: source-of-truth IaC manifest, default `<iac-dir>/iac.json`.
+- `--iac-manifest <path>`: source-of-truth IaC manifest, default `iac.json` when present, otherwise `<iac-dir>/iac.json`.
 - `--out <path>`: generated Terraform root, default `.vertile/terraform`.
 - `--target <name|all>`: `vercel`, `aws`, `digitalocean`, or `all`.
 - `--env <name>`: environment to render, plan, or apply, default `production`.
@@ -566,7 +572,7 @@ shape is clear at a glance:
 - `examples/python-fastapi-api`
 - `examples/go-api`
 
-Every example keeps a portable `infrastructure/iac/iac.json`. Examples with
+Every example keeps a portable root-level `iac.json`. Examples with
 provider-specific fields also include standalone provider variants such as
 `iac.aws.json`, `iac.vercel.json`, or `iac.do.json` that can be passed with
 `--iac-manifest`.

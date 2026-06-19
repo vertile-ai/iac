@@ -54,6 +54,8 @@
                 "team": { "type": "string" },
                 "teamId": { "type": "string" },
                 "teamSlug": { "type": "string" },
+                "token": { "type": "string" },
+                "apiKey": { "type": "string" },
                 "env": {
                   "type": "object",
                   "additionalProperties": true,
@@ -316,6 +318,8 @@
         "team": { "type": "string" },
         "teamId": { "type": "string" },
         "teamSlug": { "type": "string" },
+        "token": { "type": "string" },
+        "apiKey": { "type": "string" },
         "region": { "type": "string" },
         "profile": { "type": "string" },
         "version": { "type": "string" },
