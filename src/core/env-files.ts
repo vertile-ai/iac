@@ -7,7 +7,7 @@ const defaultEnvironmentFiles = {
   test: ['.env.test'],
 }
 
-function asObject(value) {
+function asObject(value: any): any {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
 }
 

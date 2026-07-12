@@ -1,4 +1,4 @@
-function isPlainObject(value) {
+function isPlainObject(value: any): any {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
@@ -33,14 +33,14 @@ function formatValue(value, indent = 0) {
   return quote(value)
 }
 
-export function block(type, labels = [], body = {}) {
+export function block(type: any, labels: any[] = [], body: any = {}) {
   const labelText = labels.map((label) => ` ${quote(label)}`).join('')
   const lines = [`${type}${labelText} {`]
 
   for (const [key, value] of Object.entries(body)) {
     if (value === undefined) continue
-    if (value && typeof value === 'object' && value.__raw) {
-      lines.push(`  ${key} = ${value.value}`)
+    if (value && typeof value === 'object' && (value as any).__raw) {
+      lines.push(`  ${key} = ${(value as any).value}`)
       continue
     }
     lines.push(`  ${key} = ${formatValue(value, 2)}`)
@@ -50,7 +50,7 @@ export function block(type, labels = [], body = {}) {
   return lines.join('\n')
 }
 
-export function nestedBlock(type, body = {}, indent = 0) {
+export function nestedBlock(type: any, body: any = {}, indent = 0) {
   const pad = ' '.repeat(indent)
   const lines = [`${pad}${type} {`]
 
@@ -63,11 +63,11 @@ export function nestedBlock(type, body = {}, indent = 0) {
   return lines.join('\n')
 }
 
-export function raw(value) {
+export function raw(value: any) {
   return { __raw: true, value }
 }
 
-export function sanitizeName(value) {
+export function sanitizeName(value: any) {
   const sanitized = String(value)
     .toLowerCase()
     .replace(/[^a-z0-9_]+/g, '_')
@@ -75,13 +75,13 @@ export function sanitizeName(value) {
   return sanitized || 'resource'
 }
 
-export function renderGenericResources(resources = []) {
+export function renderGenericResources(resources: any[] = []) {
   return resources
     .map((resource) => block('resource', [resource.type, resource.name], resource.values || {}))
     .join('\n\n')
 }
 
-export function renderLocals(manifest, environment, deployment = {}) {
+export function renderLocals(manifest: any, environment: any, deployment: any = {}) {
   return block('locals', [], {
     project_name: manifest.project.name,
     environment,

@@ -4,8 +4,8 @@ import process from 'node:process'
 import {
   readVercelEnvManifest,
   readVercelProjectDomainsManifest,
-} from './core/vercel-manifests.mjs'
-import { readVercelToken, resolveIacContext } from './shared.mjs'
+} from './core/vercel-manifests.js'
+import { readVercelToken, resolveIacContext } from './shared.js'
 
 const iacContext = resolveIacContext(process.argv.slice(2), {
   autoCreateKeys: 'landing,web-client,web-server,auth,preview,payment',
@@ -105,7 +105,7 @@ async function request({
   query,
   body,
   acceptedStatus = [200],
-}) {
+}: any) {
   const url = `${apiBase}${pathname}${toQuery(query || {})}`
 
   for (let attempt = 0; attempt < maxRequestAttempts; attempt += 1) {
@@ -198,9 +198,9 @@ async function createTeamProject({ token, teamId, name }) {
   return id
 }
 
-function normalizeDomainConfigs(domains) {
+function normalizeDomainConfigs(domains: any): any[] {
   const list = Array.isArray(domains) ? domains : []
-  const byName = new Map()
+  const byName = new Map<string, any>()
 
   for (const domain of list) {
     const config =
@@ -226,9 +226,9 @@ function normalizeDomainConfigs(domains) {
   return [...byName.values()]
 }
 
-function computeDiff({ desired, current, reconcileDelete }) {
-  const desiredByName = new Map(desired.map((domain) => [domain.name, domain]))
-  const currentByName = new Map(current.map((domain) => [domain.name, domain]))
+function computeDiff({ desired, current, reconcileDelete }: any): any {
+  const desiredByName = new Map<string, any>(desired.map((domain) => [domain.name, domain]))
+  const currentByName = new Map<string, any>(current.map((domain) => [domain.name, domain]))
 
   const toAdd = desired.filter((domain) => !currentByName.has(domain.name))
   const toUpdate = desired.filter((domain) => {

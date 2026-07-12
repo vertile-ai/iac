@@ -4,8 +4,8 @@ import process from 'node:process'
 import {
   readVercelEnvManifest,
   readVercelProjectSettingsManifest,
-} from './core/vercel-manifests.mjs'
-import { readVercelToken, resolveIacContext } from './shared.mjs'
+} from './core/vercel-manifests.js'
+import { readVercelToken, resolveIacContext } from './shared.js'
 
 const iacContext = resolveIacContext(process.argv.slice(2), {
   autoCreateKeys: 'landing,web-client,web-server,auth,preview,payment',
@@ -86,7 +86,7 @@ function readRetryAfterMs(response, attempt) {
   return Math.min(30000, 1000 * 2 ** attempt)
 }
 
-async function requestJSON({ token, method, pathname, query, body }) {
+async function requestJSON({ token, method, pathname, query, body }: any) {
   const url = `${apiBase}${pathname}${toQuery(query || {})}`
 
   for (let attempt = 0; attempt < maxRequestAttempts; attempt += 1) {
@@ -214,18 +214,18 @@ function trimString(value) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-function automationBypassEntries(project) {
+function automationBypassEntries(project: any): any[] | null {
   const protectionBypass = project?.protectionBypass
   if (!protectionBypass || typeof protectionBypass !== 'object' || Array.isArray(protectionBypass)) {
     return null
   }
 
-  return Object.values(protectionBypass).filter(
+  return (Object.values(protectionBypass) as any[]).filter(
     (entry) => entry && typeof entry === 'object' && entry.scope === 'automation-bypass',
   )
 }
 
-function resolveProtectionBypassRequest({ project, desired, projectKey }) {
+function resolveProtectionBypassRequest({ project, desired, projectKey }: any): any {
   if (!desired?.ensure) return desired
 
   const ensure = desired.ensure
@@ -261,7 +261,7 @@ function resolveProtectionBypassRequest({ project, desired, projectKey }) {
     )
   }
 
-  const body = {
+  const body: any = {
     secret,
     note,
   }

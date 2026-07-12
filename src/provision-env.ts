@@ -3,10 +3,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { environmentFiles } from './core/env-files.mjs'
-import { applyEnvMetadata, manifestEnvEntries } from './core/env-metadata.mjs'
-import { readVercelEnvManifest } from './core/vercel-manifests.mjs'
-import { readVercelToken, resolveIacContext } from './shared.mjs'
+import { environmentFiles } from './core/env-files.js'
+import { applyEnvMetadata, manifestEnvEntries } from './core/env-metadata.js'
+import { readVercelEnvManifest } from './core/vercel-manifests.js'
+import { readVercelToken, resolveIacContext } from './shared.js'
 
 const iacContext = resolveIacContext(process.argv.slice(2), {
   autoCreateKeys: 'landing,web-client,web-server,auth,preview,payment',
@@ -15,8 +15,8 @@ const iacContext = resolveIacContext(process.argv.slice(2), {
 const rootDir = iacContext.repoRoot
 const apiBase = 'https://api.vercel.com'
 const managedComment = 'managed by @vertile-ai/iac provision-env'
-const legacyManagedComment = 'managed by infrastructure/IAC/provision-env.mjs'
-const olderLegacyManagedComment = 'managed by scripts/vercel/provision-env.mjs'
+const legacyManagedComment = 'managed by infrastructure/IAC/provision-env.js'
+const olderLegacyManagedComment = 'managed by scripts/vercel/provision-env.js'
 const shouldAutoCreateProject = iacContext.shouldAutoCreateProject
 
 function readPositiveIntegerEnv(key, fallback) {
@@ -173,7 +173,7 @@ function readEnvFiles(baseDir, files, {
   manifest,
   sourceKey = '',
   environment = '',
-} = {}) {
+}: any = {}) {
   const manifestLayer = manifestEnvEntries({ baseDir, manifest, sourceKey, environment })
   if (manifestLayer) return manifestLayer.entries
 
@@ -190,7 +190,7 @@ function readEnvFiles(baseDir, files, {
   return applyEnvMetadata({ baseDir, entries, manifest })
 }
 
-function readSourceScopedEntries(sourceDir, environment, projects, files, options = {}) {
+function readSourceScopedEntries(sourceDir, environment, projects, files, options: any = {}) {
   const {
     readTeam = true,
     readProjects = true,
@@ -293,7 +293,7 @@ function readRetryAfterMs(response, attempt) {
   return Math.min(30000, 1000 * 2 ** attempt)
 }
 
-async function requestJSON({ token, method, pathname, query, body }) {
+async function requestJSON({ token, method, pathname, query, body }: any) {
   const url = `${apiBase}${pathname}${toQuery(query || {})}`
 
   for (let attempt = 0; attempt < maxRequestAttempts; attempt += 1) {

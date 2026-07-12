@@ -1,3 +1,4 @@
+// @ts-nocheck
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -5,10 +6,10 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { resolvePlatformContext } from '../src/core/context.mjs'
-import { readManifest } from '../src/core/manifest.mjs'
+import { resolvePlatformContext } from '../src/core/context.js'
+import { readManifest } from '../src/core/manifest.js'
 
-const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 
 async function createFixture() {
   const root = await mkdtemp(path.join(tmpdir(), 'vertile-iac-'))
@@ -193,7 +194,7 @@ test('renders deterministic Terraform files for each provider', async () => {
 
   try {
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'render',
       '--repo-root',
       root,
@@ -239,7 +240,7 @@ test('renders AWS deployment names as Terraform workspace and provider inputs', 
 
   try {
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'render',
       '--repo-root',
       root,
@@ -270,7 +271,7 @@ test('renders DigitalOcean deployment names as Terraform workspace and provider 
 
   try {
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'render',
       '--repo-root',
       root,
@@ -299,7 +300,7 @@ test('renders Vercel deployment names as Terraform workspace and provider inputs
 
   try {
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'render',
       '--repo-root',
       root,
@@ -333,7 +334,7 @@ test('runs apply through a mocked Terraform executable with explicit approval', 
 
   try {
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'apply',
       '--repo-root',
       root,
@@ -370,7 +371,7 @@ test('runs plan through a mocked Terraform executable', async () => {
 
   try {
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'plan',
       '--repo-root',
       root,

@@ -1,9 +1,11 @@
 node_modules/
+dist/
 .DS_Store
 .env
 .env.*
 .vercel.token
 coverage/
+.nyc_output/
 test-results/
 *.log
 .jazelly/

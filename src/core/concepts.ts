@@ -1,4 +1,4 @@
-import { sanitizeName } from './hcl.mjs'
+import { sanitizeName } from './hcl.js'
 
 export function providerValues(item, provider) {
   return {

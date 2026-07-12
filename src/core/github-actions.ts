@@ -1,7 +1,7 @@
 import path from 'node:path'
-import { manifestEnvEntries } from './env-metadata.mjs'
+import { manifestEnvEntries } from './env-metadata.js'
 
-function asObject(value, fallback = {}) {
+function asObject(value: any, fallback: any = {}): any {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback
 }
 
@@ -14,9 +14,9 @@ function asStringList(value, field) {
   throw new Error(`${field} must be a non-empty string or array of non-empty strings.`)
 }
 
-function metadataSourceKeys(manifest) {
+function metadataSourceKeys(manifest: any) {
   const metadata = asObject(manifest.env?.metadata || manifest.env?.envJson)
-  const sources = new Set()
+  const sources = new Set<string>()
   for (const key of Object.keys(asObject(metadata.sources))) sources.add(key)
   for (const key of Object.keys(metadata)) {
     if (key !== 'sources') sources.add(key)
@@ -24,8 +24,8 @@ function metadataSourceKeys(manifest) {
   return [...sources]
 }
 
-function collectMetadataValues({ manifest, sourceRoot, environment }) {
-  const values = new Map()
+function collectMetadataValues({ manifest, sourceRoot, environment }: any) {
+  const values = new Map<string, any>()
 
   for (const sourceKey of metadataSourceKeys(manifest)) {
     const baseDir = path.join(sourceRoot, sourceKey)

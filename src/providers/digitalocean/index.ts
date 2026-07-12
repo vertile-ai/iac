@@ -4,19 +4,19 @@ import {
   renderLocals,
   renderOutput,
   renderRequiredProvider,
-} from '../../core/hcl.mjs'
+} from '../../core/hcl.js'
 import {
   compactBody,
   providerResourceName,
   providerValues,
   resourceName,
-} from '../../core/concepts.mjs'
+} from '../../core/concepts.js'
 
-function deploymentLabel(environment, deployment = {}) {
+function deploymentLabel(environment, deployment: any = {}) {
   return deployment.name || environment
 }
 
-function region(config, values) {
+function region(config: any, values: any) {
   return values.region || config.region || 'nyc3'
 }
 
@@ -71,7 +71,7 @@ function outputBlocks(manifest) {
   ))
 }
 
-export function renderTerraform({ manifest, environment, deployment = {} }) {
+export function renderTerraform({ manifest, environment, deployment = {} }: any) {
   const providerConfig = manifest.providers.digitalocean || {}
   const config = {
     ...providerConfig,

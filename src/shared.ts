@@ -49,7 +49,7 @@ function defaultIacManifestPath(repoRoot, iacDir, hasExplicitIacDir) {
   return path.relative(repoRoot, path.join(iacDir, 'iac.json'))
 }
 
-export function resolveIacContext(argv, defaults = {}) {
+export function resolveIacContext(argv: string[], defaults: any = {}) {
   const repoRootArg = readOption(argv, '--repo-root')
   const repoRoot = repoRootArg
     ? path.resolve(repoRootArg)

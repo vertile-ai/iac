@@ -4,7 +4,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+// This script runs from dist/scripts after TypeScript compilation.
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 
 function readOption(argv, name) {
   const prefix = `${name}=`

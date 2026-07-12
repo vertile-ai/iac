@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-function asObject(value, fallback = {}) {
+function asObject(value: any, fallback: any = {}): any {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback
 }
 
@@ -65,8 +65,8 @@ function normalizeEnvironments(environments) {
   }
 }
 
-function validateProviderResources(providers) {
-  for (const [provider, config] of Object.entries(providers)) {
+function validateProviderResources(providers: any) {
+  for (const [provider, config] of Object.entries(providers as Record<string, any>)) {
     const resources = config && Array.isArray(config.resources) ? config.resources : []
     for (const resource of resources) {
       if (!resource.type || !resource.name) {
@@ -78,8 +78,8 @@ function validateProviderResources(providers) {
   }
 }
 
-function validateProviderDeployments(manifest) {
-  for (const [provider, config] of Object.entries(manifest.providers)) {
+function validateProviderDeployments(manifest: any) {
+  for (const [provider, config] of Object.entries(manifest.providers as Record<string, any>)) {
     const deployments = asObject(config.deployments)
     for (const [name, deployment] of Object.entries(deployments)) {
       const environment = asObject(deployment).environment

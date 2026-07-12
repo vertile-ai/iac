@@ -41,3 +41,8 @@ commands.
   behavior, schema, docs examples, or sync behavior.
 - When env source files or metadata in a linked product repo change, run that
   repo's env sync script, usually `pnpm env:sync`.
+
+## Git workflow
+
+- Pull requests into `main` must use **rebase and merge**. Do not use GitHub's
+  merge-commit strategy, so `main` remains a linear history.

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { chmod, cp, mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
@@ -5,18 +6,18 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { supportedTargets } from '../src/core/args.mjs'
-import { applyEnvMetadata } from '../src/core/env-metadata.mjs'
-import { buildGitHubActionsPlan, githubTokenFromManifest } from '../src/core/github-actions.mjs'
-import { readManifest } from '../src/core/manifest.mjs'
+import { supportedTargets } from '../src/core/args.js'
+import { applyEnvMetadata } from '../src/core/env-metadata.js'
+import { buildGitHubActionsPlan, githubTokenFromManifest } from '../src/core/github-actions.js'
+import { readManifest } from '../src/core/manifest.js'
 import {
   readVercelEnvManifest,
   vercelEnvManifestFromIac,
   vercelProjectSettingsFromIac,
-} from '../src/core/vercel-manifests.mjs'
-import { readVercelToken, resolveIacContext } from '../src/shared.mjs'
+} from '../src/core/vercel-manifests.js'
+import { readVercelToken, resolveIacContext } from '../src/shared.js'
 
-const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 
 async function createFixture() {
   const root = await mkdtemp(path.join(tmpdir(), 'vertile-iac-'))
@@ -376,7 +377,7 @@ test('syncs package env files from unified iac.json env source', async () => {
 
   try {
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -407,7 +408,7 @@ test('syncs single-source apps without layering the same source twice', async ()
     await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -449,7 +450,7 @@ test('patches and reconciles selected env variants from examples', async () => {
     )
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -500,7 +501,7 @@ test('patches and reconciles selected env variants from examples', async () => {
     )
 
     const reconcileResult = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -554,7 +555,7 @@ test('reconcile-delete treats env metadata as the source of truth', async () => 
     await writeFile(path.join(root, 'config', 'env', 'web', '.env.example'), 'PORT=3000\n')
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -583,7 +584,7 @@ test('reconcile-delete warns and leaves variant files unchanged without env meta
     await writeFile(path.join(root, 'config', 'env', 'app', '.env.staging'), 'APP=value\nSTALE=kept\n')
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -647,7 +648,7 @@ test('uses iac.json env metadata and respects excludeEnv when populating variant
     )
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -731,7 +732,7 @@ test('generates source and package env files from iac.json metadata values', asy
     await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -764,7 +765,7 @@ test('generates source and package env files from iac.json metadata values', asy
     await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
 
     const cleanupResult = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -804,7 +805,7 @@ test('generates source and package env files from iac.json metadata values', asy
     ]
     await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
     await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -868,7 +869,7 @@ test('generates package-routed env and examples directly from iac.json metadata'
     await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -930,7 +931,7 @@ test('rejects env metadata packages not registered in iac.json packages', async 
     await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -1001,7 +1002,7 @@ test('respects includeEnv and excludeEnv precedence when populating variants', a
     )
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -1051,7 +1052,7 @@ test('does not create empty variant files when metadata excludes all example key
     )
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -1122,7 +1123,7 @@ test('respects includeEnv and excludeEnv when non-strict variants layer examples
     await writeFile(path.join(root, 'config', 'env', 'app', '.env.production'), 'APP=prod\n')
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -1175,7 +1176,7 @@ test('ignores env metadata excludeEnv values outside manifest environments', asy
     await writeFile(path.join(root, 'config', 'env', 'shared', '.env.production'), 'SHARED=production\n')
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -1236,7 +1237,7 @@ test('ignores env metadata includeEnv values outside manifest environments', asy
     await writeFile(path.join(root, 'config', 'env', 'shared', '.env.production'), 'SHARED=production\n')
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -1368,7 +1369,7 @@ test('uses Vercel token from iac.json for project reconciliation', async () => {
       [
         '--import',
         fetchShimPath,
-        'src/reconcile-project-settings.mjs',
+        'dist/src/reconcile-project-settings.js',
         '--repo-root',
         root,
         '--projects=app',
@@ -1426,7 +1427,7 @@ test('updates Vercel protection bypass automation when an exact note match exist
       [
         '--import',
         fetchShimPath,
-        'src/reconcile-project-settings.mjs',
+        'dist/src/reconcile-project-settings.js',
         '--repo-root',
         root,
         '--projects=app',
@@ -1497,7 +1498,7 @@ test('generates Vercel protection bypass automation when no exact note match exi
       [
         '--import',
         fetchShimPath,
-        'src/reconcile-project-settings.mjs',
+        'dist/src/reconcile-project-settings.js',
         '--repo-root',
         root,
         '--projects=app',
@@ -1564,7 +1565,7 @@ test('rejects note-keyed Vercel protection bypass sync when note metadata is not
       [
         '--import',
         fetchShimPath,
-        'src/reconcile-project-settings.mjs',
+        'dist/src/reconcile-project-settings.js',
         '--repo-root',
         root,
         '--projects=app',
@@ -1593,7 +1594,7 @@ test('syncs schema and schema documentation artifacts to a landing root', async 
   try {
     const result = await execNode(
       [
-        'scripts/sync-landing-schema-docs.mjs',
+        'dist/scripts/sync-landing-schema-docs.js',
         '--landing-root',
         root,
       ],
@@ -1781,7 +1782,7 @@ test('GitHub Actions apply passes providers.github token to gh as primary auth',
     await writeFile(manifestPath, JSON.stringify(rawManifest, null, 2) + '\n')
 
     const result = await execNode(
-      ['src/github-actions.mjs', '--repo-root', root, '--env=staging', '--apply'],
+      ['dist/src/github-actions.js', '--repo-root', root, '--env=staging', '--apply'],
       {
         cwd: packageRoot,
         env: {
@@ -1819,7 +1820,7 @@ test('can reject app env keys that override shared env keys', async () => {
     )
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -1838,7 +1839,7 @@ test('validates .env.json metadata and projects browser-safe shared keys', async
 
   try {
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -1911,7 +1912,7 @@ test('exports .env.example from object-map .env.json metadata', async () => {
     )
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -1945,7 +1946,7 @@ test('requires .env.json metadata for every env key when metadata exists', async
     )
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -1988,7 +1989,7 @@ test('blocks sharedPrefix projection for env metadata marked browser false', asy
     )
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -2039,7 +2040,7 @@ test('reports embedded env metadata labels when browser projection is blocked', 
     await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
 
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -2071,7 +2072,7 @@ test('defaults iac.json env source to .vertile-iac/env for single-package apps',
 
   try {
     const syncResult = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -2091,7 +2092,7 @@ test('defaults iac.json env source to .vertile-iac/env for single-package apps',
     assert.doesNotMatch(content, /^OVERRIDE="shared"$/m)
 
     const uatResult = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -2107,7 +2108,7 @@ test('defaults iac.json env source to .vertile-iac/env for single-package apps',
     assert.match(uatContent, /^API_UAT="value"$/m)
 
     const envResult = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'env',
       '--repo-root',
       root,
@@ -2129,7 +2130,7 @@ test('refuses Vercel reconcile-delete when env source files are missing', async 
 
   try {
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'env',
       '--repo-root',
       root,
@@ -2151,7 +2152,7 @@ test('runs Vercel compatibility dry-runs from unified iac.json', async () => {
 
   try {
     const envResult = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'env',
       '--repo-root',
       root,
@@ -2165,7 +2166,7 @@ test('runs Vercel compatibility dry-runs from unified iac.json', async () => {
     assert.equal(envResult.stderr, '')
 
     const projectsResult = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'projects',
       '--repo-root',
       root,
@@ -2177,7 +2178,7 @@ test('runs Vercel compatibility dry-runs from unified iac.json', async () => {
     assert.equal(projectsResult.stderr, '')
 
     const domainsResult = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'domains',
       '--repo-root',
       root,
@@ -2197,7 +2198,7 @@ test('runs env dry-run offline against a target project fixture', async () => {
 
   try {
     const result = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'env',
       '--repo-root',
       root,
@@ -2253,7 +2254,7 @@ test('runtime examples expose base and provider-specific manifests that render',
         assert.ok(targets.length > 0, `${example}/${manifestName} must declare a supported provider`)
 
         const renderResult = await execNode([
-          path.join(packageRoot, 'src', 'cli.mjs'),
+          path.join(packageRoot, 'dist', 'src', 'cli.js'),
           'render',
           '--repo-root',
           root,
@@ -2294,7 +2295,7 @@ test('published Next.js monorepo example exercises Vercel env and render flows',
     assert.equal(manifest.clusters[0].key, 'workers')
 
     const syncResult = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
       '--repo-root',
       root,
@@ -2317,7 +2318,7 @@ test('published Next.js monorepo example exercises Vercel env and render flows',
     assert.match(adminStagingEnv, /^ADMIN_DATABASE_URL="postgres:\/\/preview-admin/m)
 
     const envResult = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'env',
       '--repo-root',
       root,
@@ -2332,7 +2333,7 @@ test('published Next.js monorepo example exercises Vercel env and render flows',
     assert.equal(envResult.stderr, '')
 
     const renderResult = await execNode([
-      path.join(packageRoot, 'src', 'cli.mjs'),
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'render',
       '--repo-root',
       root,
