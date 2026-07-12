@@ -267,7 +267,7 @@ test('covers GitHub Actions and env sync pure helper branches', () => {
   assert.deepEqual(syncTesting.projectSharedLayer([{ key: 'NEXT_PUBLIC_A', value: 'x' }, { key: 'SECRET', value: 'x' }], { key: 'web', env: { sharedPrefix: 'NEXT_PUBLIC_' } }).map(({ key, value }) => ({ key, value })), [{ key: 'A', value: 'x' }])
   assert.deepEqual(syncTesting.requiredSharedAliases({ env: { sync: { requiredSharedAliases: ['A'] } } }), ['A'])
   assert.throws(() => syncTesting.assertRequiredSharedAliases({ sharedLayer: [{ key: 'A', value: 'x' }], projectedLayer: [], app: { key: 'web', env: { sharedPrefix: 'NEXT_PUBLIC_' } }, requiredAliases: ['A'] }), /projection parity failed/)
-  assert.throws(() => syncTesting.assertNoSharedOverrides({ sharedLayer: [{ key: 'A' }], scopedLayer: [{ key: 'A' }], app: { key: 'web' } }), /overrides shared env keys/)
+  assert.throws(() => syncTesting.assertNoSharedOverrides({ sharedLayer: [{ key: 'A' }], scopedLayer: [{ key: 'A' }], app: { key: 'web' } }), /shared env key overrides/)
   assert.deepEqual([...syncTesting.linesToEnvMap(['A=one', 'B=two']).entries()], [['A', 'one'], ['B', 'two']])
   assert.deepEqual(syncTesting.diffEnvMaps(new Map([['A', 'old'], ['C', 'gone']]), new Map([['A', 'new'], ['B', 'added']])), [{ type: 'updated', key: 'A' }, { type: 'added', key: 'B' }, { type: 'removed', key: 'C' }])
   assert.equal(syncTesting.normalizePackageConfig('web').rootDirectory, 'web')
@@ -617,7 +617,7 @@ test('creates an allowed missing Vercel project before reconciling domains', asy
       "  const path = new URL(String(url)).pathname; const method = options.method || 'GET'",
       "  if (path === '/v1/teams') return Response.json({ teams: [{ id: 'team-id', slug: 'team' }] })",
       "  if (path === '/v9/projects') return Response.json({ projects: [] })",
-      "  if (path === '/v10/projects') return Response.json({ id: 'prj_landing' })",
+      "  if (path === '/v11/projects') return Response.json({ id: 'prj_landing' })",
       "  if (path === '/v9/projects/prj_landing/domains' && method === 'GET') return Response.json({ domains: [] })",
       "  if (path === '/v10/projects/prj_landing/domains') return Response.json({ verified: true }, { status: 201 })",
       "  return new Response(JSON.stringify({ error: 'unexpected ' + method + ' ' + path }), { status: 500 })",
@@ -655,7 +655,7 @@ test('creates missing allowed Vercel projects and reconciles settings', async ()
       "  fs.appendFileSync(process.env.FETCH_LOG_PATH, JSON.stringify({ pathname, method, body: options.body || '' }) + '\\n')",
       "  if (pathname === '/v1/teams') return Response.json({ teams: [{ id: 'team-id', slug: 'team' }] })",
       "  if (pathname === '/v9/projects' && method === 'GET') return Response.json({ projects: [{ id: 'prj_web', name: 'web' }] })",
-      "  if (pathname === '/v10/projects') return Response.json({ project: { id: 'prj_landing' } })",
+      "  if (pathname === '/v11/projects') return Response.json({ project: { id: 'prj_landing' } })",
       "  if (pathname === '/v9/projects/prj_landing' || pathname === '/v9/projects/prj_web') {",
       "    if (method === 'PATCH') return Response.json({ ok: true })",
       "    return Response.json({ rootDirectory: 'old', nodeVersion: '20.x', enableAffectedProjectsDeployments: false })",
@@ -673,7 +673,7 @@ test('creates missing allowed Vercel projects and reconciles settings', async ()
     assert.match(result.stdout, /created Vercel project "landing"/)
     assert.match(result.stdout, /updated remote project settings/)
     const calls = (await (await import('node:fs/promises')).readFile(logPath, 'utf8')).trim().split('\n').map(JSON.parse)
-    assert.equal(calls.some((call) => call.pathname === '/v10/projects' && call.method === 'POST'), true)
+    assert.equal(calls.some((call) => call.pathname === '/v11/projects' && call.method === 'POST'), true)
     assert.equal(calls.filter((call) => call.pathname.startsWith('/v9/projects/') && call.method === 'PATCH').length, 2)
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -710,7 +710,7 @@ test('reconciles shared and project Vercel environment variables with deletes', 
       "  fs.appendFileSync(process.env.FETCH_LOG_PATH, JSON.stringify({ pathname, method, body: options.body || '' }) + '\\n')",
       "  if (pathname === '/v1/teams') return Response.json({ teams: [{ id: 'team-id', slug: 'team' }] })",
       "  if (pathname === '/v9/projects') return Response.json({ projects: [] })",
-      "  if (pathname === '/v10/projects') return Response.json({ id: 'prj_landing' })",
+      "  if (pathname === '/v11/projects') return Response.json({ id: 'prj_landing' })",
       "  if (pathname === '/v1/env' && method === 'GET') return Response.json({ data: [",
       "    { id: 'env_update', key: 'UPDATE', target: ['preview'], comment: 'managed by @vertile-ai/iac provision-env' },",
       "    { id: 'env_stale', key: 'STALE', target: ['preview'], comment: 'managed by @vertile-ai/iac provision-env' }",

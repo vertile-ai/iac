@@ -53,6 +53,12 @@ function runGh(args, options: any = {}) {
     stdio: options.input ? ['pipe', 'pipe', 'pipe'] : 'pipe',
   })
 
+  if (result.error) {
+    throw new Error(
+      `GitHub CLI is unavailable while running gh ${args.join(' ')}: ${result.error.message}`,
+    )
+  }
+
   if (result.status !== 0) {
     throw new Error(
       `gh ${args.join(' ')} failed: ${result.stderr?.trim() || result.stdout?.trim() || 'unknown error'}`,
