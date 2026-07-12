@@ -105,24 +105,43 @@ async function request({
   const url = `${apiBase}${pathname}${toQuery(query || {})}`
 
   for (let attempt = 0; attempt < maxRequestAttempts; attempt += 1) {
-    const response = await fetch(url, {
-      method,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    })
+    let response
+    try {
+      response = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`Vercel API ${method} ${pathname} request failed: ${message}`)
+    }
 
-    const text = await response.text()
-    const payload = text ? (() => {
+    let text
+    try {
+      text = await response.text()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`Vercel API ${method} ${pathname} response body failed: ${message}`)
+    }
+
+    let payload: any = {}
+    if (text) {
       try {
-        return JSON.parse(text)
+        payload = JSON.parse(text)
       } catch {
-        return text
+        if (acceptedStatus.includes(response.status)) {
+          throw new Error(
+            `Vercel API ${method} ${pathname} returned invalid JSON (${response.status}): ${text.slice(0, 500)}`,
+          )
+        }
+        payload = text
       }
-    })() : {}
+    }
 
     if (acceptedStatus.includes(response.status)) {
       if (defaultThrottleMs > 0) await sleep(defaultThrottleMs)
@@ -174,7 +193,7 @@ async function createTeamProject({ token, teamId, name }) {
   const result = await request({
     token,
     method: 'POST',
-    pathname: '/v10/projects',
+    pathname: '/v11/projects',
     query: { teamId },
     body: { name },
   })

@@ -304,23 +304,44 @@ async function requestJSON({ token, method, pathname, query, body }: any) {
   const url = `${apiBase}${pathname}${toQuery(query || {})}`
 
   for (let attempt = 0; attempt < maxRequestAttempts; attempt += 1) {
-    const response = await fetch(url, {
-      method,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    })
+    let response
+    try {
+      response = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`Vercel API ${method} ${pathname} request failed: ${message}`)
+    }
+
+    let responseText
+    try {
+      responseText = await response.text()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`Vercel API ${method} ${pathname} response body failed: ${message}`)
+    }
 
     if (response.ok) {
       if (defaultThrottleMs > 0) await sleep(defaultThrottleMs)
       if (response.status === 204) return {}
-      return response.json()
+      if (!responseText.trim()) return {}
+      try {
+        return JSON.parse(responseText)
+      } catch {
+        throw new Error(
+          `Vercel API ${method} ${pathname} returned invalid JSON (${response.status}): ${responseText.slice(0, 500)}`,
+        )
+      }
     }
 
-    const errorText = await response.text()
+    const errorText = responseText
     if (response.status === 429 && attempt < maxRequestAttempts - 1) {
       const delayMs = readRetryAfterMs(response, attempt)
       console.warn(
@@ -366,7 +387,7 @@ async function createTeamProject({ token, teamId, name }) {
   const project = await requestJSON({
     token,
     method: 'POST',
-    pathname: '/v10/projects',
+    pathname: '/v11/projects',
     query: { teamId },
     body: { name },
   })
