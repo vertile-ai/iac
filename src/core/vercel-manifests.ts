@@ -1,6 +1,6 @@
 import fs from 'node:fs'
-import { envSourceDir } from './env-source.mjs'
-import { readManifest } from './manifest.mjs'
+import { envSourceDir } from './env-source.js'
+import { readManifest } from './manifest.js'
 
 const projectSettingKeys = [
   'rootDirectory',
@@ -86,13 +86,13 @@ function compactObject(value) {
   )
 }
 
-function projectSettings(manifest) {
+function projectSettings(manifest: any) {
   const config = vercelConfig(manifest)
   const defaultProtectionBypass = config.protectionBypassForAutomation
 
   return deployableApps(manifest).map((app) => {
     const values = appVercelValues(app)
-    const entry = { key: app.key }
+    const entry: any = { key: app.key }
     for (const key of projectSettingKeys) {
       if (values[key] !== undefined) entry[key] = values[key]
     }
@@ -134,7 +134,7 @@ function normalizeProtectionBypassForAutomation(config, appKey) {
   return { [operation]: { ...value } }
 }
 
-function domainTarget(domain, fallback) {
+function domainTarget(domain, fallback = '') {
   if (fallback) return fallback
   if (!domain || typeof domain !== 'object') return ''
   return domain.app || domain.project || domain.key || ''
@@ -153,14 +153,14 @@ function domainConfig(domain) {
 
 function projectDomains(manifest) {
   const apps = deployableApps(manifest)
-  const domainsByProject = new Map(apps.map((app) => [app.key, []]))
+  const domainsByProject = new Map<string, any[]>(apps.map((app) => [app.key, []]))
 
   for (const app of apps) {
     const values = appVercelValues(app)
     const domains = Array.isArray(values.domains) ? values.domains : []
     for (const domain of domains) {
       const config = domainConfig(domain)
-      if (config) domainsByProject.get(app.key).push(config)
+      if (config) domainsByProject.get(app.key)!.push(config)
     }
   }
 
@@ -170,7 +170,7 @@ function projectDomains(manifest) {
     const config = domainConfig(domain)
     if (!config) continue
     if (!domainsByProject.has(target)) domainsByProject.set(target, [])
-    domainsByProject.get(target).push(config)
+    domainsByProject.get(target)!.push(config)
   }
 
   return [...domainsByProject.entries()].map(([key, domains]) => ({ key, domains }))

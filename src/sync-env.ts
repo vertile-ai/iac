@@ -3,18 +3,18 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { resolvePlatformContext } from './core/context.mjs'
-import { envSourceDir } from './core/env-source.mjs'
-import { environmentFiles, environmentOutputFile } from './core/env-files.mjs'
+import { resolvePlatformContext } from './core/context.js'
+import { envSourceDir } from './core/env-source.js'
+import { environmentFiles, environmentOutputFile } from './core/env-files.js'
 import {
   applyEnvMetadata,
   assertBrowserProjectionAllowed,
   isAllowedInEnv,
   loadEnvMetadata,
   manifestEnvEntries,
-} from './core/env-metadata.mjs'
-import { readManifest } from './core/manifest.mjs'
-import { readOption } from './shared.mjs'
+} from './core/env-metadata.js'
+import { readManifest } from './core/manifest.js'
+import { readOption } from './shared.js'
 
 const defaultVariants = {
   local: { output: '.env.local', sources: ['.env.local'] },
@@ -35,10 +35,10 @@ function splitList(value) {
     .filter(Boolean)
 }
 
-function configuredVariants(manifest) {
+function configuredVariants(manifest: any) {
   const variants = { ...defaultVariants }
   const configured = manifest.environmentFiles || {}
-  for (const [name, config] of Object.entries(configured)) {
+  for (const [name, config] of Object.entries(configured as Record<string, any>)) {
     const strict = config && typeof config === 'object' && !Array.isArray(config)
       ? config.strict ?? true
       : true

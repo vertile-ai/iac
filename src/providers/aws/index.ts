@@ -7,20 +7,20 @@ import {
   renderOutput,
   renderRequiredProvider,
   renderVariable,
-} from '../../core/hcl.mjs'
+} from '../../core/hcl.js'
 import {
   compactBody,
   providerResourceName,
   providerValues,
   resourceName,
   terraformVariableName,
-} from '../../core/concepts.mjs'
+} from '../../core/concepts.js'
 
-function deploymentLabel(environment, deployment = {}) {
+function deploymentLabel(environment, deployment: any = {}) {
   return deployment.name || environment
 }
 
-function providerBlock(manifest, environment, deployment = {}) {
+function providerBlock(manifest, environment, deployment: any = {}) {
   const config = manifest.providers.aws || {}
   const deploymentValues = deployment.values || {}
   const body = {

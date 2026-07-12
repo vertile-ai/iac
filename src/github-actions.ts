@@ -3,10 +3,10 @@
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import process from 'node:process'
-import { envSourceDir } from './core/env-source.mjs'
-import { buildGitHubActionsPlan, githubTokenFromManifest } from './core/github-actions.mjs'
-import { readManifest } from './core/manifest.mjs'
-import { resolveIacContext, readOption } from './shared.mjs'
+import { envSourceDir } from './core/env-source.js'
+import { buildGitHubActionsPlan, githubTokenFromManifest } from './core/github-actions.js'
+import { readManifest } from './core/manifest.js'
+import { resolveIacContext, readOption } from './shared.js'
 
 function splitList(value) {
   return String(value || '')
@@ -41,7 +41,7 @@ function resolveRepoFromGit(repoRoot) {
   return ''
 }
 
-function runGh(args, options = {}) {
+function runGh(args, options: any = {}) {
   const env = options.token
     ? { ...process.env, GH_TOKEN: options.token }
     : process.env
@@ -160,7 +160,7 @@ function setEnvironmentOutput({ repo, environmentName, entry, token }) {
   runGh(args, { token })
 }
 
-function applyPlan(plan, options = {}) {
+function applyPlan(plan, options: any = {}) {
   const token = options.token || ''
   ensureGhCliAvailable(token)
 

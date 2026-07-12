@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { findProjectRoot } from '../shared.mjs'
-import { readOption } from './args.mjs'
+import { findProjectRoot } from '../shared.js'
+import { readOption } from './args.js'
 
 function resolveFrom(rootDir, value) {
   if (!value) return ''

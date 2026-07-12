@@ -1,11 +1,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { targetWorkspace } from './context.mjs'
-import { resolveDeployment } from './deployments.mjs'
-import { assertEnvironment } from './manifest.mjs'
-import { renderTerraform as renderAws } from '../providers/aws/index.mjs'
-import { renderTerraform as renderDigitalOcean } from '../providers/digitalocean/index.mjs'
-import { renderTerraform as renderVercel } from '../providers/vercel/index.mjs'
+import { targetWorkspace } from './context.js'
+import { resolveDeployment } from './deployments.js'
+import { assertEnvironment } from './manifest.js'
+import { renderTerraform as renderAws } from '../providers/aws/index.js'
+import { renderTerraform as renderDigitalOcean } from '../providers/digitalocean/index.js'
+import { renderTerraform as renderVercel } from '../providers/vercel/index.js'
 
 const renderers = {
   aws: renderAws,
@@ -33,7 +33,7 @@ export async function writeTarget({ context, manifest, environment, target, depl
   })
   await fs.mkdir(workspace, { recursive: true })
 
-  for (const [name, contents] of Object.entries(files)) {
+  for (const [name, contents] of Object.entries(files as Record<string, string>)) {
     await fs.writeFile(path.join(workspace, name), contents)
   }
 

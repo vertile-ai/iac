@@ -4,21 +4,21 @@ import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { sharedOptionsHelp } from './shared.mjs'
+import { sharedOptionsHelp } from './shared.js'
 
 const command = process.argv[2]
 const args = process.argv.slice(3)
 const root = path.dirname(fileURLToPath(import.meta.url))
 
 const commands = new Map([
-  ['render', path.join(root, 'render.mjs')],
-  ['plan', path.join(root, 'plan.mjs')],
-  ['apply', path.join(root, 'apply.mjs')],
-  ['sync-env', path.join(root, 'sync-env.mjs')],
-  ['env', path.join(root, 'provision-env.mjs')],
-  ['github-actions', path.join(root, 'github-actions.mjs')],
-  ['projects', path.join(root, 'reconcile-project-settings.mjs')],
-  ['domains', path.join(root, 'reconcile-project-domains.mjs')],
+  ['render', path.join(root, 'render.js')],
+  ['plan', path.join(root, 'plan.js')],
+  ['apply', path.join(root, 'apply.js')],
+  ['sync-env', path.join(root, 'sync-env.js')],
+  ['env', path.join(root, 'provision-env.js')],
+  ['github-actions', path.join(root, 'github-actions.js')],
+  ['projects', path.join(root, 'reconcile-project-settings.js')],
+  ['domains', path.join(root, 'reconcile-project-domains.js')],
 ])
 
 function printHelp() {

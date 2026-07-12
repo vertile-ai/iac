@@ -3,11 +3,11 @@ import path from 'node:path'
 
 const envKeyPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
 
-function asObject(value, fallback = {}) {
+function asObject(value: any, fallback: any = {}): any {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback
 }
 
-function metadataFileName(manifest = {}) {
+function metadataFileName(manifest: any = {}) {
   return (
     manifest.env?.metadataFile ||
     manifest.env?.sync?.metadataFile ||
@@ -19,7 +19,7 @@ function metadataSourceKey(baseDir, sourceKey) {
   return sourceKey || path.basename(baseDir)
 }
 
-function embeddedMetadata(manifest = {}, sourceKey) {
+function embeddedMetadata(manifest: any = {}, sourceKey) {
   const configured = asObject(manifest.env?.metadata || manifest.env?.envJson)
   if (Object.keys(configured).length === 0) return null
 
@@ -56,7 +56,7 @@ function asStringList(value, field) {
   throw new Error(`${field} must be a non-empty string or array of non-empty strings.`)
 }
 
-function manifestPackageKeys(manifest = {}) {
+function manifestPackageKeys(manifest: any = {}) {
   const configured = Array.isArray(manifest.packages)
     ? manifest.packages
     : Array.isArray(manifest.env?.packages)

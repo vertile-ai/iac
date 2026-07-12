@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 import process from 'node:process'
-import { hasFlag, parseTargetOption, readOption } from './core/args.mjs'
-import { resolvePlatformContext } from './core/context.mjs'
-import { readManifest } from './core/manifest.mjs'
-import { writeTargets } from './core/render.mjs'
-import { terraformApply } from './core/terraform.mjs'
+import { hasFlag, parseTargetOption, readOption } from './core/args.js'
+import { resolvePlatformContext } from './core/context.js'
+import { readManifest } from './core/manifest.js'
+import { writeTargets } from './core/render.js'
+import { terraformApply } from './core/terraform.js'
 
 async function main() {
   const argv = process.argv.slice(2)

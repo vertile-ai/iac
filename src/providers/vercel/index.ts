@@ -5,9 +5,9 @@ import {
   renderLocals,
   renderRequiredProvider,
   sanitizeName,
-} from '../../core/hcl.mjs'
+} from '../../core/hcl.js'
 
-function providerBody(config, deploymentValues = {}) {
+function providerBody(config: any, deploymentValues: any = {}) {
   return {
     team: deploymentValues.team
       || deploymentValues.teamId
@@ -35,7 +35,7 @@ function deployableApps(manifest) {
   return manifest.apps.filter((app) => app.deploy !== false && app.providers?.vercel?.deploy !== false)
 }
 
-function domainResource(domain, appKey) {
+function domainResource(domain, appKey = '') {
   const name = typeof domain === 'string' ? domain : domain.name
   const targetApp = appKey || domain.app || domain.project
   if (!name || !targetApp) return ''
@@ -47,7 +47,7 @@ function domainResource(domain, appKey) {
   })
 }
 
-export function renderTerraform({ manifest, environment, deployment = {} }) {
+export function renderTerraform({ manifest, environment, deployment = {} }: any) {
   const providerConfig = manifest.providers.vercel || {}
   const deploymentValues = deployment.values || {}
   const config = {
