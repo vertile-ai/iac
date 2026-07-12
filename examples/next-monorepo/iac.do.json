@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../../schema/iac.schema.json",
+  "$schema": "../../schema/iac.schema.json",
   "version": 1,
   "project": {
     "key": "next-monorepo",
@@ -50,7 +50,25 @@
             "name": "next-monorepo"
           }
         }
-      ]
+      ],
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "nyc3"
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "nyc3"
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "nyc3"
+        },
+        "prod": {
+          "environment": "production",
+          "region": "nyc3"
+        }
+      }
     }
   },
   "apps": [

@@ -1,0 +1,119 @@
+{
+  "$schema": "../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "node-api",
+    "name": "node-api"
+  },
+  "environments": {
+    "development": {
+      "files": [
+        ".env.development"
+      ]
+    },
+    "test": {
+      "files": [
+        ".env.test"
+      ]
+    },
+    "uat": {
+      "files": [
+        ".env.uat"
+      ]
+    },
+    "nightly": {
+      "files": [
+        ".env.nightly"
+      ]
+    },
+    "staging": {
+      "files": [
+        ".env.staging"
+      ]
+    },
+    "preview": {},
+    "production": {
+      "files": [
+        ".env.production"
+      ]
+    }
+  },
+  "providers": {
+    "aws": {
+      "region": "us-east-1",
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "us-east-1",
+          "profile": "node-api-dev",
+          "tags": {
+            "Stage": "dev"
+          }
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "us-east-1",
+          "profile": "node-api-uat",
+          "tags": {
+            "Stage": "uat"
+          }
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "us-east-1",
+          "profile": "node-api-nightly",
+          "tags": {
+            "Stage": "nightly"
+          }
+        },
+        "prod": {
+          "environment": "production",
+          "region": "us-east-1",
+          "profile": "node-api-prod",
+          "tags": {
+            "Stage": "prod"
+          }
+        }
+      }
+    },
+    "digitalocean": {
+      "region": "nyc3",
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "nyc3"
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "nyc3"
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "nyc3"
+        },
+        "prod": {
+          "environment": "production",
+          "region": "nyc3"
+        }
+      }
+    }
+  },
+  "apps": [
+    {
+      "key": "api",
+      "name": "node-api",
+      "framework": "node",
+      "rootDirectory": "."
+    }
+  ],
+  "queues": [
+    {
+      "key": "jobs"
+    }
+  ],
+  "sandboxes": [
+    {
+      "key": "api-runner"
+    }
+  ]
+}

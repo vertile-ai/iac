@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../../schema/iac.schema.json",
+  "$schema": "../../schema/iac.schema.json",
   "version": 1,
   "project": {
     "key": "go-api",
@@ -39,45 +39,35 @@
     }
   },
   "providers": {
-    "aws": {
-      "region": "us-east-1",
+    "digitalocean": {
+      "region": "nyc3",
+      "resources": [
+        {
+          "type": "digitalocean_project",
+          "name": "main",
+          "values": {
+            "name": "go-api"
+          }
+        }
+      ],
       "deployments": {
         "dev": {
           "environment": "development",
-          "region": "us-east-1",
-          "profile": "go-api-dev",
-          "tags": {
-            "Stage": "dev"
-          }
+          "region": "nyc3"
         },
         "uat": {
           "environment": "uat",
-          "region": "us-east-1",
-          "profile": "go-api-uat",
-          "tags": {
-            "Stage": "uat"
-          }
+          "region": "nyc3"
         },
         "nightly": {
           "environment": "nightly",
-          "region": "us-east-1",
-          "profile": "go-api-nightly",
-          "tags": {
-            "Stage": "nightly"
-          }
+          "region": "nyc3"
         },
         "prod": {
           "environment": "production",
-          "region": "us-east-1",
-          "profile": "go-api-prod",
-          "tags": {
-            "Stage": "prod"
-          }
+          "region": "nyc3"
         }
       }
-    },
-    "digitalocean": {
-      "region": "nyc3"
     }
   },
   "apps": [
@@ -91,6 +81,18 @@
   "queues": [
     {
       "key": "jobs"
+    }
+  ],
+  "clusters": [
+    {
+      "key": "workers",
+      "size": 2,
+      "providers": {
+        "digitalocean": {
+          "nodes": 2,
+          "sizeSlug": "s-1vcpu-1gb"
+        }
+      }
     }
   ]
 }

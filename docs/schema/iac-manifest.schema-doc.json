@@ -1,0 +1,166 @@
+{
+  "$schema": "https://vertile.ai/schemas/iac-schema-docs.schema.json",
+  "title": "Vertile AI IaC Manifest Schema",
+  "summary": "The iac.json manifest is the source of truth for app infrastructure intent, provider reconciliation, and environment metadata wiring.",
+  "schemaPath": "/schemas/iac.schema.json",
+  "packageSchemaPath": "schema/iac.schema.json",
+  "sourcePackage": "@vertile-ai/iac",
+  "sections": [
+    {
+      "title": "Manifest Identity",
+      "summary": "Every manifest declares its schema version and project identity before provider or app configuration.",
+      "fields": [
+        {
+          "path": "version",
+          "type": "1",
+          "required": true,
+          "description": "Schema version. Current manifests use version 1."
+        },
+        {
+          "path": "project",
+          "type": "string | { key?, name }",
+          "required": true,
+          "description": "Human-facing project identity used by generated infrastructure and documentation."
+        },
+        {
+          "path": "environments",
+          "type": "string[] | object",
+          "required": false,
+          "description": "Logical environment names or environment objects with file-selection metadata."
+        }
+      ]
+    },
+    {
+      "title": "Provider Configuration",
+      "summary": "Provider blocks hold provider-specific configuration that cannot be expressed portably yet.",
+      "fields": [
+        {
+          "path": "providers.vercel.teamSlug",
+          "type": "string",
+          "required": false,
+          "description": "Vercel team slug used by Vercel env, project, and domain reconciliation."
+        },
+        {
+          "path": "providers.vercel.env.targets",
+          "type": "object",
+          "required": false,
+          "description": "Maps Vercel targets such as preview and production to logical IaC environments."
+        },
+        {
+          "path": "providers.vercel.protectionBypassForAutomation",
+          "type": "vercelProtectionBypassForAutomation",
+          "required": false,
+          "description": "Default Vercel automation-bypass operation for every managed Vercel project. Use ensure for repeatable note-keyed sync."
+        },
+        {
+          "path": "providers.vercel.projectDefaults",
+          "type": "vercelProjectSettings",
+          "required": false,
+          "description": "Default Vercel project settings applied to every deployable Vercel app."
+        },
+        {
+          "path": "providers.<target>.deployments",
+          "type": "object",
+          "required": false,
+          "description": "Provider deployment map from stage names such as uat or prod to logical environments and provider-specific render inputs."
+        },
+        {
+          "path": "providers.github.actions.environments",
+          "type": "object",
+          "required": false,
+          "description": "GitHub Actions environment, variable, and secret publishing configuration."
+        }
+      ]
+    },
+    {
+      "title": "Vercel Automation Bypass",
+      "summary": "Automation bypass is project protection configuration, not an application runtime environment variable.",
+      "fields": [
+        {
+          "path": "providers.vercel.protectionBypassForAutomation.ensure",
+          "type": "{ secret, note, isEnvVar? }",
+          "required": false,
+          "description": "Repeatable operation. Vertile IaC exact-matches note against Vercel-exposed automation-bypass notes, then sends update when the note exists or generate when it does not."
+        },
+        {
+          "path": "providers.vercel.protectionBypassForAutomation.generate",
+          "type": "{ secret?, note? }",
+          "required": false,
+          "description": "Direct Vercel generate operation. Use for explicit provisioning or rotation, not ordinary recurring sync."
+        },
+        {
+          "path": "providers.vercel.protectionBypassForAutomation.update",
+          "type": "{ secret, isEnvVar?, note? }",
+          "required": false,
+          "description": "Direct Vercel update operation for a known existing secret."
+        },
+        {
+          "path": "providers.vercel.protectionBypassForAutomation.revoke",
+          "type": "{ secret, regenerate }",
+          "required": false,
+          "description": "Direct Vercel revoke operation for a known existing secret."
+        },
+        {
+          "path": "apps[].providers.vercel.protectionBypassForAutomation",
+          "type": "false | vercelProtectionBypassForAutomation",
+          "required": false,
+          "description": "Per-project override. Set false to opt a Vercel project out of the provider-level automation-bypass default."
+        }
+      ]
+    },
+    {
+      "title": "Applications",
+      "summary": "Apps are deployable application surfaces. Provider adapters map app fields to provider-specific projects and settings.",
+      "fields": [
+        {
+          "path": "apps[].key",
+          "type": "string",
+          "required": true,
+          "description": "Stable app identifier used by env sync, provider manifests, and project reconciliation."
+        },
+        {
+          "path": "apps[].id | apps[].projectId",
+          "type": "string",
+          "required": false,
+          "description": "Provider project id, commonly the Vercel project id for Vercel reconciliation."
+        },
+        {
+          "path": "apps[].rootDirectory",
+          "type": "string",
+          "required": false,
+          "description": "App root used by Vercel project settings and env file output."
+        },
+        {
+          "path": "apps[].domains",
+          "type": "domain[]",
+          "required": false,
+          "description": "Domains assigned to this app by provider domain reconciliation."
+        }
+      ]
+    },
+    {
+      "title": "Environment Metadata",
+      "summary": "Env metadata is authored in iac.json and drives local package env sync, Vercel env sync, and GitHub Actions env publishing.",
+      "fields": [
+        {
+          "path": "env.sourceDir",
+          "type": "string",
+          "required": false,
+          "description": "Root directory for env source files. Defaults to .vertile-iac/env."
+        },
+        {
+          "path": "env.sync.apps | env.sync.packages",
+          "type": "string[]",
+          "required": false,
+          "description": "Package/app keys included in local env projection."
+        },
+        {
+          "path": "env.metadata.<source>.variables[]",
+          "type": "envVariable[]",
+          "required": false,
+          "description": "Structured metadata for env keys, including example, encrypted, browser, package routing, and environment include/exclude rules."
+        }
+      ]
+    }
+  ]
+}

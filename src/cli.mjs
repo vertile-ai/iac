@@ -35,7 +35,7 @@ Usage:
   vertile-iac domains [options]
 
 Commands:
-  render     Render Terraform workspaces from infrastructure/iac/iac.json.
+  render     Render Terraform workspaces from iac.json.
   plan       Render Terraform workspaces and run terraform plan.
   apply      Render Terraform workspaces and run terraform apply.
   sync-env   Generate package .env files from the configured env source tree.

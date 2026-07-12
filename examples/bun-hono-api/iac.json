@@ -1,9 +1,9 @@
 {
-  "$schema": "../../../../schema/iac.schema.json",
+  "$schema": "../../schema/iac.schema.json",
   "version": 1,
   "project": {
-    "key": "python-fastapi-api",
-    "name": "python-fastapi-api"
+    "key": "bun-hono-api",
+    "name": "bun-hono-api"
   },
   "environments": {
     "development": {
@@ -40,43 +40,60 @@
   },
   "providers": {
     "aws": {
-      "region": "us-east-1",
-      "defaultTags": {
-        "Example": "python-fastapi-api",
-        "Runtime": "python"
-      },
+      "region": "us-west-2",
       "deployments": {
         "dev": {
           "environment": "development",
-          "region": "us-east-1",
-          "profile": "python-fastapi-api-dev",
+          "region": "us-west-2",
+          "profile": "bun-hono-api-dev",
           "tags": {
             "Stage": "dev"
           }
         },
         "uat": {
           "environment": "uat",
-          "region": "us-east-1",
-          "profile": "python-fastapi-api-uat",
+          "region": "us-west-2",
+          "profile": "bun-hono-api-uat",
           "tags": {
             "Stage": "uat"
           }
         },
         "nightly": {
           "environment": "nightly",
-          "region": "us-east-1",
-          "profile": "python-fastapi-api-nightly",
+          "region": "us-west-2",
+          "profile": "bun-hono-api-nightly",
           "tags": {
             "Stage": "nightly"
           }
         },
         "prod": {
           "environment": "production",
-          "region": "us-east-1",
-          "profile": "python-fastapi-api-prod",
+          "region": "us-west-2",
+          "profile": "bun-hono-api-prod",
           "tags": {
             "Stage": "prod"
           }
+        }
+      }
+    },
+    "digitalocean": {
+      "region": "sfo3",
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "sfo3"
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "sfo3"
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "sfo3"
+        },
+        "prod": {
+          "environment": "production",
+          "region": "sfo3"
         }
       }
     }
@@ -84,36 +101,15 @@
   "apps": [
     {
       "key": "api",
-      "name": "python-fastapi-api",
-      "framework": "fastapi",
+      "name": "bun-hono-api",
+      "framework": "bun",
       "rootDirectory": "."
     }
   ],
   "databases": [
     {
       "key": "appdb",
-      "engine": "postgres",
-      "providers": {
-        "aws": {
-          "engineVersion": "16",
-          "instanceClass": "db.t4g.micro",
-          "allocatedStorage": 20,
-          "databaseName": "fastapi",
-          "username": "fastapi",
-          "skipFinalSnapshot": true
-        }
-      }
-    }
-  ],
-  "clusters": [
-    {
-      "key": "workers",
-      "size": 2,
-      "providers": {
-        "aws": {
-          "instanceType": "t3.micro"
-        }
-      }
+      "engine": "postgres"
     }
   ]
 }

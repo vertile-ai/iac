@@ -22,7 +22,15 @@ async function createFixture() {
         project: { name: 'example' },
         environments: ['preview', 'uat', 'production'],
         providers: {
-          vercel: { team: 'example-team' },
+          vercel: {
+            team: 'example-team',
+            deployments: {
+              uat: {
+                environment: 'uat',
+                teamSlug: 'example-uat-team',
+              },
+            },
+          },
           aws: {
             region: 'us-east-1',
             deployments: {
@@ -48,6 +56,13 @@ async function createFixture() {
             ],
           },
           digitalocean: {
+            region: 'nyc3',
+            deployments: {
+              uat: {
+                environment: 'uat',
+                region: 'sfo3',
+              },
+            },
             resources: [
               {
                 type: 'digitalocean_project',
@@ -245,6 +260,62 @@ test('renders AWS deployment names as Terraform workspace and provider inputs', 
     assert.match(awsMain, /Deployment = "uat"/)
     assert.match(awsMain, /Stage = "uat"/)
     assert.match(awsMain, /bucket = "example_uat_uploads"/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('renders DigitalOcean deployment names as Terraform workspace and provider inputs', async () => {
+  const root = await createFixture()
+
+  try {
+    const result = await execNode([
+      path.join(packageRoot, 'src', 'cli.mjs'),
+      'render',
+      '--repo-root',
+      root,
+      '--target=digitalocean',
+      '--deployment=uat',
+    ], packageRoot)
+
+    assert.equal(result.code, 0)
+    assert.equal(result.stderr, '')
+    assert.match(result.stdout, /\.vertile\/terraform\/digitalocean\/uat/)
+
+    const digitalOceanMain = await readFile(path.join(root, '.vertile', 'terraform', 'digitalocean', 'uat', 'main.tf'), 'utf8')
+
+    assert.match(digitalOceanMain, /environment = "uat"/)
+    assert.match(digitalOceanMain, /deployment = "uat"/)
+    assert.match(digitalOceanMain, /name = "example_uat_uploads"/)
+    assert.match(digitalOceanMain, /region = "sfo3"/)
+    assert.match(digitalOceanMain, /tags = \[\n    "example",\n    "uat",\n    "sandbox",\n  \]/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('renders Vercel deployment names as Terraform workspace and provider inputs', async () => {
+  const root = await createFixture()
+
+  try {
+    const result = await execNode([
+      path.join(packageRoot, 'src', 'cli.mjs'),
+      'render',
+      '--repo-root',
+      root,
+      '--target=vercel',
+      '--deployment=uat',
+    ], packageRoot)
+
+    assert.equal(result.code, 0)
+    assert.equal(result.stderr, '')
+    assert.match(result.stdout, /\.vertile\/terraform\/vercel\/uat/)
+
+    const vercelMain = await readFile(path.join(root, '.vertile', 'terraform', 'vercel', 'uat', 'main.tf'), 'utf8')
+
+    assert.match(vercelMain, /environment = "uat"/)
+    assert.match(vercelMain, /deployment = "uat"/)
+    assert.match(vercelMain, /team = "example-uat-team"/)
   } finally {
     await rm(root, { recursive: true, force: true })
   }

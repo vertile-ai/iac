@@ -1,0 +1,119 @@
+{
+  "$schema": "../../schema/iac.schema.json",
+  "version": 1,
+  "project": {
+    "key": "python-fastapi-api",
+    "name": "python-fastapi-api"
+  },
+  "environments": {
+    "development": {
+      "files": [
+        ".env.development"
+      ]
+    },
+    "test": {
+      "files": [
+        ".env.test"
+      ]
+    },
+    "uat": {
+      "files": [
+        ".env.uat"
+      ]
+    },
+    "nightly": {
+      "files": [
+        ".env.nightly"
+      ]
+    },
+    "staging": {
+      "files": [
+        ".env.staging"
+      ]
+    },
+    "preview": {},
+    "production": {
+      "files": [
+        ".env.production"
+      ]
+    }
+  },
+  "providers": {
+    "aws": {
+      "region": "us-east-1",
+      "defaultTags": {
+        "Example": "python-fastapi-api",
+        "Runtime": "python"
+      },
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "us-east-1",
+          "profile": "python-fastapi-api-dev",
+          "tags": {
+            "Stage": "dev"
+          }
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "us-east-1",
+          "profile": "python-fastapi-api-uat",
+          "tags": {
+            "Stage": "uat"
+          }
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "us-east-1",
+          "profile": "python-fastapi-api-nightly",
+          "tags": {
+            "Stage": "nightly"
+          }
+        },
+        "prod": {
+          "environment": "production",
+          "region": "us-east-1",
+          "profile": "python-fastapi-api-prod",
+          "tags": {
+            "Stage": "prod"
+          }
+        }
+      }
+    }
+  },
+  "apps": [
+    {
+      "key": "api",
+      "name": "python-fastapi-api",
+      "framework": "fastapi",
+      "rootDirectory": "."
+    }
+  ],
+  "databases": [
+    {
+      "key": "appdb",
+      "engine": "postgres",
+      "providers": {
+        "aws": {
+          "engineVersion": "16",
+          "instanceClass": "db.t4g.micro",
+          "allocatedStorage": 20,
+          "databaseName": "fastapi",
+          "username": "fastapi",
+          "skipFinalSnapshot": true
+        }
+      }
+    }
+  ],
+  "clusters": [
+    {
+      "key": "workers",
+      "size": 2,
+      "providers": {
+        "aws": {
+          "instanceType": "t3.micro"
+        }
+      }
+    }
+  ]
+}

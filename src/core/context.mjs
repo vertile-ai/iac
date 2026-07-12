@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 import { findProjectRoot } from '../shared.mjs'
 import { readOption } from './args.mjs'
@@ -7,18 +8,27 @@ function resolveFrom(rootDir, value) {
   return path.isAbsolute(value) ? value : path.join(rootDir, value)
 }
 
+function defaultManifestPath(repoRoot, iacDir, hasExplicitIacDir) {
+  if (!hasExplicitIacDir && fs.existsSync(path.join(repoRoot, 'iac.json'))) {
+    return 'iac.json'
+  }
+  return path.relative(repoRoot, path.join(iacDir, 'iac.json'))
+}
+
 export function resolvePlatformContext(argv) {
   const repoRootArg = readOption(argv, '--repo-root')
   const repoRoot = repoRootArg
     ? path.resolve(repoRootArg)
     : findProjectRoot(process.cwd())
+  const iacDirArg = readOption(argv, '--iac-dir')
   const iacDir = resolveFrom(
     repoRoot,
-    readOption(argv, '--iac-dir') || 'infrastructure/iac',
+    iacDirArg || 'infrastructure/iac',
   )
+  const iacManifestArg = readOption(argv, '--iac-manifest')
   const manifestPath = resolveFrom(
     repoRoot,
-    readOption(argv, '--iac-manifest') || path.relative(repoRoot, path.join(iacDir, 'iac.json')),
+    iacManifestArg || defaultManifestPath(repoRoot, iacDir, Boolean(iacDirArg)),
   )
   const generatedRoot = resolveFrom(
     repoRoot,

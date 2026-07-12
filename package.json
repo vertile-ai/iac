@@ -33,7 +33,7 @@
   ],
   "scripts": {
     "test": "node --test",
-    "check": "find src -name '*.mjs' -print0 | xargs -0 -n1 node --check",
+    "check": "find src scripts -name '*.mjs' -print0 | xargs -0 -n1 node --check",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "changeset publish",
@@ -45,7 +45,8 @@
     "projects:dry-run": "node src/reconcile-project-settings.mjs",
     "projects:apply": "node src/reconcile-project-settings.mjs --apply",
     "domains:dry-run": "node src/reconcile-project-domains.mjs",
-    "domains:apply": "node src/reconcile-project-domains.mjs --apply"
+    "domains:apply": "node src/reconcile-project-domains.mjs --apply",
+    "sync:landing-schema-docs": "node scripts/sync-landing-schema-docs.mjs"
   },
   "publishConfig": {
     "access": "public"

@@ -54,6 +54,8 @@
                 "team": { "type": "string" },
                 "teamId": { "type": "string" },
                 "teamSlug": { "type": "string" },
+                "token": { "type": "string" },
+                "apiKey": { "type": "string" },
                 "env": {
                   "type": "object",
                   "additionalProperties": true,
@@ -74,6 +76,9 @@
                       }
                     }
                   }
+                },
+                "protectionBypassForAutomation": {
+                  "$ref": "#/$defs/vercelProtectionBypassForAutomation"
                 },
                 "projectDefaults": { "$ref": "#/$defs/vercelProjectSettings" },
                 "projectSettingsDefaults": { "$ref": "#/$defs/vercelProjectSettings" }
@@ -121,6 +126,7 @@
               "properties": {
                 "repository": { "type": "string", "minLength": 1 },
                 "repo": { "type": "string", "minLength": 1 },
+                "token": { "type": "string", "minLength": 1 },
                 "actions": {
                   "type": "object",
                   "additionalProperties": true,
@@ -309,8 +315,14 @@
       "additionalProperties": true,
       "properties": {
         "environment": { "type": "string", "minLength": 1 },
+        "team": { "type": "string" },
+        "teamId": { "type": "string" },
+        "teamSlug": { "type": "string" },
+        "token": { "type": "string" },
+        "apiKey": { "type": "string" },
         "region": { "type": "string" },
         "profile": { "type": "string" },
+        "version": { "type": "string" },
         "stateKey": { "type": "string" },
         "tags": {
           "type": "object",
@@ -533,7 +545,78 @@
       "properties": {
         "rootDirectory": { "type": ["string", "null"] },
         "nodeVersion": { "type": ["string", "null"] },
-        "enableAffectedProjectsDeployments": { "type": ["boolean", "null"] }
+        "enableAffectedProjectsDeployments": { "type": ["boolean", "null"] },
+        "protectionBypassForAutomation": {
+          "oneOf": [
+            { "const": false },
+            { "$ref": "#/$defs/vercelProtectionBypassForAutomation" }
+          ]
+        }
+      }
+    },
+    "vercelProtectionBypassForAutomation": {
+      "type": "object",
+      "additionalProperties": false,
+      "oneOf": [
+        { "required": ["ensure"] },
+        { "required": ["generate"] },
+        { "required": ["update"] },
+        { "required": ["revoke"] }
+      ],
+      "properties": {
+        "ensure": {
+          "type": "object",
+          "required": ["secret", "note"],
+          "additionalProperties": false,
+          "properties": {
+            "secret": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9]{32}$"
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "isEnvVar": { "type": "boolean" }
+          }
+        },
+        "generate": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "secret": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9]{32}$"
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
+        },
+        "update": {
+          "type": "object",
+          "required": ["secret"],
+          "additionalProperties": false,
+          "properties": {
+            "secret": { "type": "string", "minLength": 1 },
+            "isEnvVar": { "type": "boolean" },
+            "note": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
+        },
+        "revoke": {
+          "type": "object",
+          "required": ["secret", "regenerate"],
+          "additionalProperties": false,
+          "properties": {
+            "secret": { "type": "string", "minLength": 1 },
+            "regenerate": { "type": "boolean" }
+          }
+        }
       }
     },
     "app": {
@@ -551,6 +634,12 @@
         "sourceKey": { "type": "string" },
         "nodeVersion": { "type": "string" },
         "enableAffectedProjectsDeployments": { "type": "boolean" },
+        "protectionBypassForAutomation": {
+          "oneOf": [
+            { "const": false },
+            { "$ref": "#/$defs/vercelProtectionBypassForAutomation" }
+          ]
+        },
         "domains": {
           "type": "array",
           "items": { "$ref": "#/$defs/domain" }

@@ -20,7 +20,7 @@ Vertile AI IaC is app-first portable infrastructure intent.
 The user-authored source of truth is:
 
 ```text
-infrastructure/iac/iac.json
+iac.json
 ```
 
 Env sync and Vercel compatibility metadata are also authored in this manifest
@@ -35,6 +35,9 @@ Generated Terraform lives under:
 ```
 
 Users edit the manifest. Vertile AI IaC renders provider-specific infrastructure.
+Provider deployments map stage names to logical environments and provider
+inputs; selected deployments render under
+`.vertile/terraform/<provider>/<deployment>/`.
 
 ## Commands
 

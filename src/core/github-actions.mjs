@@ -82,6 +82,11 @@ function environmentConfigEntries(actionsConfig) {
   }))
 }
 
+export function githubTokenFromManifest(manifest) {
+  const github = asObject(manifest.providers.github || manifest.providers.githubActions)
+  return typeof github.token === 'string' && github.token.trim() ? github.token.trim() : ''
+}
+
 export function buildGitHubActionsPlan({ manifest, sourceRoot, selectedEnvironments = [] }) {
   const github = asObject(manifest.providers.github || manifest.providers.githubActions)
   const actions = asObject(github.actions)

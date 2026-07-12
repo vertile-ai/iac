@@ -1,19 +1,20 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { cp, mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, cp, mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { supportedTargets } from '../src/core/args.mjs'
 import { applyEnvMetadata } from '../src/core/env-metadata.mjs'
-import { buildGitHubActionsPlan } from '../src/core/github-actions.mjs'
+import { buildGitHubActionsPlan, githubTokenFromManifest } from '../src/core/github-actions.mjs'
 import { readManifest } from '../src/core/manifest.mjs'
 import {
   readVercelEnvManifest,
   vercelEnvManifestFromIac,
+  vercelProjectSettingsFromIac,
 } from '../src/core/vercel-manifests.mjs'
-import { resolveIacContext } from '../src/shared.mjs'
+import { readVercelToken, resolveIacContext } from '../src/shared.mjs'
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -305,9 +306,12 @@ async function createDefaultEnvSourceFixture() {
   return root
 }
 
-function execNode(args, cwd) {
+function execNode(args, cwdOrOptions) {
+  const options = typeof cwdOrOptions === 'string'
+    ? { cwd: cwdOrOptions }
+    : cwdOrOptions || {}
   return new Promise((resolve) => {
-    execFile(process.execPath, args, { cwd }, (error, stdout, stderr) => {
+    execFile(process.execPath, args, options, (error, stdout, stderr) => {
       resolve({
         code: error && typeof error.code === 'number' ? error.code : 0,
         stdout,
@@ -342,6 +346,26 @@ test('resolves explicit project paths and auto-create controls', async () => {
     assert.equal(context.shouldAutoCreateProject('app'), true)
     assert.equal(context.shouldAutoCreateProject('template-demo'), true)
     assert.equal(context.shouldAutoCreateProject('other'), false)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('reads Vercel token from iac.json when environment token is unset', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+
+  try {
+    const rawManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    rawManifest.providers.vercel.token = 'manifest_vercel_token'
+    await writeFile(manifestPath, JSON.stringify(rawManifest, null, 2) + '\n')
+
+    const env = { ...process.env }
+    delete env.VERCEL_TOKEN
+    delete env.VERCEL_API_KEY
+
+    const context = resolveIacContext(['--repo-root', root], {})
+    assert.equal(readVercelToken(context, env), 'manifest_vercel_token')
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -1265,6 +1289,337 @@ test('derives Vercel env config with embedded iac env metadata', async () => {
   }
 })
 
+test('derives Vercel protection bypass automation from provider and app config', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+
+  try {
+    const rawManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    rawManifest.providers.vercel.protectionBypassForAutomation = {
+      ensure: {
+        secret: '0123456789abcdefghijklmnopqrstuv',
+        note: 'Playwright E2E',
+      },
+    }
+    rawManifest.apps.push({
+      key: 'admin',
+      id: 'prj_admin',
+      name: 'example-admin',
+      providers: {
+        vercel: {
+          protectionBypassForAutomation: false,
+        },
+      },
+    })
+    await writeFile(manifestPath, JSON.stringify(rawManifest, null, 2) + '\n')
+
+    const manifest = readManifest(manifestPath)
+    const settings = vercelProjectSettingsFromIac(manifest)
+
+    assert.deepEqual(settings.projects.find((project) => project.key === 'app').protectionBypassForAutomation, {
+      ensure: {
+        secret: '0123456789abcdefghijklmnopqrstuv',
+        note: 'Playwright E2E',
+      },
+    })
+    assert.equal(
+      settings.projects.find((project) => project.key === 'admin').protectionBypassForAutomation,
+      undefined,
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('uses Vercel token from iac.json for project reconciliation', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+  const fetchShimPath = path.join(root, 'fetch-shim.mjs')
+  const fetchLogPath = path.join(root, 'fetch-log.jsonl')
+
+  try {
+    const rawManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    rawManifest.providers.vercel.token = 'manifest_vercel_token'
+    await writeFile(manifestPath, JSON.stringify(rawManifest, null, 2) + '\n')
+    await writeFile(
+      fetchShimPath,
+      [
+        "import fs from 'node:fs'",
+        "globalThis.fetch = async (url, options = {}) => {",
+        "  fs.appendFileSync(process.env.FETCH_LOG_PATH, JSON.stringify({ url: String(url), method: options.method || 'GET', authorization: options.headers?.Authorization || '' }) + '\\n')",
+        "  const path = new URL(String(url)).pathname",
+        "  if (path === '/v1/teams') return Response.json({ teams: [{ id: 'team_test', slug: 'example-team' }] })",
+        "  if (path === '/v9/projects') return Response.json({ projects: [{ id: 'prj_test', name: 'example-app' }] })",
+        "  if (path === '/v9/projects/prj_test') return Response.json({ rootDirectory: 'packages/app', nodeVersion: '24.x', enableAffectedProjectsDeployments: true })",
+        "  return new Response(JSON.stringify({ error: `unexpected ${path}` }), { status: 500 })",
+        "}",
+      ].join('\n') + '\n',
+    )
+
+    const env = {
+      ...process.env,
+      FETCH_LOG_PATH: fetchLogPath,
+      VERCEL_API_THROTTLE_MS: '0',
+    }
+    delete env.VERCEL_TOKEN
+    delete env.VERCEL_API_KEY
+
+    const result = await execNode(
+      [
+        '--import',
+        fetchShimPath,
+        'src/reconcile-project-settings.mjs',
+        '--repo-root',
+        root,
+        '--projects=app',
+        '--apply',
+      ],
+      {
+        cwd: packageRoot,
+        env,
+      },
+    )
+
+    assert.equal(result.code, 0, result.stderr)
+    const calls = (await readFile(fetchLogPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    assert.equal(calls[0].authorization, 'Bearer manifest_vercel_token')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('updates Vercel protection bypass automation when an exact note match exists', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+  const fetchShimPath = path.join(root, 'fetch-shim.mjs')
+  const fetchLogPath = path.join(root, 'fetch-log.jsonl')
+
+  try {
+    const rawManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    rawManifest.providers.vercel.protectionBypassForAutomation = {
+      ensure: {
+        secret: '0123456789abcdefghijklmnopqrstuv',
+        note: 'Playwright E2E',
+      },
+    }
+    await writeFile(manifestPath, JSON.stringify(rawManifest, null, 2) + '\n')
+    await writeFile(
+      fetchShimPath,
+      [
+        "import fs from 'node:fs'",
+        "globalThis.fetch = async (url, options = {}) => {",
+        "  fs.appendFileSync(process.env.FETCH_LOG_PATH, JSON.stringify({ url: String(url), method: options.method || 'GET', body: options.body || '' }) + '\\n')",
+        "  const path = new URL(String(url)).pathname",
+        "  if (path === '/v1/teams') return Response.json({ teams: [{ id: 'team_test', slug: 'example-team' }] })",
+        "  if (path === '/v9/projects') return Response.json({ projects: [{ id: 'prj_test', name: 'example-app' }] })",
+        "  if (path === '/v9/projects/prj_test') return Response.json({ rootDirectory: 'packages/app', nodeVersion: '24.x', enableAffectedProjectsDeployments: true, protectionBypass: { bypass_a: { scope: 'automation-bypass', note: 'Playwright E2E', createdAt: 1, createdBy: 'user_test' } } })",
+        "  if (path === '/v1/projects/prj_test/protection-bypass') return Response.json({ ok: true })",
+        "  return new Response(JSON.stringify({ error: `unexpected ${path}` }), { status: 500 })",
+        "}",
+      ].join('\n') + '\n',
+    )
+
+    const result = await execNode(
+      [
+        '--import',
+        fetchShimPath,
+        'src/reconcile-project-settings.mjs',
+        '--repo-root',
+        root,
+        '--projects=app',
+        '--apply',
+      ],
+      {
+        cwd: packageRoot,
+        env: {
+          ...process.env,
+          FETCH_LOG_PATH: fetchLogPath,
+          VERCEL_TOKEN: 'vercel_test_token',
+          VERCEL_API_THROTTLE_MS: '0',
+        },
+      },
+    )
+
+    assert.equal(result.code, 0, result.stderr)
+    assert.equal(result.stderr, '')
+    const calls = (await readFile(fetchLogPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    const bypassCall = calls.find((call) => new URL(call.url).pathname === '/v1/projects/prj_test/protection-bypass')
+    assert.equal(bypassCall.method, 'PATCH')
+    assert.deepEqual(JSON.parse(bypassCall.body), {
+      update: {
+        secret: '0123456789abcdefghijklmnopqrstuv',
+        note: 'Playwright E2E',
+      },
+    })
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('generates Vercel protection bypass automation when no exact note match exists', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+  const fetchShimPath = path.join(root, 'fetch-shim.mjs')
+  const fetchLogPath = path.join(root, 'fetch-log.jsonl')
+
+  try {
+    const rawManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    rawManifest.providers.vercel.protectionBypassForAutomation = {
+      ensure: {
+        secret: '0123456789abcdefghijklmnopqrstuv',
+        note: 'Playwright E2E',
+      },
+    }
+    await writeFile(manifestPath, JSON.stringify(rawManifest, null, 2) + '\n')
+    await writeFile(
+      fetchShimPath,
+      [
+        "import fs from 'node:fs'",
+        "globalThis.fetch = async (url, options = {}) => {",
+        "  fs.appendFileSync(process.env.FETCH_LOG_PATH, JSON.stringify({ url: String(url), method: options.method || 'GET', body: options.body || '' }) + '\\n')",
+        "  const path = new URL(String(url)).pathname",
+        "  if (path === '/v1/teams') return Response.json({ teams: [{ id: 'team_test', slug: 'example-team' }] })",
+        "  if (path === '/v9/projects') return Response.json({ projects: [{ id: 'prj_test', name: 'example-app' }] })",
+        "  if (path === '/v9/projects/prj_test') return Response.json({ rootDirectory: 'packages/app', nodeVersion: '24.x', enableAffectedProjectsDeployments: true, protectionBypass: { bypass_a: { scope: 'automation-bypass', note: 'Other E2E', createdAt: 1, createdBy: 'user_test' } } })",
+        "  if (path === '/v1/projects/prj_test/protection-bypass') return Response.json({ ok: true })",
+        "  return new Response(JSON.stringify({ error: `unexpected ${path}` }), { status: 500 })",
+        "}",
+      ].join('\n') + '\n',
+    )
+
+    const result = await execNode(
+      [
+        '--import',
+        fetchShimPath,
+        'src/reconcile-project-settings.mjs',
+        '--repo-root',
+        root,
+        '--projects=app',
+        '--apply',
+      ],
+      {
+        cwd: packageRoot,
+        env: {
+          ...process.env,
+          FETCH_LOG_PATH: fetchLogPath,
+          VERCEL_TOKEN: 'vercel_test_token',
+          VERCEL_API_THROTTLE_MS: '0',
+        },
+      },
+    )
+
+    assert.equal(result.code, 0, result.stderr)
+    assert.equal(result.stderr, '')
+    const calls = (await readFile(fetchLogPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    const bypassCall = calls.find((call) => new URL(call.url).pathname === '/v1/projects/prj_test/protection-bypass')
+    assert.equal(bypassCall.method, 'PATCH')
+    assert.deepEqual(JSON.parse(bypassCall.body), {
+      generate: {
+        secret: '0123456789abcdefghijklmnopqrstuv',
+        note: 'Playwright E2E',
+      },
+    })
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('rejects note-keyed Vercel protection bypass sync when note metadata is not exposed', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+  const fetchShimPath = path.join(root, 'fetch-shim.mjs')
+
+  try {
+    const rawManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    rawManifest.providers.vercel.protectionBypassForAutomation = {
+      ensure: {
+        secret: '0123456789abcdefghijklmnopqrstuv',
+        note: 'Playwright E2E',
+      },
+    }
+    await writeFile(manifestPath, JSON.stringify(rawManifest, null, 2) + '\n')
+    await writeFile(
+      fetchShimPath,
+      [
+        "globalThis.fetch = async (url) => {",
+        "  const path = new URL(String(url)).pathname",
+        "  if (path === '/v1/teams') return Response.json({ teams: [{ id: 'team_test', slug: 'example-team' }] })",
+        "  if (path === '/v9/projects') return Response.json({ projects: [{ id: 'prj_test', name: 'example-app' }] })",
+        "  if (path === '/v9/projects/prj_test') return Response.json({ rootDirectory: 'packages/app', nodeVersion: '24.x', enableAffectedProjectsDeployments: true })",
+        "  return new Response(JSON.stringify({ error: `unexpected ${path}` }), { status: 500 })",
+        "}",
+      ].join('\n') + '\n',
+    )
+
+    const result = await execNode(
+      [
+        '--import',
+        fetchShimPath,
+        'src/reconcile-project-settings.mjs',
+        '--repo-root',
+        root,
+        '--projects=app',
+        '--apply',
+      ],
+      {
+        cwd: packageRoot,
+        env: {
+          ...process.env,
+          VERCEL_TOKEN: 'vercel_test_token',
+          VERCEL_API_THROTTLE_MS: '0',
+        },
+      },
+    )
+
+    assert.equal(result.code, 1)
+    assert.match(result.stderr, /did not expose protectionBypass note metadata/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('syncs schema and schema documentation artifacts to a landing root', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'vertile-iac-landing-'))
+
+  try {
+    const result = await execNode(
+      [
+        'scripts/sync-landing-schema-docs.mjs',
+        '--landing-root',
+        root,
+      ],
+      packageRoot,
+    )
+
+    assert.equal(result.code, 0, result.stderr)
+    assert.equal(result.stderr, '')
+    assert.match(result.stdout, /public\/schemas\/iac\.schema\.json/)
+    assert.match(result.stdout, /public\/schemas\/env-metadata\.schema\.json/)
+    assert.match(result.stdout, /public\/schemas\/iac-manifest\.schema-doc\.json/)
+    assert.match(result.stdout, /public\/schemas\/iac-schema-docs\.schema\.json/)
+
+    const iacSchema = JSON.parse(await readFile(path.join(root, 'public', 'schemas', 'iac.schema.json'), 'utf8'))
+    const doc = JSON.parse(await readFile(path.join(root, 'public', 'schemas', 'iac-manifest.schema-doc.json'), 'utf8'))
+    const docSchema = JSON.parse(await readFile(path.join(root, 'public', 'schemas', 'iac-schema-docs.schema.json'), 'utf8'))
+
+    assert.equal(iacSchema.title, 'Vertile AI IaC Manifest')
+    assert.equal(doc.sourcePackage, '@vertile-ai/iac')
+    assert.equal(doc.schemaPath, '/schemas/iac.schema.json')
+    assert.equal(docSchema.title, 'Vertile AI IaC Schema Documentation')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('builds GitHub Actions environment sync plan from iac metadata', async () => {
   const root = await createUnifiedFixture()
   const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
@@ -1347,6 +1702,104 @@ test('builds GitHub Actions environment sync plan from iac metadata', async () =
         secret: true,
       },
     ])
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('reads GitHub Actions token from providers.github token field', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+
+  try {
+    const rawManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    rawManifest.providers.github = {
+      repository: 'example/app',
+      token: 'ghp_manifest_token',
+      actions: {
+        environments: {
+          staging: { env: [] },
+        },
+      },
+    }
+    await writeFile(manifestPath, JSON.stringify(rawManifest, null, 2) + '\n')
+
+    const manifest = readManifest(manifestPath)
+
+    assert.equal(githubTokenFromManifest(manifest), 'ghp_manifest_token')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('GitHub Actions apply passes providers.github token to gh as primary auth', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+  const binDir = path.join(root, 'bin')
+  const logPath = path.join(root, 'gh-log.jsonl')
+
+  try {
+    await mkdir(binDir, { recursive: true })
+    const ghPath = path.join(binDir, 'gh')
+    await writeFile(
+      ghPath,
+      [
+        '#!/usr/bin/env node',
+        "const fs = require('node:fs')",
+        "fs.appendFileSync(process.env.GH_LOG_PATH, JSON.stringify({ args: process.argv.slice(2), token: process.env.GH_TOKEN || '' }) + '\\n')",
+        "if (process.argv[2] === 'api' && process.argv.at(-1)?.includes('deployment-branch-policies')) console.log('{\"branch_policies\":[]}')",
+      ].join('\n') + '\n',
+    )
+    await chmod(ghPath, 0o755)
+
+    const rawManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    rawManifest.environments = ['staging']
+    rawManifest.providers.github = {
+      repository: 'example/app',
+      token: 'ghp_manifest_token',
+      actions: {
+        environments: {
+          staging: {
+            env: ['AUTH_SERVICE_URL'],
+          },
+        },
+      },
+    }
+    rawManifest.env.metadata = {
+      shared: {
+        variables: [
+          {
+            key: 'AUTH_SERVICE_URL',
+            example: 'https://auth.example.com',
+            encrypted: false,
+            browser: false,
+            value: 'https://auth.example.com',
+          },
+        ],
+      },
+    }
+    await writeFile(manifestPath, JSON.stringify(rawManifest, null, 2) + '\n')
+
+    const result = await execNode(
+      ['src/github-actions.mjs', '--repo-root', root, '--env=staging', '--apply'],
+      {
+        cwd: packageRoot,
+        env: {
+          ...process.env,
+          GH_LOG_PATH: logPath,
+          GH_TOKEN: 'ghp_env_token',
+          PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+        },
+      },
+    )
+
+    assert.equal(result.code, 0)
+    const calls = (await readFile(logPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    assert.ok(calls.length > 0)
+    assert.equal(calls.every((call) => call.token === 'ghp_manifest_token'), true)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -1780,8 +2233,8 @@ test('runtime examples expose base and provider-specific manifests that render',
   assert.deepEqual(examples, expectedExamples)
 
   for (const example of examples) {
-    const iacDir = path.join(examplesRoot, example, 'infrastructure', 'iac')
-    const manifestNames = (await readdir(iacDir))
+    const exampleRoot = path.join(examplesRoot, example)
+    const manifestNames = (await readdir(exampleRoot))
       .filter((name) => /^iac(\.(aws|do|vercel))?\.json$/.test(name))
       .sort()
 
@@ -1793,7 +2246,7 @@ test('runtime examples expose base and provider-specific manifests that render',
       await cp(path.join(examplesRoot, example), root, { recursive: true })
 
       try {
-        const manifestPath = path.join(root, 'infrastructure', 'iac', manifestName)
+        const manifestPath = path.join(root, manifestName)
         const manifest = readManifest(manifestPath)
         const targets = declaredTargets(manifest)
 
@@ -1831,7 +2284,7 @@ test('published Next.js monorepo example exercises Vercel env and render flows',
     const schema = JSON.parse(await readFile(path.join(packageRoot, 'schema', 'iac.schema.json'), 'utf8'))
     assert.equal(schema.$schema, 'https://json-schema.org/draft/2020-12/schema')
 
-    const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+    const manifestPath = path.join(root, 'iac.json')
     const manifest = readManifest(manifestPath)
     assert.equal(manifest.apps.length, 2)
     assert.equal(manifest.objectStorage[0].key, 'uploads')

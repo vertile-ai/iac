@@ -33,8 +33,9 @@ vertile-iac projects --repo-root ../noop
 vertile-iac domains --repo-root ../noop
 ```
 
-The `render`, `plan`, and `apply` commands read `infrastructure/iac/iac.json`
-and write generated Terraform workspaces to `.vertile/terraform/<target>/`.
+The `render`, `plan`, and `apply` commands read `iac.json` from the repo root
+when present, otherwise `infrastructure/iac/iac.json`, and write generated
+Terraform workspaces to `.vertile/terraform/<target>/`.
 When `--deployment=<name>` maps to a provider deployment, the workspace is
 `.vertile/terraform/<target>/<deployment>/`.
 
@@ -44,9 +45,12 @@ Terraform `-auto-approve`.
 The `env`, `projects`, and `domains` commands reconcile Vercel through the
 Vercel API. They still read the older compatibility manifest files when those
 files exist, and otherwise derive the same desired state from
-`infrastructure/iac/iac.json`.
+`iac.json`.
 
-Apply mode requires `VERCEL_TOKEN`, `VERCEL_API_KEY`, or a token file:
+Apply mode requires `VERCEL_TOKEN`, `VERCEL_API_KEY`,
+`providers.vercel.token`, `providers.vercel.apiKey`, or a token file. Process
+environment values win over manifest values; token files are a compatibility
+fallback:
 
 ```bash
 VERCEL_TOKEN=... vertile-iac env --repo-root ../noop --apply
@@ -57,7 +61,7 @@ VERCEL_TOKEN=... vertile-iac env --repo-root ../noop --apply
 The new Terraform flow expects the target project to have:
 
 ```text
-infrastructure/iac/iac.json
+iac.json
 .vertile-iac/env/shared/.env.development
 .vertile-iac/env/shared/.env.staging
 .vertile-iac/env/shared/.env.production
@@ -79,7 +83,13 @@ Minimal `iac.json` example:
     "production": { "files": [".env.production"] }
   },
   "providers": {
-    "vercel": { "team": "example-team" },
+    "vercel": {
+      "team": "example-team",
+      "deployments": {
+        "uat": { "environment": "uat", "team": "example-team" },
+        "prod": { "environment": "production", "team": "example-team" }
+      }
+    },
     "aws": {
       "region": "us-east-1",
       "deployments": {
@@ -97,7 +107,13 @@ Minimal `iac.json` example:
         }
       }
     },
-    "digitalocean": {}
+    "digitalocean": {
+      "region": "nyc3",
+      "deployments": {
+        "uat": { "environment": "uat", "region": "nyc3" },
+        "prod": { "environment": "production", "region": "nyc3" }
+      }
+    }
   },
   "apps": [
     {
@@ -132,15 +148,19 @@ Provider-specific Terraform resources can be added under
 the manifest schema stays narrow.
 
 Provider deployments map user-defined stage names such as `uat`, `nightly`, or
-`prod` to logical environments and provider-specific inputs. AWS uses deployment
-values for provider region/profile, generated workspace path, resource names,
-and default tags. The logical environment still controls env file selection.
+`prod` to logical environments and provider-specific inputs. When a deployment
+is selected, generated Terraform is written to
+`.vertile/terraform/<target>/<deployment>/`, `locals.deployment` is set, and
+portable provider resource names use the deployment stage. AWS reads deployment
+region/profile/tags, DigitalOcean reads deployment region/version inputs, and
+Vercel reads deployment team/teamId/teamSlug inputs. The mapped logical
+environment still controls env file selection.
 
 By default, Vercel env reconciliation reads `.env.*` files from
 `.vertile-iac/env/shared` and `.vertile-iac/env/<project-key>`.
 
-The source of truth for Vercel env reconciliation is
-`infrastructure/iac/iac.json`. Project settings and domain compatibility files
+The source of truth for Vercel env reconciliation is `iac.json`. Project
+settings and domain compatibility files
 can still be read explicitly or as fallbacks for those commands:
 
 ```text
@@ -152,12 +172,72 @@ When `iac.json` is used, the Vercel commands derive equivalent manifests from
 the unified manifest:
 
 - `providers.vercel.teamSlug` or `providers.vercel.team` becomes the Vercel team.
+- `providers.vercel.token` or `providers.vercel.apiKey` becomes the Vercel API
+  token when `VERCEL_TOKEN` and `VERCEL_API_KEY` are unset.
 - `env.sourceDir` selects the env source folder and defaults to `.vertile-iac/env`.
 - Top-level `environments.<name>.files` maps logical environments to ordered env files.
 - `apps[].key`, `apps[].id` or `apps[].projectId`, and `apps[].name` become managed Vercel projects.
 - `apps[].rootDirectory`, `apps[].nodeVersion`, and
   `apps[].enableAffectedProjectsDeployments` become project settings.
+- `providers.vercel.protectionBypassForAutomation` becomes a default Vercel
+  project automation bypass operation for every managed project. Set
+  `apps[].providers.vercel.protectionBypassForAutomation` to override it per
+  project, or `false` to opt that project out.
 - `apps[].domains` and top-level `domains[]` become project domains.
+
+Vercel's automation bypass secret is project protection configuration, not an
+application runtime env var. Keep it out of `env.metadata` unless an application
+must read it at runtime. For repeatable project sync, use the `ensure`
+operation. It treats `note` as the unique identifier by exact match, reads
+Vercel project `protectionBypass` metadata, and then:
+
+- sends `update` when one automation bypass has the same note.
+- sends `generate` when no automation bypass has that note.
+- fails when Vercel does not expose protection-bypass note metadata or the note
+  is not unique.
+
+```json
+{
+  "providers": {
+    "vercel": {
+      "teamSlug": "example-team",
+      "protectionBypassForAutomation": {
+        "ensure": {
+          "secret": "0123456789abcdefghijklmnopqrstuv",
+          "note": "Playwright E2E"
+        }
+      }
+    }
+  },
+  "apps": [
+    {
+      "key": "web",
+      "id": "prj_example",
+      "providers": {
+        "vercel": {
+          "protectionBypassForAutomation": false
+        }
+      }
+    }
+  ]
+}
+```
+
+The supported operation keys mirror Vercel's REST API:
+
+- `ensure`: Vertile IaC convenience operation for repeatable sync. It requires
+  `secret` and a unique `note`, exact-matches against Vercel-exposed
+  automation-bypass notes, then maps to `update` or `generate`.
+- `generate`: creates a new bypass, optionally with a 32-character
+  alphanumeric `secret` and `note`.
+- `update`: updates an existing bypass by `secret`, with optional `isEnvVar`
+  and `note`.
+- `revoke`: revokes a bypass by `secret` and requires `regenerate`.
+
+Leave `isEnvVar` unset unless deployments themselves need to read
+`VERCEL_AUTOMATION_BYPASS_SECRET`. Browser automation can use the configured
+secret from the IaC source or CI secret store without projecting it into app
+runtime env.
 
 Vercel targets map to logical environments as follows by default:
 
@@ -183,6 +263,7 @@ Configure GitHub once in the provider block:
   "providers": {
     "github": {
       "repository": "owner/repo",
+      "token": "github-token",
       "actions": {
         "environments": {
           "staging": {
@@ -209,12 +290,31 @@ Configure GitHub once in the provider block:
 }
 ```
 
-Each environment key (`staging`, `production`) is a logical IaC environment.
-`name` is the GitHub Actions environment name. `branches` creates custom
-deployment branch policies for that GitHub environment. Each `env` item reads a
-metadata key from `env.metadata`; encrypted metadata is synced as a GitHub
-Actions environment secret, and plaintext metadata is synced as a GitHub
-Actions environment variable. Object entries can rename the output key.
+Shape:
+
+- `providers.github.repository` is the target GitHub repository in `owner/repo`
+  form. If omitted, the CLI tries to derive it from the local `origin` remote.
+- `providers.github.token` is optional. When present, it is the primary auth
+  token passed to `gh` as `GH_TOKEN`.
+- `providers.github.actions.environments.<key>` maps a logical IaC environment
+  such as `staging` or `production` to one GitHub Actions deployment
+  environment.
+- `name` overrides the GitHub Actions environment name. Without it, the logical
+  environment key is used.
+- `branches` creates custom deployment branch policies for that GitHub
+  environment.
+- `env` selects keys from `env.metadata`. Encrypted metadata is synced as a
+  GitHub Actions environment secret; plaintext metadata is synced as a GitHub
+  Actions environment variable.
+- Object `env` entries can rename output keys, for example
+  `{ "source": "NEXT_PUBLIC_BASE_URL", "key": "E2E_BASE_URL" }`.
+
+Auth resolution for apply mode:
+
+1. `providers.github.token`
+2. Existing `GH_TOKEN`
+3. Existing `GITHUB_TOKEN`
+4. Local GitHub CLI auth from `gh auth login`
 
 Dry-run a single environment:
 
@@ -228,10 +328,11 @@ Apply with GitHub CLI authentication:
 vertile-iac github-actions --repo-root ../noop --env=staging --apply
 ```
 
-Apply mode uses the GitHub CLI. Local apply can use `gh auth login`; automation
-can pass `GH_TOKEN` only when the automation has access to the IaC manifest.
-The token must be able to update GitHub Actions environments and deployment
-branch policies, and to write environment secrets and variables.
+Apply mode uses the GitHub CLI. If `providers.github.token` is configured, it
+is passed to `gh` as `GH_TOKEN`. Otherwise local apply can use `gh auth login`,
+and automation can pass `GH_TOKEN` or `GITHUB_TOKEN`. The token must be able to
+update GitHub Actions environments and deployment branch policies, and to write
+environment secrets and variables.
 
 ## Env File Sync
 
@@ -251,7 +352,7 @@ The boundary is:
 - Top-level `packages` registers env-output package keys and directories. Each
   package `directory` is resolved relative to the repo root, which comes from
   `--repo-root` or from walking upward from the current directory until
-  `package.json` and `infrastructure/` are found.
+  `package.json` and either `iac.json` or `infrastructure/` are found.
 - `env.sync.packages` limits which package registry entries are materialized
   locally. Without it, all registered packages are synced. `env.sync.apps` is
   accepted only for older manifests.
@@ -417,14 +518,14 @@ with `--variants`, such as `--variants=uat,nightly`.
 
 ## Shared Options
 
-- `--repo-root <path>`: product repo root containing `infrastructure/`.
-- `--iac-dir <path>`: manifest directory, default `infrastructure/iac`.
+- `--repo-root <path>`: product repo root containing `iac.json` or `infrastructure/`.
+- `--iac-dir <path>`: compatibility manifest directory, default `infrastructure/iac`.
 - `--project-settings <path>`: project settings manifest path.
 - `--project-domains <path>`: project domains manifest path.
-- `--token-file <path>`: token file, default `<repo-root>/.vercel.token`.
+- `--token-file <path>`: compatibility token file fallback, default `<repo-root>/.vercel.token`.
 - `--auto-create-keys <a,b>`: project keys allowed for Vercel auto-create.
 - `--auto-create-prefixes <a,b>`: project key prefixes allowed for Vercel auto-create.
-- `--iac-manifest <path>`: source-of-truth IaC manifest, default `<iac-dir>/iac.json`.
+- `--iac-manifest <path>`: source-of-truth IaC manifest, default `iac.json` when present, otherwise `<iac-dir>/iac.json`.
 - `--out <path>`: generated Terraform root, default `.vertile/terraform`.
 - `--target <name|all>`: `vercel`, `aws`, `digitalocean`, or `all`.
 - `--env <name>`: environment to render, plan, or apply, default `production`.
@@ -440,6 +541,24 @@ Public-facing docs live in `docs/`. The static docs website entrypoint is:
 docs/index.html
 ```
 
+Schema reference docs are sourced from this package and copied into the
+landing site:
+
+```bash
+pnpm sync:landing-schema-docs -- --landing-root ../vertile-landing
+```
+
+The sync publishes:
+
+- `schema/iac.schema.json` -> `public/schemas/iac.schema.json`
+- `schema/env-metadata.schema.json` -> `public/schemas/env-metadata.schema.json`
+- `docs/schema/iac-manifest.schema-doc.json` -> `public/schemas/iac-manifest.schema-doc.json`
+- `docs/schema/iac-schema-docs.schema.json` -> `public/schemas/iac-schema-docs.schema.json`
+
+The landing site also runs `pnpm sync:iac-schemas` before build, so a linked
+`@vertile-ai/iac` package keeps the rendered schema page aligned with the same
+source artifacts.
+
 ## Examples
 
 The `examples/` directory uses runtime-oriented fixture names so each project
@@ -453,7 +572,7 @@ shape is clear at a glance:
 - `examples/python-fastapi-api`
 - `examples/go-api`
 
-Every example keeps a portable `infrastructure/iac/iac.json`. Examples with
+Every example keeps a portable root-level `iac.json`. Examples with
 provider-specific fields also include standalone provider variants such as
 `iac.aws.json`, `iac.vercel.json`, or `iac.do.json` that can be passed with
 `--iac-manifest`.

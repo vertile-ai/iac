@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../../schema/iac.schema.json",
+  "$schema": "../../schema/iac.schema.json",
   "version": 1,
   "project": {
     "key": "next-monorepo",
@@ -58,7 +58,25 @@
             ]
           }
         }
-      ]
+      ],
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "teamSlug": "vertile-ai"
+        },
+        "uat": {
+          "environment": "uat",
+          "teamSlug": "vertile-ai"
+        },
+        "nightly": {
+          "environment": "nightly",
+          "teamSlug": "vertile-ai"
+        },
+        "prod": {
+          "environment": "production",
+          "teamSlug": "vertile-ai"
+        }
+      }
     },
     "aws": {
       "region": "us-east-1",
@@ -121,11 +139,28 @@
             "name": "next-monorepo"
           }
         }
-      ]
+      ],
+      "deployments": {
+        "dev": {
+          "environment": "development",
+          "region": "nyc3"
+        },
+        "uat": {
+          "environment": "uat",
+          "region": "nyc3"
+        },
+        "nightly": {
+          "environment": "nightly",
+          "region": "nyc3"
+        },
+        "prod": {
+          "environment": "production",
+          "region": "nyc3"
+        }
+      }
     }
   },
   "env": {
-    "sourceDir": "infrastructure",
     "sync": {
       "apps": [
         "web",
@@ -140,25 +175,45 @@
             "key": "NEXT_PUBLIC_APP_ENV",
             "example": "development",
             "encrypted": false,
-            "browser": true
+            "browser": true,
+            "values": {
+              "development": "development",
+              "staging": "preview",
+              "production": "production"
+            }
           },
           {
             "key": "NEXT_PUBLIC_API_BASE_URL",
             "example": "http://localhost:3000",
             "encrypted": false,
-            "browser": true
+            "browser": true,
+            "values": {
+              "development": "http://localhost:3000",
+              "staging": "https://preview-api.dynomic.example.com",
+              "production": "https://api.dynomic.example.com"
+            }
           },
           {
             "key": "ADMIN_NEXT_PUBLIC_APP_ENV",
             "example": "development",
             "encrypted": false,
-            "browser": true
+            "browser": true,
+            "values": {
+              "development": "development",
+              "staging": "preview",
+              "production": "production"
+            }
           },
           {
             "key": "ADMIN_NEXT_PUBLIC_API_BASE_URL",
             "example": "http://localhost:3001",
             "encrypted": false,
-            "browser": true
+            "browser": true,
+            "values": {
+              "development": "http://localhost:3001",
+              "staging": "https://preview-admin-api.dynomic.example.com",
+              "production": "https://admin-api.dynomic.example.com"
+            }
           }
         ]
       },
@@ -168,13 +223,23 @@
             "key": "DATABASE_URL",
             "example": "postgres://user:password@localhost:5432/dynomic",
             "encrypted": true,
-            "browser": false
+            "browser": false,
+            "values": {
+              "development": "postgres://local-user:local-pass@localhost:5432/dynomic",
+              "staging": "postgres://preview-user:preview-pass@preview-db.example.com/dynomic",
+              "production": "postgres://prod-user:prod-pass@prod-db.example.com/dynomic"
+            }
           },
           {
             "key": "STRIPE_SECRET_KEY",
             "example": "stripe-test-placeholder",
             "encrypted": true,
-            "browser": false
+            "browser": false,
+            "values": {
+              "development": "stripe-test-dynomic-local-placeholder",
+              "staging": "stripe-test-dynomic-placeholder",
+              "production": "stripe-live-dynomic-placeholder"
+            }
           }
         ]
       },
@@ -184,13 +249,23 @@
             "key": "ADMIN_DATABASE_URL",
             "example": "postgres://user:password@localhost:5432/dynomic_admin",
             "encrypted": true,
-            "browser": false
+            "browser": false,
+            "values": {
+              "development": "postgres://local-admin:local-pass@localhost:5432/dynomic_admin",
+              "staging": "postgres://preview-admin:preview-pass@preview-db.example.com/dynomic_admin",
+              "production": "postgres://prod-admin:prod-pass@prod-db.example.com/dynomic_admin"
+            }
           },
           {
             "key": "ADMIN_SESSION_SECRET",
             "example": "admin-session-placeholder",
             "encrypted": true,
-            "browser": false
+            "browser": false,
+            "values": {
+              "development": "local-admin-session-placeholder",
+              "staging": "preview-admin-session-placeholder",
+              "production": "prod-admin-session-placeholder"
+            }
           }
         ]
       }

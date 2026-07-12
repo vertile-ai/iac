@@ -12,26 +12,32 @@ import {
   resourceName,
 } from '../../core/concepts.mjs'
 
+function deploymentLabel(environment, deployment = {}) {
+  return deployment.name || environment
+}
+
 function region(config, values) {
   return values.region || config.region || 'nyc3'
 }
 
-function objectStorageBlocks(manifest, environment, config) {
+function objectStorageBlocks(manifest, environment, config, deployment = {}) {
+  const nameEnvironment = deploymentLabel(environment, deployment)
   return manifest.objectStorage.map((item) => {
     const values = providerValues(item, 'digitalocean')
     return block('resource', ['digitalocean_spaces_bucket', resourceName('object_storage', item.key)], compactBody({
-      name: values.name || providerResourceName(manifest, environment, item),
+      name: values.name || providerResourceName(manifest, nameEnvironment, item),
       region: region(config, values),
       acl: values.acl || 'private',
     }))
   })
 }
 
-function databaseBlocks(manifest, environment, config) {
+function databaseBlocks(manifest, environment, config, deployment = {}) {
+  const nameEnvironment = deploymentLabel(environment, deployment)
   return manifest.databases.map((item) => {
     const values = providerValues(item, 'digitalocean')
     return block('resource', ['digitalocean_database_cluster', resourceName('database', item.key)], compactBody({
-      name: values.name || providerResourceName(manifest, environment, item),
+      name: values.name || providerResourceName(manifest, nameEnvironment, item),
       engine: values.engine || item.engine || 'pg',
       version: values.version || '15',
       size: values.size || 'db-s-1vcpu-1gb',
@@ -41,11 +47,12 @@ function databaseBlocks(manifest, environment, config) {
   })
 }
 
-function dropletBlocks(manifest, environment, config, field, prefix) {
+function dropletBlocks(manifest, environment, config, deployment = {}, field, prefix) {
+  const nameEnvironment = deploymentLabel(environment, deployment)
   return manifest[field].map((item) => {
     const values = providerValues(item, 'digitalocean')
     return block('resource', ['digitalocean_droplet', resourceName(prefix, item.key)], compactBody({
-      name: values.name || providerResourceName(manifest, environment, item),
+      name: values.name || providerResourceName(manifest, nameEnvironment, item),
       image: values.image || 'ubuntu-24-04-x64',
       region: region(config, values),
       size: values.sizeSlug || values.size || 's-1vcpu-1gb',
@@ -64,16 +71,20 @@ function outputBlocks(manifest) {
   ))
 }
 
-export function renderTerraform({ manifest, environment }) {
-  const config = manifest.providers.digitalocean || {}
-  const resources = renderGenericResources(config.resources)
+export function renderTerraform({ manifest, environment, deployment = {} }) {
+  const providerConfig = manifest.providers.digitalocean || {}
+  const config = {
+    ...providerConfig,
+    ...(deployment.values || {}),
+  }
+  const resources = renderGenericResources(providerConfig.resources)
   const mainBlocks = [
-    renderLocals(manifest, environment),
+    renderLocals(manifest, environment, deployment),
     block('provider', ['digitalocean'], {}),
-    ...objectStorageBlocks(manifest, environment, config),
-    ...databaseBlocks(manifest, environment, config),
-    ...dropletBlocks(manifest, environment, config, 'sandboxes', 'sandbox'),
-    ...dropletBlocks(manifest, environment, config, 'clusters', 'cluster'),
+    ...objectStorageBlocks(manifest, environment, config, deployment),
+    ...databaseBlocks(manifest, environment, config, deployment),
+    ...dropletBlocks(manifest, environment, config, deployment, 'sandboxes', 'sandbox'),
+    ...dropletBlocks(manifest, environment, config, deployment, 'clusters', 'cluster'),
     resources,
   ].filter(Boolean)
 

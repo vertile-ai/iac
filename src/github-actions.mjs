@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import process from 'node:process'
 import { envSourceDir } from './core/env-source.mjs'
-import { buildGitHubActionsPlan } from './core/github-actions.mjs'
+import { buildGitHubActionsPlan, githubTokenFromManifest } from './core/github-actions.mjs'
 import { readManifest } from './core/manifest.mjs'
 import { resolveIacContext, readOption } from './shared.mjs'
 
@@ -42,8 +42,12 @@ function resolveRepoFromGit(repoRoot) {
 }
 
 function runGh(args, options = {}) {
+  const env = options.token
+    ? { ...process.env, GH_TOKEN: options.token }
+    : process.env
   const result = spawnSync('gh', args, {
     encoding: 'utf8',
+    env,
     input: options.input,
     stdio: options.input ? ['pipe', 'pipe', 'pipe'] : 'pipe',
   })
@@ -61,9 +65,9 @@ function environmentPathName(environmentName) {
   return encodeURIComponent(environmentName)
 }
 
-function ensureGhCliAvailable() {
-  runGh(['--version'])
-  if (!process.env.GH_TOKEN && !process.env.GITHUB_TOKEN) {
+function ensureGhCliAvailable(token) {
+  runGh(['--version'], { token })
+  if (!token && !process.env.GH_TOKEN && !process.env.GITHUB_TOKEN) {
     runGh(['auth', 'status'])
   }
 }
@@ -93,7 +97,7 @@ function printPlan({ plan, apply }) {
   }
 }
 
-function ensureEnvironment({ repo, environment }) {
+function ensureEnvironment({ repo, environment, token }) {
   const environmentName = environmentPathName(environment.name)
   const body = environment.branches.length > 0
     ? {
@@ -106,24 +110,24 @@ function ensureEnvironment({ repo, environment }) {
 
   runGh(
     ['api', '--method', 'PUT', `repos/${repo}/environments/${environmentName}`, '--input', '-'],
-    { input: `${JSON.stringify(body)}\n` },
+    { input: `${JSON.stringify(body)}\n`, token },
   )
 }
 
-function existingBranchPolicies({ repo, environmentName }) {
+function existingBranchPolicies({ repo, environmentName, token }) {
   const encodedEnvironmentName = environmentPathName(environmentName)
   const output = runGh([
     'api',
     `repos/${repo}/environments/${encodedEnvironmentName}/deployment-branch-policies`,
-  ])
+  ], { token })
   const parsed = JSON.parse(output)
   return new Set((parsed.branch_policies || []).map((policy) => policy.name))
 }
 
-function ensureBranchPolicies({ repo, environment }) {
+function ensureBranchPolicies({ repo, environment, token }) {
   if (environment.branches.length === 0) return
 
-  const existing = existingBranchPolicies({ repo, environmentName: environment.name })
+  const existing = existingBranchPolicies({ repo, environmentName: environment.name, token })
   for (const branch of environment.branches) {
     if (existing.has(branch)) continue
 
@@ -137,11 +141,11 @@ function ensureBranchPolicies({ repo, environment }) {
       `name=${branch}`,
       '-f',
       'type=branch',
-    ])
+    ], { token })
   }
 }
 
-function setEnvironmentOutput({ repo, environmentName, entry }) {
+function setEnvironmentOutput({ repo, environmentName, entry, token }) {
   const args = [
     entry.secret ? 'secret' : 'variable',
     'set',
@@ -153,21 +157,22 @@ function setEnvironmentOutput({ repo, environmentName, entry }) {
     '--body',
     entry.value,
   ]
-  runGh(args)
+  runGh(args, { token })
 }
 
-function applyPlan(plan) {
-  ensureGhCliAvailable()
+function applyPlan(plan, options = {}) {
+  const token = options.token || ''
+  ensureGhCliAvailable(token)
 
   for (const environment of plan.environments) {
-    ensureEnvironment({ repo: plan.repo, environment })
-    ensureBranchPolicies({ repo: plan.repo, environment })
+    ensureEnvironment({ repo: plan.repo, environment, token })
+    ensureBranchPolicies({ repo: plan.repo, environment, token })
 
     for (const entry of environment.outputs) {
       if (!entry.value) {
         throw new Error(`Cannot set empty GitHub Actions value for ${environment.name}.${entry.key}.`)
       }
-      setEnvironmentOutput({ repo: plan.repo, environmentName: environment.name, entry })
+      setEnvironmentOutput({ repo: plan.repo, environmentName: environment.name, entry, token })
       console.log(`[applied] ${environment.name}.${entry.key}`)
     }
   }
@@ -190,7 +195,7 @@ function main() {
   }
 
   printPlan({ plan, apply: args.apply })
-  if (args.apply) applyPlan(plan)
+  if (args.apply) applyPlan(plan, { token: githubTokenFromManifest(manifest) })
 }
 
 try {

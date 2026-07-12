@@ -1,9 +1,9 @@
 {
-  "$schema": "../../../../schema/iac.schema.json",
+  "$schema": "../../schema/iac.schema.json",
   "version": 1,
   "project": {
-    "key": "python-fastapi-api",
-    "name": "python-fastapi-api"
+    "key": "bun-hono-api",
+    "name": "bun-hono-api"
   },
   "environments": {
     "development": {
@@ -39,65 +39,57 @@
     }
   },
   "providers": {
-    "aws": {
-      "region": "us-east-1",
+    "digitalocean": {
+      "region": "sfo3",
+      "resources": [
+        {
+          "type": "digitalocean_project",
+          "name": "main",
+          "values": {
+            "name": "bun-hono-api"
+          }
+        }
+      ],
       "deployments": {
         "dev": {
           "environment": "development",
-          "region": "us-east-1",
-          "profile": "python-fastapi-api-dev",
-          "tags": {
-            "Stage": "dev"
-          }
+          "region": "sfo3"
         },
         "uat": {
           "environment": "uat",
-          "region": "us-east-1",
-          "profile": "python-fastapi-api-uat",
-          "tags": {
-            "Stage": "uat"
-          }
+          "region": "sfo3"
         },
         "nightly": {
           "environment": "nightly",
-          "region": "us-east-1",
-          "profile": "python-fastapi-api-nightly",
-          "tags": {
-            "Stage": "nightly"
-          }
+          "region": "sfo3"
         },
         "prod": {
           "environment": "production",
-          "region": "us-east-1",
-          "profile": "python-fastapi-api-prod",
-          "tags": {
-            "Stage": "prod"
-          }
+          "region": "sfo3"
         }
       }
-    },
-    "digitalocean": {
-      "region": "nyc3"
     }
   },
   "apps": [
     {
       "key": "api",
-      "name": "python-fastapi-api",
-      "framework": "fastapi",
+      "name": "bun-hono-api",
+      "framework": "bun",
       "rootDirectory": "."
     }
   ],
   "databases": [
     {
       "key": "appdb",
-      "engine": "postgres"
-    }
-  ],
-  "clusters": [
-    {
-      "key": "workers",
-      "size": 2
+      "engine": "postgres",
+      "providers": {
+        "digitalocean": {
+          "engine": "pg",
+          "version": "16",
+          "size": "db-s-1vcpu-1gb",
+          "nodeCount": 1
+        }
+      }
     }
   ]
 }
