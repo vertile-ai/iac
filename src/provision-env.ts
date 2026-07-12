@@ -3,21 +3,28 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import { environmentFiles } from './core/env-files.js'
 import { applyEnvMetadata, manifestEnvEntries } from './core/env-metadata.js'
 import { readVercelEnvManifest } from './core/vercel-manifests.js'
 import { readVercelToken, resolveIacContext } from './shared.js'
 
-const iacContext = resolveIacContext(process.argv.slice(2), {
-  autoCreateKeys: 'landing,web-client,web-server,auth,preview,payment',
-  autoCreatePrefixes: 'template-',
-})
-const rootDir = iacContext.repoRoot
 const apiBase = 'https://api.vercel.com'
 const managedComment = 'managed by @vertile-ai/iac provision-env'
 const legacyManagedComment = 'managed by infrastructure/IAC/provision-env.js'
 const olderLegacyManagedComment = 'managed by scripts/vercel/provision-env.js'
-const shouldAutoCreateProject = iacContext.shouldAutoCreateProject
+let rootDir = ''
+let shouldAutoCreateProject: (key: string) => boolean = () => false
+
+function initializeContext(argv) {
+  const context = resolveIacContext(argv, {
+    autoCreateKeys: 'landing,web-client,web-server,auth,preview,payment',
+    autoCreatePrefixes: 'template-',
+  })
+  rootDir = context.repoRoot
+  shouldAutoCreateProject = context.shouldAutoCreateProject
+  return context
+}
 
 function readPositiveIntegerEnv(key, fallback) {
   const value = Number(process.env[key])
@@ -682,6 +689,7 @@ async function upsertProjectEnv({
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
+  const iacContext = initializeContext(process.argv.slice(2))
   const dryRun = !args.apply
   const token = readVercelToken(iacContext)
   const manifest = readVercelEnvManifest(iacContext)
@@ -856,7 +864,26 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(c.red('Error:'), error instanceof Error ? error.message : String(error))
-  process.exit(1)
-})
+export const testing = {
+  parseArgs,
+  parseEnvFile,
+  mergeEntries,
+  targetEnvironment,
+  targetIncludes,
+  toQuery,
+  chunkEntries,
+  vercelEnvType,
+  groupEntriesByVercelType,
+  toVercelCreateEnv,
+  readRetryAfterMs,
+  requestJSON,
+  isOnlyExistingKeyAndTargetError,
+  isManagedEnvVar,
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main().catch((error) => {
+    console.error(c.red('Error:'), error instanceof Error ? error.message : String(error))
+    process.exit(1)
+  })
+}

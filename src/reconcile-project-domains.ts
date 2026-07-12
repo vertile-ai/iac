@@ -1,18 +1,14 @@
 #!/usr/bin/env node
 
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import {
   readVercelEnvManifest,
   readVercelProjectDomainsManifest,
 } from './core/vercel-manifests.js'
 import { readVercelToken, resolveIacContext } from './shared.js'
 
-const iacContext = resolveIacContext(process.argv.slice(2), {
-  autoCreateKeys: 'landing,web-client,web-server,auth,preview,payment',
-  autoCreatePrefixes: 'template-',
-})
 const apiBase = 'https://api.vercel.com'
-const shouldAutoCreateProject = iacContext.shouldAutoCreateProject
 
 function readPositiveIntegerEnv(key, fallback) {
   const value = Number(process.env[key])
@@ -307,6 +303,11 @@ async function verifyProjectDomain({ token, configured, teamSlug, domain }) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
+  const iacContext = resolveIacContext(process.argv.slice(2), {
+    autoCreateKeys: 'landing,web-client,web-server,auth,preview,payment',
+    autoCreatePrefixes: 'template-',
+  })
+  const shouldAutoCreateProject = iacContext.shouldAutoCreateProject
   const dryRun = !args.apply
 
   const token = readVercelToken(iacContext)
@@ -517,7 +518,23 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error('Error:', error instanceof Error ? error.message : String(error))
-  process.exit(1)
-})
+export const testing = {
+  parseArgs,
+  toQuery,
+  readRetryAfterMs,
+  request,
+  normalizeDomainConfigs,
+  computeDiff,
+  domainLabel,
+  domainCreateBody,
+  domainUpdateBody,
+  printVerificationChallenges,
+  verifyProjectDomain,
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main().catch((error) => {
+    console.error('Error:', error instanceof Error ? error.message : String(error))
+    process.exit(1)
+  })
+}
