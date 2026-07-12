@@ -3,6 +3,7 @@
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import { envSourceDir } from './core/env-source.js'
 import { buildGitHubActionsPlan, githubTokenFromManifest } from './core/github-actions.js'
 import { readManifest } from './core/manifest.js'
@@ -198,9 +199,19 @@ function main() {
   if (args.apply) applyPlan(plan, { token: githubTokenFromManifest(manifest) })
 }
 
-try {
-  main()
-} catch (error) {
-  console.error('Error:', error instanceof Error ? error.message : String(error))
-  process.exit(1)
+export const testing = {
+  splitList,
+  parseArgs,
+  environmentPathName,
+  printPlan,
+  applyPlan,
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  try {
+    main()
+  } catch (error) {
+    console.error('Error:', error instanceof Error ? error.message : String(error))
+    process.exit(1)
+  }
 }

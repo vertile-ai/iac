@@ -3,6 +3,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import { resolvePlatformContext } from './core/context.js'
 import { envSourceDir } from './core/env-source.js'
 import { environmentFiles, environmentOutputFile } from './core/env-files.js'
@@ -950,7 +951,40 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error('Error:', error instanceof Error ? error.message : String(error))
-  process.exit(1)
-})
+export const testing = {
+  hasFlag,
+  splitList,
+  configuredVariants,
+  selectedVariantNames,
+  parseEnvLine,
+  parseEnvValue,
+  mergeLayers,
+  entriesToLines,
+  ensureTrailingNewline,
+  filterEntriesForVariant,
+  configuredMetadataSourceKeys,
+  usesDirectOutputs,
+  packageRefForPackage,
+  valueForMetadataEntry,
+  appExampleOutputPath,
+  appSharedPrefix,
+  projectSharedLayer,
+  requiredSharedAliases,
+  assertRequiredSharedAliases,
+  assertNoSharedOverrides,
+  linesToEnvMap,
+  diffEnvMaps,
+  normalizePackageConfig,
+  manifestPackages,
+  syncPackages,
+  appOutputDir,
+  appSourceKey,
+  shouldSkipSync,
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main().catch((error) => {
+    console.error('Error:', error instanceof Error ? error.message : String(error))
+    process.exit(1)
+  })
+}
