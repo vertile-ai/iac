@@ -127,6 +127,97 @@ test('handles Vercel rate-limit reset timestamps and rejects malformed retry met
   assert.equal(provisionTesting.readRetryAfterMs(new Response('', { headers: { 'retry-after': '0' } }), 2), 0)
 })
 
+test('deletes shared Vercel env through documented batch endpoint safely', async () => {
+  const calls = []
+  await withMockFetch(async (url, options = {}) => {
+    calls.push({ url: String(url), options })
+    const body = JSON.parse(options.body || '{}')
+    if (body.ids.includes('already_deleted')) {
+      return Response.json({ error: { code: 'not_found', message: 'Environment variable not found' } }, { status: 404 })
+    }
+    return Response.json({ ok: true })
+  }, async () => {
+    await provisionTesting.deleteTeamEnvVars({
+      token: 'token',
+      teamSlug: 'team',
+      envVarIds: [...Array.from({ length: 50 }, (_, index) => `env_${index}`), 'env_50', 'already_deleted'],
+    })
+  })
+
+  assert.equal(calls.length, 4)
+  assert.equal(calls[0].url, 'https://api.vercel.com/v1/env?slug=team')
+  assert.equal(calls[0].options.method, 'DELETE')
+  assert.deepEqual(JSON.parse(calls[0].options.body), { ids: Array.from({ length: 50 }, (_, index) => `env_${index}`) })
+  assert.deepEqual(JSON.parse(calls[1].options.body), { ids: ['env_50', 'already_deleted'] })
+  assert.deepEqual(JSON.parse(calls[2].options.body), { ids: ['env_50'] })
+  assert.deepEqual(JSON.parse(calls[3].options.body), { ids: ['already_deleted'] })
+})
+
+test('treats successful shared env delete failed rows as fail-closed', async () => {
+  await withMockFetch(async () => Response.json({
+    failed: [
+      { id: 'env_forbidden', error: { code: 'forbidden', message: 'Cannot delete env', value: 'leaked-delete-secret' } },
+    ],
+  }), async () => {
+    await assert.rejects(
+      () => provisionTesting.deleteTeamEnvVars({
+        token: 'token',
+        teamSlug: 'team',
+        envVarIds: ['env_forbidden'],
+      }),
+      (error) => {
+        assert.match(error.message, /failed delete rows/)
+        assert.match(error.message, /forbidden/)
+        assert.doesNotMatch(error.message, /leaked-delete-secret/)
+        assert.match(error.message, /\[redacted\]/)
+        return true
+      },
+    )
+  })
+})
+
+test('tolerates successful shared env delete failed rows only when they are not-found', async () => {
+  const calls = []
+  await withMockFetch(async (url, options = {}) => {
+    calls.push({ url: String(url), options })
+    return Response.json({
+      failed: [
+        { id: 'already_deleted', error: { code: 'not_found', message: 'Environment variable not found' } },
+      ],
+    })
+  }, async () => {
+    await provisionTesting.deleteTeamEnvVars({
+      token: 'token',
+      teamSlug: 'team',
+      envVarIds: ['env_live', 'already_deleted'],
+    })
+  })
+
+  assert.equal(calls.length, 1)
+  assert.deepEqual(JSON.parse(calls[0].options.body), { ids: ['env_live', 'already_deleted'] })
+})
+
+test('redacts secret values from Vercel API failure output', async () => {
+  await withMockFetch(async () => Response.json({
+    error: {
+      code: 'bad_request',
+      message: 'The request body is invalid.',
+      value: 'super-secret-value',
+    },
+    value: 'super-secret-value',
+  }, { status: 400 }), async () => {
+    await assert.rejects(
+      () => provisionTesting.requestJSON({ token: 'token', method: 'DELETE', pathname: '/v1/env', query: { slug: 'team' }, body: { ids: ['env'] } }),
+      (error) => {
+        assert.doesNotMatch(error.message, /super-secret-value/)
+        assert.match(error.message, /\[redacted\]/)
+        assert.match(error.message, /bad_request/)
+        return true
+      },
+    )
+  })
+})
+
 test('rejects missing Vercel team and project identifiers rather than continuing with malformed API data', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'vertile-iac-vercel-identifiers-'))
   const shimPath = path.join(root, 'fetch-shim.mjs')

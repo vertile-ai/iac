@@ -13,6 +13,7 @@ const apiBase = 'https://api.vercel.com'
 const managedComment = 'managed by @vertile-ai/iac provision-env'
 const legacyManagedComment = 'managed by infrastructure/IAC/provision-env.js'
 const olderLegacyManagedComment = 'managed by scripts/vercel/provision-env.js'
+const teamEnvDeleteChunkSize = 50
 let rootDir = ''
 let shouldAutoCreateProject: (key: string) => boolean = () => false
 
@@ -244,6 +245,69 @@ function toQuery(params) {
   return encoded ? `?${encoded}` : ''
 }
 
+function isSensitiveResponseKey(key) {
+  const normalized = String(key).toLowerCase()
+  return (
+    normalized === 'value' ||
+    normalized.includes('secret') ||
+    normalized.includes('token') ||
+    normalized.includes('password')
+  )
+}
+
+function collectSensitiveResponseValues(payload, values = []) {
+  if (!payload || typeof payload !== 'object') return values
+
+  if (Array.isArray(payload)) {
+    for (const item of payload) collectSensitiveResponseValues(item, values)
+    return values
+  }
+
+  for (const [key, value] of Object.entries(payload)) {
+    if (isSensitiveResponseKey(key) && typeof value === 'string' && value) {
+      values.push(value)
+      continue
+    }
+    collectSensitiveResponseValues(value, values)
+  }
+
+  return values
+}
+
+function redactSensitiveResponsePayload(payload) {
+  if (!payload || typeof payload !== 'object') return payload
+
+  if (Array.isArray(payload)) {
+    return payload.map(redactSensitiveResponsePayload)
+  }
+
+  return Object.fromEntries(
+    Object.entries(payload).map(([key, value]) => [
+      key,
+      isSensitiveResponseKey(key)
+        ? '[redacted]'
+        : redactSensitiveResponsePayload(value),
+    ]),
+  )
+}
+
+function sanitizeVercelPayload(payload) {
+  const sensitiveValues = collectSensitiveResponseValues(payload)
+  let sanitized = JSON.stringify(redactSensitiveResponsePayload(payload))
+  for (const value of sensitiveValues) {
+    sanitized = sanitized.split(value).join('[redacted]')
+  }
+  return sanitized
+}
+
+function sanitizeVercelResponseText(responseText) {
+  try {
+    return sanitizeVercelPayload(JSON.parse(responseText))
+  } catch {
+    return responseText
+  }
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -341,7 +405,7 @@ async function requestJSON({ token, method, pathname, query, body }: any) {
       }
     }
 
-    const errorText = responseText
+    const errorText = sanitizeVercelResponseText(responseText)
     if (response.status === 429 && attempt < maxRequestAttempts - 1) {
       const delayMs = readRetryAfterMs(response, attempt)
       console.warn(
@@ -423,6 +487,55 @@ function isOnlyExistingKeyAndTargetError(error) {
   }
 }
 
+function errorPayload(error) {
+  const message = error instanceof Error ? error.message : String(error)
+  const jsonStart = message.indexOf('{')
+  if (jsonStart < 0) return null
+
+  try {
+    return JSON.parse(message.slice(jsonStart))
+  } catch {
+    return null
+  }
+}
+
+function isNotFoundEnvCode(code) {
+  return ['not_found', 'env_not_found', 'environment_variable_not_found'].includes(String(code))
+}
+
+function isAlreadyDeletedTeamEnvError(error) {
+  const payload = errorPayload(error)
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase()
+  const codes = []
+
+  if (payload?.error?.code) codes.push(String(payload.error.code))
+  if (Array.isArray(payload?.failed)) {
+    for (const item of payload.failed) {
+      if (item?.error?.code) codes.push(String(item.error.code))
+    }
+  }
+
+  if (codes.length > 0) {
+    return codes.every(isNotFoundEnvCode)
+  }
+
+  return /failed \(404\)/.test(message) && /not[_ -]?found/.test(message)
+}
+
+function isIdempotentNotFoundFailure(row) {
+  return isNotFoundEnvCode(row?.error?.code)
+}
+
+function assertNoFailedTeamEnvDeleteRows(response) {
+  const failed = Array.isArray(response?.failed) ? response.failed : []
+  if (failed.length === 0) return
+  if (failed.every(isIdempotentNotFoundFailure)) return
+
+  throw new Error(
+    `Vercel API DELETE /v1/env returned failed delete rows: ${sanitizeVercelPayload({ failed })}`,
+  )
+}
+
 function isManagedEnvVar(envVar) {
   return (
     envVar?.comment === managedComment ||
@@ -465,13 +578,31 @@ async function listProjectEnvVars({ token, teamSlug, projectId }) {
   return Array.isArray(response.envs) ? response.envs : []
 }
 
-async function deleteTeamEnvVar({ token, teamSlug, envVarId }) {
-  await requestJSON({
+async function deleteTeamEnvVarChunk({ token, teamSlug, envVarIds }) {
+  const response = await requestJSON({
     token,
     method: 'DELETE',
-    pathname: `/v1/env/${encodeURIComponent(envVarId)}`,
+    pathname: '/v1/env',
     query: { slug: teamSlug },
+    body: { ids: envVarIds },
   })
+  assertNoFailedTeamEnvDeleteRows(response)
+}
+
+async function deleteTeamEnvVars({ token, teamSlug, envVarIds }) {
+  const ids = envVarIds.filter((id) => typeof id === 'string' && id.length > 0)
+  for (const chunk of chunkEntries(ids, teamEnvDeleteChunkSize)) {
+    try {
+      await deleteTeamEnvVarChunk({ token, teamSlug, envVarIds: chunk })
+    } catch (error) {
+      if (!isAlreadyDeletedTeamEnvError(error)) throw error
+      if (chunk.length === 1) continue
+
+      for (const envVarId of chunk) {
+        await deleteTeamEnvVars({ token, teamSlug, envVarIds: [envVarId] })
+      }
+    }
+  }
 }
 
 async function deleteProjectEnvVar({ token, teamSlug, projectId, envVarId }) {
@@ -618,13 +749,11 @@ async function upsertTeamShared({
     }
   }
 
-  for (const envVar of staleManagedVars) {
-    await deleteTeamEnvVar({
-      token,
-      teamSlug,
-      envVarId: envVar.id,
-    })
-  }
+  await deleteTeamEnvVars({
+    token,
+    teamSlug,
+    envVarIds: staleManagedVars.map((envVar) => envVar.id),
+  })
 }
 
 async function upsertProjectEnv({
@@ -899,7 +1028,10 @@ export const testing = {
   readRetryAfterMs,
   requestJSON,
   isOnlyExistingKeyAndTargetError,
+  isAlreadyDeletedTeamEnvError,
   isManagedEnvVar,
+  deleteTeamEnvVars,
+  assertNoFailedTeamEnvDeleteRows,
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

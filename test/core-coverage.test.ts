@@ -713,11 +713,15 @@ test('reconciles shared and project Vercel environment variables with deletes', 
       "  if (pathname === '/v11/projects') return Response.json({ id: 'prj_landing' })",
       "  if (pathname === '/v1/env' && method === 'GET') return Response.json({ data: [",
       "    { id: 'env_update', key: 'UPDATE', target: ['preview'], comment: 'managed by @vertile-ai/iac provision-env' },",
-      "    { id: 'env_stale', key: 'STALE', target: ['preview'], comment: 'managed by @vertile-ai/iac provision-env' }",
+      "    { id: 'env_stale', key: 'STALE', target: ['preview'], comment: 'managed by @vertile-ai/iac provision-env' },",
+      "    { id: 'env_stale_2', key: 'STALE_2', target: ['preview'], comment: 'managed by @vertile-ai/iac provision-env' }",
       "  ] })",
       "  if (pathname === '/v1/env' && method === 'POST' && process.env.CREATE_CONFLICT === '1') return new Response(JSON.stringify({ failed: [{ error: { code: 'existing_key_and_target' } }] }), { status: 400 })",
       "  if (pathname === '/v1/env' && (method === 'PATCH' || method === 'POST')) return Response.json({ ok: true })",
-      "  if (pathname === '/v1/env/env_stale' && method === 'DELETE') return Response.json({ ok: true })",
+      "  if (pathname === '/v1/env' && method === 'DELETE') {",
+      "    const body = JSON.parse(options.body || '{}')",
+      "    if (JSON.stringify(body.ids) === JSON.stringify(['env_stale', 'env_stale_2'])) return Response.json({ ok: true })",
+      "  }",
       "  if (pathname === '/v10/projects/prj_landing/env' && method === 'POST') return Response.json({ ok: true })",
       "  if (pathname === '/v10/projects/prj_landing/env' && method === 'GET') return Response.json({ envs: [{ id: 'project_stale', key: 'STALE_PROJECT', target: ['preview'], comment: 'managed by @vertile-ai/iac provision-env' }] })",
       "  if (pathname === '/v9/projects/prj_landing/env/project_stale' && method === 'DELETE') return Response.json({ ok: true })",
@@ -738,7 +742,7 @@ test('reconciles shared and project Vercel environment variables with deletes', 
     const calls = (await (await import('node:fs/promises')).readFile(logPath, 'utf8')).trim().split('\n').map(JSON.parse)
     assert.equal(calls.some((call) => call.pathname === '/v1/env' && call.method === 'PATCH'), true)
     assert.equal(calls.some((call) => call.pathname === '/v1/env' && call.method === 'POST'), true)
-    assert.equal(calls.some((call) => call.pathname === '/v1/env/env_stale' && call.method === 'DELETE'), true)
+    assert.equal(calls.some((call) => call.pathname === '/v1/env' && call.method === 'DELETE' && JSON.stringify(JSON.parse(call.body).ids) === JSON.stringify(['env_stale', 'env_stale_2'])), true)
     assert.equal(calls.some((call) => call.pathname === '/v10/projects/prj_landing/env' && call.method === 'POST'), true)
     assert.equal(calls.some((call) => call.pathname.endsWith('/project_stale') && call.method === 'DELETE'), true)
     const conflict = runNode([
