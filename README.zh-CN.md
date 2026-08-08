@@ -2,6 +2,11 @@
 
 [English](README.md)
 
+[![Release workflow](https://github.com/vertile-ai/iac/actions/workflows/release.yml/badge.svg)](https://github.com/vertile-ai/iac/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/vertile-ai/iac?display_name=tag&sort=semver)](https://github.com/vertile-ai/iac/releases)
+[![npm version](https://img.shields.io/npm/v/%40vertile-ai%2Fiac)](https://www.npmjs.com/package/@vertile-ai/iac)
+[![npm downloads/month](https://img.shields.io/npm/dm/%40vertile-ai%2Fiac?label=npm%20downloads%2Fmonth)](https://www.npmjs.com/package/@vertile-ai/iac)
+
 把基础设施意图、环境变量和部署阶段放进一个可审查的文件，再用同一套命令生成 Vercel、AWS 或 DigitalOcean 所需的 Terraform 工作区。`@vertile-ai/iac` 适合不希望在脚本、控制台和多个配置文件之间重复维护应用名称、域名、环境与云厂商设置的产品团队。
 
 它把应用代码与基础设施连接成一个可靠的协作流程：

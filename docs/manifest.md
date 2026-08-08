@@ -101,6 +101,174 @@ only where the provider really differs.
 }
 ```
 
+DigitalOcean Spaces bucket names are DNS-safe by construction. Generated names
+use lowercase dashes, and an explicit `providers.digitalocean.name` or
+`providers.digitalocean.bucket` must be 3–63 characters using only lowercase
+letters, digits, and dashes. This matches DigitalOcean's global bucket naming
+rules and prevents a render that can never pass Terraform validation.
+
+## Object Storage
+
+`objectStorage` is a portable bucket intent. DigitalOcean renders it as a
+Spaces bucket with a private ACL by default. Set `visibility` to `public` for
+the provider's `public-read` ACL, or use the provider override for an explicit
+bucket name and region:
+
+```json
+{
+  "objectStorage": [
+    {
+      "key": "uploads",
+      "visibility": "private",
+      "providers": {
+        "digitalocean": {
+          "name": "example-uploads",
+          "region": "syd1",
+          "acl": "private"
+        }
+      }
+    }
+  ]
+}
+```
+
+DigitalOcean renders non-sensitive outputs for each bucket: bucket name,
+regional endpoint, bucket domain name, and region. Runtime access keys are
+never emitted by the manifest or Terraform output; supply
+`SPACES_ACCESS_KEY_ID` and `SPACES_SECRET_ACCESS_KEY` through the Terraform
+provider environment.
+
+## Services
+
+`services` describe long-running app services. v1 supports a narrow,
+deployable baseline: public container services on DigitalOcean single Droplets.
+
+```json
+{
+  "apps": [{ "key": "api", "name": "example-api" }],
+  "services": [
+    {
+      "key": "api",
+      "app": "api",
+      "runtime": "container",
+      "port": 3000,
+      "public": true,
+      "replicas": 1,
+      "healthCheck": { "path": "/health" },
+      "providers": {
+        "digitalocean": {
+          "mode": "droplet",
+          "region": "sfo3",
+          "sizeSlug": "s-1vcpu-2gb",
+          "image": "ubuntu-24-04-x64",
+          "backups": true,
+          "monitoring": true,
+          "reservedIp": true
+        }
+      }
+    }
+  ]
+}
+```
+
+Portable service fields:
+
+| Field | Default | Notes |
+| --- | --- | --- |
+| `key` | required | Stable service identifier. Keys must be unique and must not collide after Terraform name sanitization. |
+| `app` | optional | Must reference an `apps[].key` when set. |
+| `runtime` | required | Must be `container` in v1. |
+| `port` | required | Internal application/upstream port, integer `1` to `65535`. This is not opened publicly by the generated firewall. |
+| `public` | `true` | v1 supports public services only; `false` is rejected. |
+| `replicas` | `1` | v1 supports one replica only; values other than `1` are rejected. |
+| `healthCheck.path` | optional | Absolute path beginning with `/`. It is emitted as rollout metadata and an output when set. |
+| `protocol` | unsupported | Rejected in v1. The release pipeline/reverse proxy owns HTTP, HTTPS, and WSS routing. |
+
+DigitalOcean service provider fields:
+
+| Field | Default | Notes |
+| --- | --- | --- |
+| `mode` | `droplet` | v1 supports Droplets only; any other value is rejected. |
+| `region` | selected deployment region, then provider region | Required from one of service, deployment, or provider config. |
+| `sizeSlug` or `size` | `s-1vcpu-2gb` | Droplet size used for first-class services. |
+| `image` | `ubuntu-24-04-x64` | Base host image. |
+| `backups` | `true` | DigitalOcean Droplet backup flag. |
+| `monitoring` | `true` | DigitalOcean Droplet monitoring flag. |
+| `reservedIp` | `true` | Required for public v1 services; `false` is rejected. |
+| `sshKeyFingerprints` | omitted | DigitalOcean SSH key fingerprints to install on the Droplet. Omit in shared examples unless real management access is intended. |
+| `managementCidrs` | omitted | Explicit SSH CIDR allowlist. Empty, duplicate, invalid, or global CIDRs such as `0.0.0.0/0` and `::/0` are rejected. |
+
+### DigitalOcean Service Lifecycle
+
+For a DigitalOcean service, `render`, `plan`, and `apply` produce a secure empty
+host. The generated Terraform creates:
+
+- a `digitalocean_project` for services;
+- one `digitalocean_droplet` per service;
+- a `digitalocean_reserved_ip` and assignment;
+- a `digitalocean_firewall`;
+- cloud-init bootstrap for Docker, disabled password/root SSH login, non-root
+  `vertile` user, `/srv/vertile/<service_key>`, and
+  `/var/lib/vertile-iac/bootstrap-complete`.
+
+It intentionally does not build or push application images, configure GHCR,
+write runtime secrets, configure DNS, issue TLS certificates, start a running
+app, or prove HTTP health/WSS behavior.
+
+The consumer release pipeline owns:
+
+- image build and publishing, for example to GHCR;
+- runtime secret delivery;
+- binding the application to localhost on `services[].port`;
+- reverse proxy and TLS configuration on `80`/`443`;
+- health and WSS proof using service outputs;
+- rollout and rollback.
+
+The firewall model is conservative. Public ingress is only `80` and `443`. The
+application port is private upstream metadata and is not exposed globally. SSH
+port `22` is rendered only when `managementCidrs` is explicitly set. Do not use
+GitHub-hosted runner egress as a Terraform firewall allowlist because those
+source addresses are not stable enough for a durable rule set. Prefer fixed
+egress, self-hosted runners, private networking, or a pull-based deployment
+agent over firewall churn.
+
+### DigitalOcean Service Outputs
+
+First-class DigitalOcean services emit stable Terraform output names:
+
+| Output | Value |
+| --- | --- |
+| `digitalocean_service_<service_key>_droplet_id` | Droplet id. |
+| `digitalocean_service_<service_key>_reserved_ip` | Reserved IP address. |
+| `digitalocean_service_<service_key>_public_host` | Public host value; currently the Reserved IP address. |
+| `digitalocean_service_<service_key>_ssh_user` | `vertile`. |
+| `digitalocean_service_<service_key>_application_directory` | `/srv/vertile/<service_key>`, using Terraform-safe sanitized service key text. |
+| `digitalocean_service_<service_key>_application_port` | The manifest `services[].port`. |
+| `digitalocean_service_<service_key>_health_check_path` | The manifest `healthCheck.path`, only when set. |
+
+Use the output command for release automation:
+
+```bash
+vertile-iac output --target=digitalocean --deployment=prod --json
+```
+
+The JSON envelope is stable:
+
+```json
+{
+  "target": "digitalocean",
+  "deployment": "prod",
+  "environment": "production",
+  "outputs": {
+    "digitalocean_service_api_public_host": "203.0.113.10",
+    "digitalocean_service_api_ssh_user": "vertile",
+    "digitalocean_service_api_application_directory": "/srv/vertile/api",
+    "digitalocean_service_api_application_port": 3000,
+    "digitalocean_service_api_health_check_path": "/health"
+  }
+}
+```
+
 ## Vercel API Credentials
 
 Vercel compatibility commands read API credentials from `VERCEL_TOKEN`,
@@ -181,6 +349,10 @@ whose values define env file selection. By default, env sources live in
 Env metadata is authored in the same manifest under `env.metadata.<source-key>`.
 Each source key maps to a source folder such as `shared`, `web`, or `api`, and
 declares every managed key with `example`, `encrypted`, and `browser`.
+An optional `description` is rendered as an adjacent comment in generated
+`.env.example` files. With direct outputs enabled, package examples are always
+maintained by `sync-env`; omit `--variants` to sync the declared environments
+in manifest order.
 `value` may hold one real env value for all selected environments; `values` may
 hold real values keyed by environment name, with optional `default`. When a
 source declares manifest values, `sync-env` materializes the matching
@@ -192,6 +364,10 @@ a key. The top-level list is the available set, so stale include/exclude names
 are ignored. Exclusions run first; inclusions then select from the remaining
 environments.
 
+Run `vertile-iac validate` before sync or CI to check direct-output value
+coverage, package routes, browser-safe projections, output collisions, and
+ignored encrypted target paths. It is offline and read-only.
+
 Provider deployments map stage names such as `uat` or `prod` to a logical
 environment plus provider-specific inputs. When a deployment is selected,
 generated Terraform is written to `.vertile/terraform/<provider>/<deployment>/`,
@@ -200,11 +376,107 @@ deployment stage. AWS uses deployment values for region/profile/default tags,
 DigitalOcean uses deployment region/version values, and Vercel uses deployment
 team/teamId/teamSlug values.
 
+## DigitalOcean Backend
+
+DigitalOcean uses local Terraform state by default. Optional remote state is a
+Spaces-backed S3-compatible Terraform backend:
+
+```json
+{
+  "providers": {
+    "digitalocean": {
+      "region": "sfo3",
+      "backend": {
+        "type": "spaces",
+        "bucket": "terraform-state",
+        "region": "sfo3"
+      },
+      "deployments": {
+        "prod": {
+          "environment": "production",
+          "region": "sfo3",
+          "stateKey": "bun-hono-api/prod/terraform.tfstate"
+        }
+      }
+    }
+  }
+}
+```
+
+The bucket must already exist. Backend credentials are never read from the
+manifest and credential-like backend fields are rejected. Export
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for Terraform because the
+DigitalOcean Spaces backend is rendered through Terraform's S3 backend.
+
+Remote state requires selecting a deployment whose values include `stateKey`.
+The key must be a safe relative object key: ASCII letters, digits, `.`, `_`,
+`-`, and `/`, with no leading slash, trailing slash, empty segment, `.`, or
+`..` segment.
+
+Current generated backend model:
+
+```hcl
+terraform {
+  required_version = "~> 1.11"
+
+  backend "s3" {
+    endpoints = {
+      s3 = "https://sfo3.digitaloceanspaces.com"
+    }
+    bucket                      = "terraform-state"
+    key                         = "bun-hono-api/prod/terraform.tfstate"
+    region                      = "us-east-1"
+    skip_credentials_validation = true
+    skip_requesting_account_id  = true
+    skip_metadata_api_check     = true
+    skip_region_validation      = true
+    skip_s3_checksum            = true
+    use_lockfile                = true
+  }
+}
+```
+
+`useLockfile` defaults to `true` and renders `required_version = "~> 1.11"` plus
+`use_lockfile = true`. Set `useLockfile: false` only for Terraform `>= 1.6.3`
+compatibility; that omits `use_lockfile`.
+
+Backend lifecycle flags are explicit:
+
+- `--migrate-state` runs `terraform init -migrate-state -force-copy`.
+- `--reconfigure` runs `terraform init -reconfigure`.
+- The two flags are mutually exclusive.
+- State migration is never automatic.
+
+## DigitalOcean Provider Version
+
+Generated DigitalOcean Terraform pins `digitalocean/digitalocean` to `2.96.0`
+by default:
+
+```json
+{
+  "providers": {
+    "digitalocean": {
+      "region": "sfo3",
+      "version": "2.96.0"
+    }
+  }
+}
+```
+
+Override the pin with `providers.digitalocean.version`, or with
+`providers.digitalocean.deployments.<name>.version` for one deployment.
+
+When updating the default pin, verify the official DigitalOcean Terraform
+provider documentation and release notes first, then update the default,
+provider-version tests, affected generated fixtures or docs, and a changeset in
+the same PR.
+
 ## Supported Concepts
 
 | Concept | Vercel | AWS | DigitalOcean |
 | --- | --- | --- | --- |
 | `apps` | Vercel Project | - | - |
+| `services` | - | - | Single public Droplet service |
 | `domains` | Vercel Project Domain | - | - |
 | `objectStorage` | - | S3 Bucket | Spaces Bucket |
 | `databases` | - | RDS Instance | Managed Database Cluster |
@@ -221,6 +493,7 @@ Render generated Terraform:
 
 ```bash
 vertile-iac render --target=all --env=production
+vertile-iac render --target=digitalocean --deployment=prod
 ```
 
 Preview changes with Terraform:
@@ -233,4 +506,10 @@ Apply changes with explicit non-interactive approval:
 
 ```bash
 vertile-iac apply --target=aws --deployment=prod --yes
+```
+
+Print non-sensitive Terraform outputs as JSON:
+
+```bash
+vertile-iac output --target=digitalocean --deployment=prod --json
 ```

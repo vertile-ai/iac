@@ -16,6 +16,8 @@
     "vertile-iac-render": "dist/src/render.js",
     "vertile-iac-plan": "dist/src/plan.js",
     "vertile-iac-apply": "dist/src/apply.js",
+    "vertile-iac-output": "dist/src/output.js",
+    "vertile-iac-validate": "dist/src/validate.js",
     "vertile-iac-sync-env": "dist/src/sync-env.js",
     "vertile-iac-env": "dist/src/provision-env.js",
     "vertile-iac-github-actions": "dist/src/github-actions.js",

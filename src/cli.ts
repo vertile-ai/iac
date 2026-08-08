@@ -14,6 +14,8 @@ const commands = new Map([
   ['render', path.join(root, 'render.js')],
   ['plan', path.join(root, 'plan.js')],
   ['apply', path.join(root, 'apply.js')],
+  ['output', path.join(root, 'output.js')],
+  ['validate', path.join(root, 'validate.js')],
   ['sync-env', path.join(root, 'sync-env.js')],
   ['env', path.join(root, 'provision-env.js')],
   ['github-actions', path.join(root, 'github-actions.js')],
@@ -28,6 +30,8 @@ Usage:
   vertile-iac render --target=vercel|aws|digitalocean|all --env=<name> [options]
   vertile-iac plan --target=vercel|aws|digitalocean|all --env=<name> [options]
   vertile-iac apply --target=vercel|aws|digitalocean|all --env=<name> [options]
+  vertile-iac output --target=vercel|aws|digitalocean --env=<name> [options]
+  vertile-iac validate [options]
   vertile-iac sync-env [options]
   vertile-iac env [options]
   vertile-iac github-actions [options]
@@ -38,6 +42,8 @@ Commands:
   render     Render Terraform workspaces from iac.json.
   plan       Render Terraform workspaces and run terraform plan.
   apply      Render Terraform workspaces and run terraform apply.
+  output     Render one Terraform workspace and print non-sensitive outputs as JSON.
+  validate   Validate manifest-driven environment routing without writing or calling providers.
   sync-env   Generate package .env files from the configured env source tree.
   env        Compatibility: reconcile Vercel team and project environment variables.
   github-actions
@@ -52,6 +58,9 @@ ${sharedOptionsHelp()}
   --deployment <name>         Provider deployment/stage name, such as uat or prod.
   --terraform-bin <path>      Terraform executable. Defaults to terraform.
   --yes                       Allow non-interactive apply with Terraform auto-approve.
+  --migrate-state             Run terraform init with -migrate-state -force-copy.
+  --reconfigure               Run terraform init with -reconfigure.
+  --json                      Accepted by output; output is always JSON.
 `)
 }
 

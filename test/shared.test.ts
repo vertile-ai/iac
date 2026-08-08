@@ -84,6 +84,7 @@ async function createUnifiedFixture() {
         version: 1,
         project: { name: 'example' },
         environments: {
+          staging: {},
           preview: {},
           production: {},
           uat: {
@@ -260,6 +261,7 @@ async function createDefaultEnvSourceFixture() {
         version: 1,
         project: { name: 'default-env-source' },
         environments: {
+          staging: {},
           preview: {},
           production: {},
           uat: {
@@ -907,6 +909,149 @@ test('generates package-routed env and examples directly from iac.json metadata'
   }
 })
 
+test('sync-env does not require or generate a test env file by default', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+
+  try {
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.environments = ['local', 'staging', 'production']
+    manifest.env.sync.directOutputs = true
+    manifest.env.metadata = {
+      platform: {
+        variables: [
+          {
+            key: 'APP_ENV',
+            example: 'local',
+            encrypted: false,
+            browser: false,
+            packages: ['app'],
+            values: {
+              local: 'local',
+              staging: 'staging',
+              production: 'production',
+            },
+          },
+        ],
+      },
+    }
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+
+    const result = await execNode([
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
+      'sync-env',
+      '--repo-root',
+      root,
+    ], packageRoot)
+
+    assert.equal(result.code, 0, result.stderr)
+    assert.equal(result.stderr, '')
+    await stat(path.join(root, 'packages', 'app', '.env.local'))
+    await stat(path.join(root, 'packages', 'app', '.env.staging'))
+    await stat(path.join(root, 'packages', 'app', '.env.production'))
+    await assert.rejects(
+      stat(path.join(root, 'packages', 'app', '.env.test')),
+      { code: 'ENOENT' },
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('uses manifest environment order and always maintains described direct-output examples', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+
+  try {
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.environments = ['quality', 'release']
+    manifest.env.sync.directOutputs = true
+    manifest.env.metadata = {
+      platform: {
+        variables: [
+          {
+            key: 'API_URL',
+            description: 'Base URL used by the package API client.',
+            example: 'https://api.example.test',
+            encrypted: false,
+            browser: false,
+            packages: ['app'],
+            values: {
+              quality: 'https://api.quality.test',
+              release: 'https://api.example.test',
+            },
+          },
+          {
+            key: 'INTERNAL_TOKEN',
+            description: 'Never publish this token in examples.',
+            example: 'not-published',
+            encrypted: true,
+            browser: false,
+            includeInExample: false,
+            packages: ['app'],
+            value: 'real-token',
+          },
+        ],
+      },
+    }
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+
+    const dryRun = await execNode([
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
+      'sync-env',
+      '--repo-root',
+      root,
+      '--dry-run',
+    ], packageRoot)
+
+    assert.equal(dryRun.code, 0, dryRun.stderr)
+    assert.match(dryRun.stdout, /Would write packages\/app\/\.env\.example/)
+    assert.match(dryRun.stdout, /packages\/app\/\.env\.quality API_URL/)
+    assert.match(dryRun.stdout, /packages\/app\/\.env\.release API_URL/)
+    await assert.rejects(stat(path.join(root, 'packages', 'app', '.env.example')), { code: 'ENOENT' })
+
+    const result = await execNode([
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
+      'sync-env',
+      '--repo-root',
+      root,
+    ], packageRoot)
+
+    assert.equal(result.code, 0, result.stderr)
+    const example = await readFile(path.join(root, 'packages', 'app', '.env.example'), 'utf8')
+    assert.match(example, /# Base URL used by the package API client\.\nAPI_URL="https:\/\/api\.example\.test"/)
+    assert.doesNotMatch(example, /INTERNAL_TOKEN/)
+    await stat(path.join(root, 'packages', 'app', '.env.quality'))
+    await stat(path.join(root, 'packages', 'app', '.env.release'))
+    await assert.rejects(stat(path.join(root, 'packages', 'app', '.env.local')), { code: 'ENOENT' })
+
+    const undeclared = await execNode([
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
+      'sync-env',
+      '--repo-root',
+      root,
+      '--variants=staging',
+    ], packageRoot)
+    assert.equal(undeclared.code, 1)
+    assert.match(undeclared.stderr, /Invalid --variants values: staging/)
+
+    manifest.env.metadata.platform.variables[0].includeInExample = false
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+    const headerOnly = await execNode([
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
+      'sync-env',
+      '--repo-root',
+      root,
+    ], packageRoot)
+    assert.equal(headerOnly.code, 0, headerOnly.stderr)
+    const clearedExample = await readFile(path.join(root, 'packages', 'app', '.env.example'), 'utf8')
+    assert.match(clearedExample, /^# AUTO-GENERATED FILE\. DO NOT EDIT DIRECTLY\.$/m)
+    assert.doesNotMatch(clearedExample, /API_URL|INTERNAL_TOKEN/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('rejects env metadata packages not registered in iac.json packages', async () => {
   const root = await createUnifiedFixture()
   const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
@@ -1282,7 +1427,7 @@ test('derives Vercel env config with embedded iac env metadata', async () => {
     const manifest = readManifest(manifestPath)
     const envManifest = vercelEnvManifestFromIac(manifest)
 
-    assert.deepEqual(envManifest.environments, ['preview', 'production', 'uat'])
+    assert.deepEqual(envManifest.environments, ['staging', 'preview', 'production', 'uat'])
     assert.equal(envManifest.env.metadata.app.variables[0].key, 'APP')
     assert.equal(envManifest.env.metadata.app.variables[0].encrypted, false)
   } finally {
@@ -2065,6 +2210,8 @@ test('standalone env metadata schema documents vars-only object maps', async () 
 
   assert.doesNotMatch(schema.required?.join(',') || '', /\bvariables\b/)
   assert.ok(schema.properties.vars)
+  assert.equal(schema.$defs.envVariable.properties.description.type, 'string')
+  assert.equal(schema.$defs.envVariableMetadata.properties.description.type, 'string')
 })
 
 test('defaults iac.json env source to .vertile-iac/env for single-package apps', async () => {

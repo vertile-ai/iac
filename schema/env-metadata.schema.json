@@ -55,6 +55,9 @@
         "example": {
           "type": "string"
         },
+        "description": {
+          "type": "string"
+        },
         "value": {
           "type": "string"
         },
@@ -112,6 +115,9 @@
           "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
         },
         "example": {
+          "type": "string"
+        },
+        "description": {
           "type": "string"
         },
         "value": {

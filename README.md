@@ -2,6 +2,11 @@
 
 [简体中文](README.zh-CN.md)
 
+[![Release workflow](https://github.com/vertile-ai/iac/actions/workflows/release.yml/badge.svg)](https://github.com/vertile-ai/iac/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/vertile-ai/iac?display_name=tag&sort=semver)](https://github.com/vertile-ai/iac/releases)
+[![npm version](https://img.shields.io/npm/v/%40vertile-ai%2Fiac)](https://www.npmjs.com/package/@vertile-ai/iac)
+[![npm downloads/month](https://img.shields.io/npm/dm/%40vertile-ai%2Fiac?label=npm%20downloads%2Fmonth)](https://www.npmjs.com/package/@vertile-ai/iac)
+
 Keep infrastructure intent, environment values, and deployment stages in one
 reviewable file — then let the same command render the Vercel, AWS, or
 DigitalOcean Terraform workspace you need. `@vertile-ai/iac` is for product
@@ -21,6 +26,13 @@ It creates a dependable hand-off between application code and infrastructure:
 In practical terms: changing a domain, environment, or deployment stage means
 changing one reviewed file instead of copying settings through cloud consoles.
 
+## Releases
+
+Changesets drives releases from GitHub Actions. Each push to `main` runs the
+tests and checks; pending changesets create or update a release pull request,
+and merging that pull request publishes the package to npm and creates the
+corresponding GitHub release.
+
 ## Start here
 
 Install the CLI in the product repository:
@@ -36,15 +48,16 @@ Create `iac.json` in the repository root (the CLI also accepts the legacy
 pnpm exec vertile-iac render --target=all --env=production
 pnpm exec vertile-iac plan --target=aws --env=production
 pnpm exec vertile-iac apply --target=aws --deployment=prod --yes
+pnpm exec vertile-iac output --target=digitalocean --deployment=prod --json
 ```
 
-`render` is offline and writes Terraform to `.vertile/terraform/<provider>/`.
-`plan` and `apply` require Terraform. Apply is intentionally guarded:
-non-interactive runs require `--yes`, which passes Terraform’s
-`-auto-approve` flag. Before `plan` or `apply`, configure the selected cloud
-provider’s credentials as you normally would for Terraform. A successful first
-render creates files such as `.vertile/terraform/aws/main.tf`; inspect them
-before running a plan.
+`render` is offline and writes Terraform to `.vertile/terraform/<provider>/` or
+`.vertile/terraform/<provider>/<deployment>/`. `plan`, `apply`, and `output`
+require Terraform. Apply is intentionally guarded: non-interactive runs require
+`--yes`, which passes Terraform’s `-auto-approve` flag. Before `plan`, `apply`,
+or `output`, configure the selected cloud provider’s credentials as you normally
+would for Terraform. A successful first render creates files such as
+`.vertile/terraform/aws/main.tf`; inspect them before running a plan.
 
 ## A useful first manifest
 
@@ -142,9 +155,17 @@ three systems.
 
 ```bash
 vertile-iac sync-env --variants=local,staging,production
+vertile-iac validate
 vertile-iac env --scope=all --targets=preview,production
 vertile-iac github-actions --env=staging
 ```
+
+`test` is a test-runner mode, not a default infrastructure environment.
+`sync-env` does not require or generate `.env.test`; tests should select an
+environment explicitly declared by the manifest.
+
+Without `--variants`, `sync-env` uses the manifest environments in declared
+order. `validate` is an offline, read-only check for manifest-driven env routes.
 
 The latter two commands are dry-runs unless `--apply` is supplied. Vercel apply
 mode accepts `VERCEL_TOKEN`, `VERCEL_API_KEY`, `providers.vercel.token`, or
@@ -164,13 +185,40 @@ These derive Vercel desired state from `iac.json`. Explicit legacy
 `project-settings.json` and `project-domains.json` inputs remain supported only
 for compatibility. New projects should use the unified manifest.
 
+## DigitalOcean Services, State, And Outputs
+
+DigitalOcean `services` currently render one public container service to one
+Droplet. `render`, `plan`, and `apply` create a secure empty host: a
+DigitalOcean project, Droplet, Reserved IP, firewall, Docker bootstrap, non-root
+`vertile` user, application directory, and readiness marker. They do not build
+or deploy an image, write runtime secrets, configure DNS/TLS, start the app, or
+prove health/WSS. The consumer release pipeline owns image publishing, secrets,
+localhost app binding, reverse proxy/TLS, health checks, rollout, and rollback.
+
+Generated firewalls open `80` and `443` publicly. The application port remains a
+private upstream port for the release pipeline and reverse proxy. SSH ingress is
+rendered only when `managementCidrs` is explicitly set and global CIDRs are
+rejected; GitHub-hosted runner egress is not a stable firewall allowlist, so use
+fixed egress, self-hosted runners, private networking, or pull-based deployment
+instead of repeatedly changing Terraform firewall rules.
+
+DigitalOcean remote state is optional. Local state remains the default. A Spaces
+backend requires a pre-created bucket, env-only `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY`, and a selected deployment with `stateKey`.
+`--migrate-state` and `--reconfigure` are explicit Terraform init lifecycle
+flags; migration uses Terraform `-force-copy` and is never automatic.
+
+The DigitalOcean provider is pinned to `digitalocean/digitalocean` `2.96.0` by
+default. Override it with `providers.digitalocean.version` or a deployment-level
+`version`. See the manifest guide for field details and stable output names.
+
 ## What belongs in the manifest
 
-`apps`, `domains`, `objectStorage`, `databases`, `queues`, `sandboxes`, and
-`clusters` describe product needs. Use `providers.<target>.resources` for a
-provider-specific escape hatch when the portable model does not yet cover a
-resource. Provider deployments add stage-specific values without forking the
-whole manifest.
+`apps`, `services`, `domains`, `objectStorage`, `databases`, `queues`,
+`sandboxes`, and `clusters` describe product needs. Use
+`providers.<target>.resources` for a provider-specific escape hatch when the
+portable model does not yet cover a resource. Provider deployments add
+stage-specific values without forking the whole manifest.
 
 For the complete field reference and examples, see:
 

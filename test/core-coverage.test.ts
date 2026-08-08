@@ -280,6 +280,17 @@ test('covers GitHub Actions and env sync pure helper branches', () => {
   assert.equal(syncTesting.appSourceKey({ env: { sourceKey: 'shared' }, key: 'web' }), 'shared')
 })
 
+test('env sync defaults do not include a test env file', () => {
+  const variants = syncTesting.configuredVariants({})
+
+  assert.equal(Object.hasOwn(variants, 'test'), false)
+  assert.deepEqual(syncTesting.selectedVariantNames([], variants), [
+    'local',
+    'production',
+    'staging',
+  ])
+})
+
 test('covers manifest normalization and Vercel manifest derivation failures', async () => {
   const root = await fixture()
   const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')

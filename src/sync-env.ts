@@ -10,6 +10,8 @@ import { environmentFiles, environmentOutputFile } from './core/env-files.js'
 import {
   applyEnvMetadata,
   assertBrowserProjectionAllowed,
+  configuredEnvMetadataSourceKeys,
+  effectiveEnvMetadataSourceKeys,
   isAllowedInEnv,
   loadEnvMetadata,
   manifestEnvEntries,
@@ -22,7 +24,6 @@ const defaultVariants = {
   production: { output: '.env.production', sources: ['.env.production'], strict: true },
   staging: { output: '.env.staging', sources: ['.env.staging'], strict: true },
   preview: { output: '.env.staging', sources: ['.env.staging'], strict: true },
-  test: { output: '.env.test', sources: ['.env.test'] },
 }
 
 function hasFlag(argv, flag) {
@@ -49,15 +50,27 @@ function configuredVariants(manifest: any) {
       strict,
     }
   }
+  for (const name of manifest.environments || []) {
+    if (variants[name]) continue
+    variants[name] = {
+      output: environmentOutputFile(manifest, name),
+      sources: environmentFiles(manifest, name),
+      strict: true,
+    }
+  }
   return variants
 }
 
-function selectedVariantNames(argv, variants) {
+function selectedVariantNames(argv, variants, manifest) {
   const value = readOption(argv, '--variants')
-  if (!value) return ['local', 'production', 'staging', 'test']
+  if (!value) return manifest?.environments || ['local', 'production', 'staging']
 
   const names = splitList(value)
-  const invalid = names.filter((name) => !variants[name])
+  const declaredNames = manifest?.environments || []
+  const enforceDeclaredNames = Boolean(manifest) && manifest.environmentsDeclared !== false
+  const invalid = names.filter((name) => (
+    enforceDeclaredNames ? !declaredNames.includes(name) : !variants[name]
+  ))
   if (invalid.length > 0) {
     throw new Error(
       `Invalid --variants values: ${invalid.join(', ')}. Supported: ${Object.keys(variants).join(',')}`,
@@ -122,6 +135,16 @@ function mergeLayers(layers) {
 
 function entriesToLines(entries) {
   return entries.map(({ key, value }) => `${key}=${JSON.stringify(String(value))}`)
+}
+
+function entriesToExampleLines(entries) {
+  return entries.flatMap(({ key, value, description, metadata }) => {
+    const text = description || metadata?.description
+    const comments = typeof text === 'string' && text.trim()
+      ? text.trim().split(/\r?\n/).map((line) => `# ${line}`)
+      : []
+    return [...comments, `${key}=${JSON.stringify(String(value))}`]
+  })
 }
 
 function ensureTrailingNewline(content) {
@@ -243,7 +266,7 @@ function writeEnvExampleFromMetadata({ rootDir, baseDir, sourceKey, manifest, dr
 
   const entries = [...metadata.entries.values()]
     .filter((entry) => entry.includeInExample !== false)
-    .map(({ key, example }) => ({ key, value: example }))
+    .map(({ key, example, description }) => ({ key, value: example, description }))
   if (entries.length === 0) return null
 
   const outputPath = path.join(baseDir, '.env.example')
@@ -252,7 +275,7 @@ function writeEnvExampleFromMetadata({ rootDir, baseDir, sourceKey, manifest, dr
     '# AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY.',
     `# Source: ${metadataDisplayPath(metadata, rootDir)}`,
     '',
-    ...entriesToLines(entries),
+    ...entriesToExampleLines(entries),
     '',
   ].join('\n')
 
@@ -263,28 +286,22 @@ function writeEnvExampleFromMetadata({ rootDir, baseDir, sourceKey, manifest, dr
 }
 
 function configuredMetadataSourceKeys(manifest) {
-  const configured = manifest.env?.metadata || manifest.env?.envJson
-  if (!configured || typeof configured !== 'object' || Array.isArray(configured)) return []
-
-  const keys = []
-  for (const key of Object.keys(configured)) {
-    if (key !== 'sources') keys.push(key)
-  }
-  const sources = configured.sources
-  if (sources && typeof sources === 'object' && !Array.isArray(sources)) {
-    keys.push(...Object.keys(sources))
-  }
-  return [...new Set(keys)]
+  return configuredEnvMetadataSourceKeys(manifest)
 }
 
-function usesDirectOutputs(manifest) {
+function usesDirectOutputs(manifest, { sourceRoot = '', sourceKeys = [] } = {}) {
   const sync = manifest.env?.sync || {}
   if (sync.directOutputs === true) {
     return true
   }
 
-  for (const sourceKey of configuredMetadataSourceKeys(manifest)) {
-    const metadata = loadEnvMetadata({ baseDir: sourceKey, sourceKey, manifest })
+  const keys = sourceKeys.length > 0 ? sourceKeys : configuredMetadataSourceKeys(manifest)
+  for (const sourceKey of keys) {
+    const metadata = loadEnvMetadata({
+      baseDir: sourceRoot ? path.join(sourceRoot, sourceKey) : sourceKey,
+      sourceKey,
+      manifest,
+    })
     if ([...metadata.entries.values()].some((entry) => entry.packages.length > 0)) return true
   }
   return false
@@ -647,7 +664,7 @@ function normalizePackageConfig(item) {
 }
 
 function manifestPackages(manifest) {
-  const configured = Array.isArray(manifest.packages)
+  const configured = Array.isArray(manifest.packages) && manifest.packages.length > 0
     ? manifest.packages
     : Array.isArray(manifest.env?.packages)
       ? manifest.env.packages
@@ -695,7 +712,7 @@ async function main() {
   const writeExamples = hasFlag(argv, '--write-examples') || hasFlag(argv, '--export-examples')
   const reconcileDelete = hasFlag(argv, '--reconcile-delete')
   const availableVariants = configuredVariants(manifest)
-  const variants = selectedVariantNames(argv, availableVariants).map((name) => ({
+  const variants = selectedVariantNames(argv, availableVariants, manifest).map((name) => ({
     name,
     ...availableVariants[name],
   }))
@@ -709,12 +726,10 @@ async function main() {
   const sharedKey = manifest.env.sync?.sharedKey || manifest.env.sharedKey || 'shared'
   const apps = syncPackages(manifest)
   const sharedPrefixes = apps.map(appSharedPrefix).filter(Boolean)
-  const sourceKeys = new Set([
-    sharedKey,
-    ...apps.map(appSourceKey),
-    ...configuredMetadataSourceKeys(manifest),
-  ])
-  const directOutputs = usesDirectOutputs(manifest)
+  const sourceKeys = new Set(effectiveEnvMetadataSourceKeys(manifest, {
+    packageSourceKeys: apps.map(appSourceKey),
+  }))
+  const directOutputs = usesDirectOutputs(manifest, { sourceRoot, sourceKeys: [...sourceKeys] })
   const shouldPatchVariants =
     hasFlag(argv, '--patch-variants-from-example') ||
     manifest.env?.sync?.patchVariantsFromExample === true
@@ -723,7 +738,7 @@ async function main() {
     manifest.env?.sync?.forbidSharedOverrides === true
   const sharedAliases = requiredSharedAliases(manifest)
 
-  if (writeExamples && directOutputs) {
+  if (directOutputs) {
     for (const app of apps) {
       const result = directOutputEntriesForApp({
         rootDir: context.repoRoot,
@@ -734,14 +749,12 @@ async function main() {
         manifest,
         example: true,
       })
-      if (result.entries.length === 0) continue
-
       const outputPath = appExampleOutputPath(context.repoRoot, app)
       const content = [
         '# AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY.',
         `# Source: ${result.sourceLabel}`,
         '',
-        ...entriesToLines(result.entries),
+        ...entriesToExampleLines(result.entries),
         '',
       ].join('\n')
       const before = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf8') : ''
@@ -974,6 +987,7 @@ export const testing = {
   assertNoSharedOverrides,
   linesToEnvMap,
   diffEnvMaps,
+  entriesToExampleLines,
   normalizePackageConfig,
   manifestPackages,
   syncPackages,

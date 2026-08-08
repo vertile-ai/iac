@@ -32,12 +32,25 @@ export async function writeTarget({ context, manifest, environment, target, depl
     deploymentName: deployment.name,
   })
   await fs.mkdir(workspace, { recursive: true })
+  await removeStaleTerraformFiles(workspace, new Set(Object.keys(files as Record<string, string>)))
 
   for (const [name, contents] of Object.entries(files as Record<string, string>)) {
     await fs.writeFile(path.join(workspace, name), contents)
   }
 
   return { workspace, files, deployment }
+}
+
+async function removeStaleTerraformFiles(workspace, currentFiles: Set<string>) {
+  const entries = await fs.readdir(workspace, { withFileTypes: true })
+  await Promise.all(entries.map(async (entry) => {
+    if (!entry.isFile()) return
+    if (!entry.name.endsWith('.tf')) return
+    if (entry.name === '.terraform.lock.hcl') return
+    if (entry.name.startsWith('terraform.tfstate')) return
+    if (currentFiles.has(entry.name)) return
+    await fs.rm(path.join(workspace, entry.name))
+  }))
 }
 
 export async function writeTargets({ context, manifest, environment, targets, deploymentName = '' }) {

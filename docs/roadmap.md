@@ -33,6 +33,9 @@ Current implementation status:
 - `queues` renders to AWS SQS.
 - `sandboxes` and `clusters` render to AWS EC2 instances and DigitalOcean
   Droplets.
+- `services` renders to a DigitalOcean single-Droplet container host with a
+  Reserved IP, firewall, Docker bootstrap, non-root user, stable release
+  outputs, and no app image/runtime deployment.
 
 ## Phase 3: Provider Matrix
 
@@ -40,8 +43,10 @@ Initial providers:
 
 - Vercel: apps, domains, env vars, project settings.
 - AWS: S3, RDS or DynamoDB, SQS, Lambda or ECS, EC2 where needed.
-- DigitalOcean: Spaces, Managed Databases, App Platform, Droplets, Kubernetes
-  where needed.
+- DigitalOcean: Spaces, Managed Databases, Droplets, and first-class services
+  implemented as one public Droplet per service. App Platform, Kubernetes,
+  high-availability replicas, load balancers, and a rolling deployment contract
+  remain later work.
 
 Likely later providers:
 
@@ -61,10 +66,12 @@ Likely later providers:
 
 ## Phase 5: State And Outputs
 
-- Use local state by default.
-- Support optional remote backend configuration later.
+- Use local Terraform state by default.
+- Support optional DigitalOcean Spaces remote state for selected deployments.
+- Support a stable JSON `output` command for non-sensitive Terraform outputs.
 - Add drift detection through `plan`.
-- Write provider outputs to `.vertile/outputs/<env>.json`.
+- Consider persisted provider output snapshots such as
+  `.vertile/outputs/<env>.json` after the command contract has stabilized.
 
 ## Guiding Rule
 

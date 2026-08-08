@@ -139,6 +139,216 @@
       ]
     },
     {
+      "title": "Object Storage",
+      "summary": "Object storage is a portable bucket intent. DigitalOcean renders Spaces buckets and exposes non-sensitive connection metadata as Terraform outputs.",
+      "fields": [
+        {
+          "path": "objectStorage[].key",
+          "type": "string",
+          "required": true,
+          "description": "Stable object-storage identifier used in generated Terraform resource and output names."
+        },
+        {
+          "path": "objectStorage[].visibility",
+          "type": "\"private\" | \"public\"",
+          "required": false,
+          "description": "Defaults to private. DigitalOcean maps public to the public-read ACL."
+        },
+        {
+          "path": "objectStorage[].providers.digitalocean.name | bucket",
+          "type": "string",
+          "required": false,
+          "description": "Optional DNS-safe bucket name: 3-63 lowercase letters, digits, or dashes."
+        },
+        {
+          "path": "objectStorage[].providers.digitalocean.region",
+          "type": "string",
+          "required": false,
+          "description": "Optional lowercase DigitalOcean region slug; otherwise the selected deployment or provider region is used."
+        },
+        {
+          "path": "objectStorage[].providers.digitalocean.acl",
+          "type": "\"private\" | \"public-read\"",
+          "required": false,
+          "description": "Optional explicit DigitalOcean Spaces canned ACL."
+        },
+        {
+          "path": "digitalocean_object_storage_<key>_{bucket_name,endpoint,bucket_domain_name,region}",
+          "type": "Terraform outputs",
+          "required": false,
+          "description": "Non-sensitive bucket connection metadata. Access keys are never emitted."
+        }
+      ]
+    },
+    {
+      "title": "Services",
+      "summary": "Services describe long-running app processes. v1 supports public container services, with DigitalOcean rendering one secure empty Droplet host per service.",
+      "fields": [
+        {
+          "path": "services[].key",
+          "type": "string",
+          "required": true,
+          "description": "Stable service identifier. Keys must be unique and must not collide after Terraform name sanitization."
+        },
+        {
+          "path": "services[].app",
+          "type": "string",
+          "required": false,
+          "description": "Optional reference to an apps[].key."
+        },
+        {
+          "path": "services[].runtime",
+          "type": "\"container\"",
+          "required": true,
+          "description": "v1 supports container-backed long-running services only."
+        },
+        {
+          "path": "services[].port",
+          "type": "integer",
+          "required": true,
+          "description": "Internal application/upstream port from 1 to 65535. DigitalOcean firewalls do not expose this port publicly."
+        },
+        {
+          "path": "services[].public",
+          "type": "true",
+          "required": false,
+          "description": "Defaults to true. v1 rejects false."
+        },
+        {
+          "path": "services[].replicas",
+          "type": "1",
+          "required": false,
+          "description": "Defaults to 1. v1 rejects any value other than 1."
+        },
+        {
+          "path": "services[].healthCheck.path",
+          "type": "string",
+          "required": false,
+          "description": "Absolute health path beginning with /. Rendered as rollout metadata and a Terraform output when set."
+        },
+        {
+          "path": "services[].protocol",
+          "type": "unsupported",
+          "required": false,
+          "description": "Rejected in v1. Reverse proxy protocol handling belongs to the consumer release pipeline."
+        },
+        {
+          "path": "services[].providers.digitalocean.mode",
+          "type": "\"droplet\"",
+          "required": false,
+          "description": "Defaults to droplet. v1 rejects any other DigitalOcean service mode."
+        },
+        {
+          "path": "services[].providers.digitalocean.region",
+          "type": "string",
+          "required": false,
+          "description": "DigitalOcean region. Resolution order is service override, selected deployment region, then provider region; one source is required for service rendering."
+        },
+        {
+          "path": "services[].providers.digitalocean.sizeSlug | size",
+          "type": "string",
+          "required": false,
+          "description": "Droplet size. First-class services default to s-1vcpu-2gb."
+        },
+        {
+          "path": "services[].providers.digitalocean.image",
+          "type": "string",
+          "required": false,
+          "description": "Droplet image. Defaults to ubuntu-24-04-x64."
+        },
+        {
+          "path": "services[].providers.digitalocean.backups",
+          "type": "boolean",
+          "required": false,
+          "description": "Droplet backups flag. Defaults to true."
+        },
+        {
+          "path": "services[].providers.digitalocean.monitoring",
+          "type": "boolean",
+          "required": false,
+          "description": "Droplet monitoring flag. Defaults to true."
+        },
+        {
+          "path": "services[].providers.digitalocean.reservedIp",
+          "type": "true",
+          "required": false,
+          "description": "Defaults to true. v1 rejects false because public services require a stable Reserved IP."
+        },
+        {
+          "path": "services[].providers.digitalocean.sshKeyFingerprints",
+          "type": "string[]",
+          "required": false,
+          "description": "DigitalOcean SSH key fingerprints for host access. Omit unless management access is intentionally configured."
+        },
+        {
+          "path": "services[].providers.digitalocean.managementCidrs",
+          "type": "CIDR[]",
+          "required": false,
+          "description": "Explicit SSH allowlist. Empty, duplicate, invalid, or global CIDRs are rejected; SSH ingress is omitted when unset."
+        }
+      ]
+    },
+    {
+      "title": "DigitalOcean Backend And Outputs",
+      "summary": "DigitalOcean uses local Terraform state by default, can render an optional Spaces S3-compatible backend for selected deployments, and exposes stable non-sensitive output JSON.",
+      "fields": [
+        {
+          "path": "providers.digitalocean.version",
+          "type": "string",
+          "required": false,
+          "description": "DigitalOcean Terraform provider version. Defaults to 2.96.0 and may be overridden by deployment version."
+        },
+        {
+          "path": "providers.digitalocean.backend.type",
+          "type": "\"spaces\"",
+          "required": true,
+          "description": "Optional remote state backend type. Only spaces is supported."
+        },
+        {
+          "path": "providers.digitalocean.backend.bucket",
+          "type": "string",
+          "required": true,
+          "description": "Pre-created Spaces bucket for Terraform state. The CLI does not create the state bucket."
+        },
+        {
+          "path": "providers.digitalocean.backend.region",
+          "type": "string",
+          "required": true,
+          "description": "Lowercase DigitalOcean region slug used in the Spaces endpoint."
+        },
+        {
+          "path": "providers.digitalocean.backend.useLockfile",
+          "type": "boolean",
+          "required": false,
+          "description": "Defaults to true. true renders Terraform ~> 1.11 with use_lockfile; false renders Terraform >= 1.6.3 without use_lockfile."
+        },
+        {
+          "path": "providers.digitalocean.backend.<credential-like-field>",
+          "type": "unsupported",
+          "required": false,
+          "description": "Rejected. Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables for Spaces backend credentials."
+        },
+        {
+          "path": "providers.digitalocean.deployments.<name>.stateKey",
+          "type": "string",
+          "required": false,
+          "description": "Required when a Spaces backend is configured and that deployment is selected. Must be a safe relative object key."
+        },
+        {
+          "path": "vertile-iac output --target=digitalocean --deployment=<name> --json",
+          "type": "{ target, deployment, environment, outputs }",
+          "required": false,
+          "description": "Stable JSON envelope for non-sensitive Terraform outputs. The command initializes the selected rendered workspace before reading terraform output -json."
+        },
+        {
+          "path": "digitalocean_service_<service_key>_ssh_user | application_directory | application_port | health_check_path",
+          "type": "Terraform output names",
+          "required": false,
+          "description": "Stable service output names for release automation, alongside droplet_id, reserved_ip, and public_host."
+        }
+      ]
+    },
+    {
       "title": "Environment Metadata",
       "summary": "Env metadata is authored in iac.json and drives local package env sync, Vercel env sync, and GitHub Actions env publishing.",
       "fields": [
@@ -158,7 +368,7 @@
           "path": "env.metadata.<source>.variables[]",
           "type": "envVariable[]",
           "required": false,
-          "description": "Structured metadata for env keys, including example, encrypted, browser, package routing, and environment include/exclude rules."
+          "description": "Structured metadata for env keys, including example, optional .env.example descriptions, encrypted, browser, package routing, and environment include/exclude rules."
         }
       ]
     }

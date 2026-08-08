@@ -260,7 +260,7 @@ test('renders AWS deployment names as Terraform workspace and provider inputs', 
     assert.match(awsMain, /profile = "example-uat"/)
     assert.match(awsMain, /Deployment = "uat"/)
     assert.match(awsMain, /Stage = "uat"/)
-    assert.match(awsMain, /bucket = "example_uat_uploads"/)
+    assert.match(awsMain, /bucket = "example-uat-uploads"/)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -287,7 +287,7 @@ test('renders DigitalOcean deployment names as Terraform workspace and provider 
 
     assert.match(digitalOceanMain, /environment = "uat"/)
     assert.match(digitalOceanMain, /deployment = "uat"/)
-    assert.match(digitalOceanMain, /name = "example_uat_uploads"/)
+    assert.match(digitalOceanMain, /name = "example-uat-uploads"/)
     assert.match(digitalOceanMain, /region = "sfo3"/)
     assert.match(digitalOceanMain, /tags = \[\n    "example",\n    "uat",\n    "sandbox",\n  \]/)
   } finally {
@@ -343,6 +343,7 @@ test('runs apply through a mocked Terraform executable with explicit approval', 
       '--terraform-bin',
       terraformBin,
       '--yes',
+      '--migrate-state',
     ], packageRoot, {
       env: { ...process.env, TERRAFORM_LOG: logPath },
     })
@@ -352,7 +353,7 @@ test('runs apply through a mocked Terraform executable with explicit approval', 
     assert.match(result.stdout, /Applying .*digitalocean/)
 
     const log = await readFile(logPath, 'utf8')
-    assert.match(log, /\.vertile\/terraform\/digitalocean\|init -input=false/)
+    assert.match(log, /\.vertile\/terraform\/digitalocean\|init -input=false -migrate-state -force-copy/)
     assert.match(log, /\.vertile\/terraform\/digitalocean\|apply -input=false -auto-approve/)
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -379,6 +380,7 @@ test('runs plan through a mocked Terraform executable', async () => {
       '--env=production',
       '--terraform-bin',
       terraformBin,
+      '--reconfigure',
     ], packageRoot, {
       env: { ...process.env, TERRAFORM_LOG: logPath },
     })
@@ -388,7 +390,7 @@ test('runs plan through a mocked Terraform executable', async () => {
     assert.match(result.stdout, /Planning .*aws/)
 
     const log = await readFile(logPath, 'utf8')
-    assert.match(log, /\.vertile\/terraform\/aws\|init -input=false/)
+    assert.match(log, /\.vertile\/terraform\/aws\|init -input=false -reconfigure/)
     assert.match(log, /\.vertile\/terraform\/aws\|plan -input=false/)
   } finally {
     await rm(root, { recursive: true, force: true })
