@@ -58,7 +58,7 @@ async function createValidationFixture() {
   return root
 }
 
-async function createLegacyMetadataValidationFixture() {
+async function createMetadataValidationFixture() {
   const root = await mkdtemp(path.join(tmpdir(), 'vertile-iac-legacy-validate-'))
   await mkdir(path.join(root, 'infrastructure', 'iac'), { recursive: true })
   await mkdir(path.join(root, 'config', 'env', 'shared'), { recursive: true })
@@ -79,36 +79,32 @@ async function createLegacyMetadataValidationFixture() {
       ],
       env: {
         sourceDir: 'config/env',
+        metadata: {
+          shared: {
+            variables: [
+              {
+                key: 'DATABASE_URL', example: 'postgres://example', encrypted: true, browser: false,
+                packages: ['web'], values: { quality: 'postgres://quality' },
+              },
+              {
+                key: 'PRIVATE_ORIGIN', example: 'https://internal.example', encrypted: false, browser: false,
+                packages: [{ package: 'web', key: 'NEXT_PUBLIC_ORIGIN' }], value: 'https://internal.example',
+              },
+              {
+                key: 'API_ONLY', example: 'api', encrypted: false, browser: false,
+                packages: ['api'], value: 'api',
+              },
+            ],
+          },
+          web: {
+            variables: [{
+              key: 'WEB_DATABASE_URL', example: 'postgres://web', encrypted: false, browser: false,
+              packages: [{ package: 'web', key: 'DATABASE_URL' }], value: 'postgres://web',
+            }],
+          },
+        },
         sync: { directOutputs: true, packages: ['web'], disallowSharedOverrides: true },
       },
-    }, null, 2) + '\n',
-  )
-  await writeFile(
-    path.join(root, 'config', 'env', 'shared', '.env.json'),
-    JSON.stringify({
-      variables: [
-        {
-          key: 'DATABASE_URL', example: 'postgres://example', encrypted: true, browser: false,
-          packages: ['web'], values: { quality: 'postgres://quality' },
-        },
-        {
-          key: 'PRIVATE_ORIGIN', example: 'https://internal.example', encrypted: false, browser: false,
-          packages: [{ package: 'web', key: 'NEXT_PUBLIC_ORIGIN' }], value: 'https://internal.example',
-        },
-        {
-          key: 'API_ONLY', example: 'api', encrypted: false, browser: false,
-          packages: ['api'], value: 'api',
-        },
-      ],
-    }, null, 2) + '\n',
-  )
-  await writeFile(
-    path.join(root, 'config', 'env', 'web', '.env.json'),
-    JSON.stringify({
-      variables: [{
-        key: 'WEB_DATABASE_URL', example: 'postgres://web', encrypted: false, browser: false,
-        packages: [{ package: 'web', key: 'DATABASE_URL' }], value: 'postgres://web',
-      }],
     }, null, 2) + '\n',
   )
   const init = await execCommand('git', ['init', '--quiet'], root)
@@ -185,8 +181,8 @@ test('validate accepts ignored encrypted targets and rejects unsafe browser proj
   }
 })
 
-test('validate applies all direct-output checks to legacy per-source env metadata', async () => {
-  const root = await createLegacyMetadataValidationFixture()
+test('validate applies all direct-output checks to iac.json env metadata', async () => {
+  const root = await createMetadataValidationFixture()
   try {
     const result = await execNode([
       path.join(packageRoot, 'dist', 'src', 'validate.js'),

@@ -195,7 +195,6 @@
       "properties": {
         "sourceDir": { "type": "string" },
         "sharedKey": { "type": "string" },
-        "metadataFile": { "type": "string" },
         "metadata": {
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/envMetadataDocument" },
@@ -221,7 +220,6 @@
               "uniqueItems": true
             },
             "sharedKey": { "type": "string" },
-            "metadataFile": { "type": "string" },
             "skipInVercel": { "type": "boolean" },
             "directOutputs": { "type": "boolean" },
             "patchVariantsFromExample": { "type": "boolean" },
@@ -609,7 +607,7 @@
       "required": ["type", "bucket", "region"],
       "properties": {
         "type": { "const": "spaces" },
-        "bucket": { "type": "string", "minLength": 1 },
+        "bucket": { "$ref": "#/$defs/digitalOceanBucketName" },
         "region": {
           "type": "string",
           "description": "DigitalOcean region slug used for the Spaces endpoint, such as nyc3 or syd1.",

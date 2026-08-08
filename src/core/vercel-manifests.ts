@@ -184,10 +184,6 @@ export function vercelEnvManifestFromIac(manifest, context = {}) {
     environments: manifest.environments,
     env: {
       metadata: manifest.env?.metadata,
-      metadataFile: manifest.env?.metadataFile,
-      sync: {
-        metadataFile: manifest.env?.sync?.metadataFile,
-      },
     },
     environmentFiles: manifest.environmentFiles || {},
     targets: config.env?.targets || {},

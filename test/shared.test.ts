@@ -158,6 +158,34 @@ async function createEnvMetadataFixture() {
         },
         env: {
           sourceDir: 'config/env',
+          metadata: {
+            shared: {
+              variables: [
+                {
+                  key: 'WEB_NEXT_PUBLIC_BASE_URL',
+                  example: 'https://example.com',
+                  encrypted: false,
+                  browser: true,
+                },
+                {
+                  key: 'DATABASE_URL',
+                  example: 'postgres://user:password@host/db',
+                  encrypted: true,
+                  browser: false,
+                },
+              ],
+            },
+            web: {
+              variables: [
+                {
+                  key: 'PORT',
+                  example: '3000',
+                  encrypted: false,
+                  browser: false,
+                },
+              ],
+            },
+          },
           sync: {
             packages: ['web'],
           },
@@ -201,48 +229,8 @@ async function createEnvMetadataFixture() {
       '',
     ].join('\n'),
   )
-  await writeFile(
-    path.join(root, 'config', 'env', 'shared', '.env.json'),
-    JSON.stringify(
-      {
-        variables: [
-          {
-            key: 'WEB_NEXT_PUBLIC_BASE_URL',
-            example: 'https://example.com',
-            encrypted: false,
-            browser: true,
-          },
-          {
-            key: 'DATABASE_URL',
-            example: 'postgres://user:password@host/db',
-            encrypted: true,
-            browser: false,
-          },
-        ],
-      },
-      null,
-      2,
-    ) + '\n',
-  )
   await writeFile(path.join(root, 'config', 'env', 'web', '.env.staging'), 'PORT=3000\n')
   await writeFile(path.join(root, 'config', 'env', 'web', '.env.production'), 'PORT=3000\n')
-  await writeFile(
-    path.join(root, 'config', 'env', 'web', '.env.json'),
-    JSON.stringify(
-      {
-        variables: [
-          {
-            key: 'PORT',
-            example: '3000',
-            encrypted: false,
-            browser: false,
-          },
-        ],
-      },
-      null,
-      2,
-    ) + '\n',
-  )
 
   return root
 }
@@ -467,40 +455,15 @@ test('patches and reconciles selected env variants from examples', async () => {
       path.join(root, 'config', 'env', 'app', '.env.local'),
       'APP=kept\nSTALE=removed\n',
     )
-    await writeFile(
-      path.join(root, 'config', 'env', 'shared', '.env.json'),
-      JSON.stringify(
-        {
-          variables: [
-            {
-              key: 'SHARED',
-              example: 'from-example',
-              encrypted: true,
-              browser: false,
-            },
-          ],
-        },
-        null,
-        2,
-      ) + '\n',
-    )
-    await writeFile(
-      path.join(root, 'config', 'env', 'app', '.env.json'),
-      JSON.stringify(
-        {
-          variables: [
-            {
-              key: 'APP',
-              example: 'from-example',
-              encrypted: true,
-              browser: false,
-            },
-          ],
-        },
-        null,
-        2,
-      ) + '\n',
-    )
+    manifest.env.metadata = {
+      shared: {
+        variables: [{ key: 'SHARED', example: 'from-example', encrypted: true, browser: false }],
+      },
+      app: {
+        variables: [{ key: 'APP', example: 'from-example', encrypted: true, browser: false }],
+      },
+    }
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
 
     const reconcileResult = await execNode([
       path.join(packageRoot, 'dist', 'src', 'cli.js'),
@@ -524,35 +487,29 @@ test('patches and reconciles selected env variants from examples', async () => {
 
 test('reconcile-delete treats env metadata as the source of truth', async () => {
   const root = await createEnvMetadataFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
 
   try {
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.env.metadata.web.variables = [
+      {
+        key: 'PORT',
+        example: '3000',
+        encrypted: false,
+        browser: false,
+      },
+      {
+        key: 'PRIVATE_TOKEN',
+        example: 'replace-me',
+        encrypted: true,
+        browser: false,
+        includeInExample: false,
+      },
+    ]
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
     await writeFile(
       path.join(root, 'config', 'env', 'web', '.env.staging'),
       'PORT=3000\nPRIVATE_TOKEN=secret\nSTALE=removed\n',
-    )
-    await writeFile(
-      path.join(root, 'config', 'env', 'web', '.env.json'),
-      JSON.stringify(
-        {
-          variables: [
-            {
-              key: 'PORT',
-              example: '3000',
-              encrypted: false,
-              browser: false,
-            },
-            {
-              key: 'PRIVATE_TOKEN',
-              example: 'replace-me',
-              encrypted: true,
-              browser: false,
-              includeInExample: false,
-            },
-          ],
-        },
-        null,
-        2,
-      ) + '\n',
     )
     await writeFile(path.join(root, 'config', 'env', 'web', '.env.example'), 'PORT=3000\n')
 
@@ -595,8 +552,8 @@ test('reconcile-delete warns and leaves variant files unchanged without env meta
     ], packageRoot)
 
     assert.equal(result.code, 0, result.stderr)
-    assert.match(result.stderr, /Skipping reconcile-delete for config\/env\/shared\/\.env\.staging; missing config\/env\/shared\/\.env\.json/)
-    assert.match(result.stderr, /Skipping reconcile-delete for config\/env\/app\/\.env\.staging; missing config\/env\/app\/\.env\.json/)
+    assert.match(result.stderr, /Skipping reconcile-delete for config\/env\/shared\/\.env\.staging; missing iac\.json env\.metadata\.shared/)
+    assert.match(result.stderr, /Skipping reconcile-delete for config\/env\/app\/\.env\.staging; missing iac\.json env\.metadata\.app/)
 
     const appStaging = await readFile(path.join(root, 'config', 'env', 'app', '.env.staging'), 'utf8')
     assert.match(appStaging, /^APP=value$/m)
@@ -1749,7 +1706,6 @@ test('syncs schema and schema documentation artifacts to a landing root', async 
     assert.equal(result.code, 0, result.stderr)
     assert.equal(result.stderr, '')
     assert.match(result.stdout, /public\/schemas\/iac\.schema\.json/)
-    assert.match(result.stdout, /public\/schemas\/env-metadata\.schema\.json/)
     assert.match(result.stdout, /public\/schemas\/iac-manifest\.schema-doc\.json/)
     assert.match(result.stdout, /public\/schemas\/iac-schema-docs\.schema\.json/)
 
@@ -1979,7 +1935,7 @@ test('can reject app env keys that override shared env keys', async () => {
   }
 })
 
-test('validates .env.json metadata and projects browser-safe shared keys', async () => {
+test('validates iac.json metadata and projects browser-safe shared keys', async () => {
   const root = await createEnvMetadataFixture()
 
   try {
@@ -2003,13 +1959,48 @@ test('validates .env.json metadata and projects browser-safe shared keys', async
   }
 })
 
-test('applies encrypted and plaintext cloud storage metadata to env entries', async () => {
+test('sync-env ignores legacy .env.json metadata files', async () => {
   const root = await createEnvMetadataFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
 
   try {
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    delete manifest.env.metadata
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+    await writeFile(
+      path.join(root, 'config', 'env', 'shared', '.env.json'),
+      JSON.stringify({ variables: [{ key: 'WEB_NEXT_PUBLIC_BASE_URL', example: 'legacy', encrypted: false, browser: true }] }),
+    )
+
+    const result = await execNode([
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
+      'sync-env',
+      '--repo-root',
+      root,
+      '--variants=staging',
+      '--write-examples',
+    ], packageRoot)
+
+    assert.equal(result.code, 0, result.stderr)
+    assert.doesNotMatch(result.stdout, /Wrote config\/env\/shared\/\.env\.example/)
+    await assert.rejects(
+      readFile(path.join(root, 'config', 'env', 'shared', '.env.example'), 'utf8'),
+      /ENOENT/,
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('applies encrypted and plaintext cloud storage metadata to env entries', async () => {
+  const root = await createEnvMetadataFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+
+  try {
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
     const entries = applyEnvMetadata({
       baseDir: path.join(root, 'config', 'env', 'shared'),
-      manifest: {},
+      manifest,
       entries: [
         { key: 'WEB_NEXT_PUBLIC_BASE_URL', value: 'https://example.com' },
         { key: 'DATABASE_URL', value: 'postgres://production' },
@@ -2029,33 +2020,28 @@ test('applies encrypted and plaintext cloud storage metadata to env entries', as
   }
 })
 
-test('exports .env.example from object-map .env.json metadata', async () => {
+test('exports .env.example from object-map iac.json metadata', async () => {
   const root = await createEnvMetadataFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
 
   try {
-    await writeFile(
-      path.join(root, 'config', 'env', 'shared', '.env.json'),
-      JSON.stringify(
-        {
-          vars: {
-            WEB_NEXT_PUBLIC_BASE_URL: {
-              example: 'https://example.com',
-              encrypted: false,
-              browser: true,
-            },
-            DATABASE_URL: {
-              example: 'postgres://user:password@host/db',
-              encrypted: true,
-              browser: false,
-              includeInExample: false,
-            },
-          },
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.env.metadata.shared = {
+      vars: {
+        WEB_NEXT_PUBLIC_BASE_URL: {
+          example: 'https://example.com',
+          encrypted: false,
+          browser: true,
         },
-        null,
-        2,
-      ) + '\n',
-    )
-
+        DATABASE_URL: {
+          example: 'postgres://user:password@host/db',
+          encrypted: true,
+          browser: false,
+          includeInExample: false,
+        },
+      },
+    }
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
     const result = await execNode([
       path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
@@ -2081,7 +2067,7 @@ test('exports .env.example from object-map .env.json metadata', async () => {
   }
 })
 
-test('requires .env.json metadata for every env key when metadata exists', async () => {
+test('requires iac.json metadata for every env key when metadata exists', async () => {
   const root = await createEnvMetadataFixture()
 
   try {
@@ -2099,7 +2085,7 @@ test('requires .env.json metadata for every env key when metadata exists', async
     ], packageRoot)
 
     assert.notEqual(result.code, 0)
-    assert.match(result.stderr, /\.env\.json must define metadata for MISSING/)
+    assert.match(result.stderr, /iac\.json env\.metadata\.web must define metadata for MISSING/)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -2107,32 +2093,25 @@ test('requires .env.json metadata for every env key when metadata exists', async
 
 test('blocks sharedPrefix projection for env metadata marked browser false', async () => {
   const root = await createEnvMetadataFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
 
   try {
-    await writeFile(
-      path.join(root, 'config', 'env', 'shared', '.env.json'),
-      JSON.stringify(
-        {
-          variables: [
-            {
-              key: 'WEB_NEXT_PUBLIC_BASE_URL',
-              example: 'https://example.com',
-              encrypted: false,
-              browser: false,
-            },
-            {
-              key: 'DATABASE_URL',
-              example: 'postgres://user:password@host/db',
-              encrypted: true,
-              browser: false,
-            },
-          ],
-        },
-        null,
-        2,
-      ) + '\n',
-    )
-
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.env.metadata.shared.variables = [
+      {
+        key: 'WEB_NEXT_PUBLIC_BASE_URL',
+        example: 'https://example.com',
+        encrypted: false,
+        browser: false,
+      },
+      {
+        key: 'DATABASE_URL',
+        example: 'postgres://user:password@host/db',
+        encrypted: true,
+        browser: false,
+      },
+    ]
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
     const result = await execNode([
       path.join(packageRoot, 'dist', 'src', 'cli.js'),
       'sync-env',
@@ -2201,17 +2180,6 @@ test('reports embedded env metadata labels when browser projection is blocked', 
   } finally {
     await rm(root, { recursive: true, force: true })
   }
-})
-
-test('standalone env metadata schema documents vars-only object maps', async () => {
-  const schema = JSON.parse(
-    await readFile(path.join(packageRoot, 'schema', 'env-metadata.schema.json'), 'utf8'),
-  )
-
-  assert.doesNotMatch(schema.required?.join(',') || '', /\bvariables\b/)
-  assert.ok(schema.properties.vars)
-  assert.equal(schema.$defs.envVariable.properties.description.type, 'string')
-  assert.equal(schema.$defs.envVariableMetadata.properties.description.type, 'string')
 })
 
 test('defaults iac.json env source to .vertile-iac/env for single-package apps', async () => {

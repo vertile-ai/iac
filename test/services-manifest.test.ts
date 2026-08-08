@@ -257,6 +257,11 @@ test('documents and tightens management CIDR schema shape', () => {
 })
 
 test('documents DigitalOcean backend region and state key schema safety patterns', () => {
+  assert.deepEqual(
+    schema.$defs.digitalOceanBackend.properties.bucket,
+    { $ref: '#/$defs/digitalOceanBucketName' },
+  )
+
   const backendRegionPattern = new RegExp(schema.$defs.digitalOceanBackend.properties.region.pattern)
   assert.match('nyc3', backendRegionPattern)
   assert.match('syd1', backendRegionPattern)

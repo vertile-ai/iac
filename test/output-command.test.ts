@@ -136,7 +136,23 @@ test('output command rejects malformed, failed, and sensitive Terraform output',
   assert.throws(() => outputTesting.parseTerraformOutput('[]'), /must return a JSON object/)
   assert.throws(
     () => outputTesting.parseTerraformOutput('{"secret":{"sensitive":true,"value":"do-not-print"}}'),
-    /Refusing to print sensitive Terraform outputs: secret/,
+    /Refusing to print outputs without sensitive=false: secret/,
+  )
+  assert.throws(
+    () => outputTesting.parseTerraformOutput('{"secret":{"value":"do-not-print"}}'),
+    (error: any) => {
+      assert.match(error.message, /Refusing to print outputs without sensitive=false: secret/)
+      assert.doesNotMatch(error.message, /do-not-print/)
+      return true
+    },
+  )
+  assert.throws(
+    () => outputTesting.parseTerraformOutput('{"secret":{"sensitive":"false","value":"do-not-print"}}'),
+    (error: any) => {
+      assert.match(error.message, /Refusing to print outputs without sensitive=false: secret/)
+      assert.doesNotMatch(error.message, /do-not-print/)
+      return true
+    },
   )
 
   const root = await fixture()

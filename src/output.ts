@@ -26,12 +26,12 @@ function parseTerraformOutput(raw) {
     throw new Error('terraform output -json must return a JSON object.')
   }
 
-  const sensitive = Object.entries(parsed)
-    .filter(([, output]: any) => output?.sensitive === true)
+  const unclassified = Object.entries(parsed)
+    .filter(([, output]: any) => output?.sensitive !== false)
     .map(([name]) => name)
 
-  if (sensitive.length > 0) {
-    throw new Error(`Refusing to print sensitive Terraform outputs: ${sensitive.join(', ')}`)
+  if (unclassified.length > 0) {
+    throw new Error(`Refusing to print outputs without sensitive=false: ${unclassified.join(', ')}`)
   }
 
   return Object.fromEntries(

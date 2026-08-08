@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 const envKeyPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
@@ -7,20 +6,12 @@ function asObject(value: any, fallback: any = {}): any {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback
 }
 
-function metadataFileName(manifest: any = {}) {
-  return (
-    manifest.env?.metadataFile ||
-    manifest.env?.sync?.metadataFile ||
-    '.env.json'
-  )
-}
-
 function metadataSourceKey(baseDir, sourceKey) {
   return sourceKey || path.basename(baseDir)
 }
 
 function embeddedMetadata(manifest: any = {}, sourceKey) {
-  const configured = asObject(manifest.env?.metadata || manifest.env?.envJson)
+  const configured = asObject(manifest.env?.metadata)
   if (Object.keys(configured).length === 0) return null
 
   const sources = asObject(configured.sources)
@@ -28,7 +19,7 @@ function embeddedMetadata(manifest: any = {}, sourceKey) {
 }
 
 export function configuredEnvMetadataSourceKeys(manifest: any = {}) {
-  const configured = manifest.env?.metadata || manifest.env?.envJson
+  const configured = manifest.env?.metadata
   if (!configured || typeof configured !== 'object' || Array.isArray(configured)) return []
 
   const sources = configured.sources && typeof configured.sources === 'object' && !Array.isArray(configured.sources)
@@ -240,9 +231,9 @@ function normalizeMetadataRows({ rows, label, manifest }) {
 
 export function loadEnvMetadata({ baseDir, manifest, required = false, sourceKey = '' }) {
   const resolvedSourceKey = metadataSourceKey(baseDir, sourceKey)
+  const label = `iac.json env.metadata.${resolvedSourceKey}`
   const embedded = embeddedMetadata(manifest, resolvedSourceKey)
   if (embedded) {
-    const label = `iac.json env.metadata.${resolvedSourceKey}`
     return {
       filePath: label,
       label,
@@ -255,25 +246,8 @@ export function loadEnvMetadata({ baseDir, manifest, required = false, sourceKey
     }
   }
 
-  const filePath = path.join(baseDir, metadataFileName(manifest))
-  if (!fs.existsSync(filePath)) {
-    if (required) {
-      throw new Error(`Missing required env metadata file: ${filePath}`)
-    }
-    return { filePath, label: filePath, entries: new Map(), required: false }
-  }
-
-  const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'))
-  return {
-    filePath,
-    label: filePath,
-    entries: normalizeMetadataRows({
-      rows: normalizeVariableList(raw, filePath),
-      label: filePath,
-      manifest,
-    }),
-    required: true,
-  }
+  if (required) throw new Error(`Missing required env metadata: ${label}`)
+  return { filePath: label, label, entries: new Map(), required: false }
 }
 
 export function applyEnvMetadata({ baseDir, entries, manifest, sourceKey = '' }) {

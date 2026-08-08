@@ -224,7 +224,7 @@ function reconcileVariantWithMetadata({ rootDir, baseDir, sourceKey, variant, ma
   const metadata = loadEnvMetadata({ baseDir, manifest, sourceKey })
   if (!metadata.required) {
     console.warn(
-      `Skipping reconcile-delete for ${path.relative(rootDir, variantPath)}; missing ${path.relative(rootDir, metadata.filePath)}`,
+      `Skipping reconcile-delete for ${path.relative(rootDir, variantPath)}; missing ${metadataDisplayPath(metadata, rootDir)}`,
     )
     return []
   }
@@ -512,7 +512,7 @@ function appSharedPrefix(app) {
   return app.env?.sharedPrefix || app.providers?.vercel?.env?.sharedPrefix || ''
 }
 
-function projectSharedLayer(sharedLayer, app, sharedPrefixes = [], metadataPath = '.env.json') {
+function projectSharedLayer(sharedLayer, app, sharedPrefixes = [], metadataPath = 'iac.json env.metadata') {
   const prefix = appSharedPrefix(app)
   if (!prefix) {
     return sharedLayer.filter(
