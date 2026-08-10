@@ -6,6 +6,10 @@ const projectSettingKeys = [
   'rootDirectory',
   'nodeVersion',
   'enableAffectedProjectsDeployments',
+  'framework',
+  'installCommand',
+  'buildCommand',
+  'outputDirectory',
 ]
 
 const protectionBypassOperations = ['ensure', 'generate', 'update', 'revoke']
@@ -43,6 +47,31 @@ function readLegacyOrUnified({
   }
 
   return derive(readUnifiedManifest(context))
+}
+
+function asObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+}
+
+function assertVersionTwoLegacyProjectSettingsSecretsArePrivate(projectSettings) {
+  const assertBypassSecretsArePrivate = (config, location) => {
+    const bypass = asObject(asObject(config).protectionBypassForAutomation)
+    for (const operation of protectionBypassOperations) {
+      if (Object.hasOwn(asObject(bypass[operation]), 'secret')) {
+        throw new Error(
+          `legacy project-settings ${location}protectionBypassForAutomation.${operation}.secret must be private in version 2.`,
+        )
+      }
+    }
+  }
+
+  const settings = asObject(projectSettings)
+  assertBypassSecretsArePrivate(settings, '')
+  assertBypassSecretsArePrivate(settings.defaults, 'defaults.')
+  const projects = Array.isArray(settings.projects) ? settings.projects : []
+  projects.forEach((project, index) => {
+    assertBypassSecretsArePrivate(project, `projects[${index}].`)
+  })
 }
 
 function vercelConfig(manifest) {
@@ -210,12 +239,18 @@ export function readVercelEnvManifest(context) {
 }
 
 export function readVercelProjectSettingsManifest(context) {
-  return readLegacyOrUnified({
+  const projectSettings = readLegacyOrUnified({
     legacyPath: context.projectSettingsPath,
     explicitLegacyPath: context.explicitProjectSettingsPath,
     context,
     derive: vercelProjectSettingsFromIac,
   })
+
+  if (context.explicitProjectSettingsPath && readUnifiedManifest(context).version === 2) {
+    assertVersionTwoLegacyProjectSettingsSecretsArePrivate(projectSettings)
+  }
+
+  return projectSettings
 }
 
 export function readVercelProjectDomainsManifest(context) {

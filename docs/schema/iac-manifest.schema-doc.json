@@ -1,7 +1,7 @@
 {
   "$schema": "https://vertile.ai/schemas/iac-schema-docs.schema.json",
   "title": "Vertile AI IaC Manifest Schema",
-  "summary": "The iac.json manifest is the source of truth for app infrastructure intent, provider reconciliation, and environment metadata wiring.",
+  "summary": "The tracked iac.json manifest is the source of truth for app infrastructure intent, provider reconciliation, and environment metadata wiring; version 2 uses a separate strict private-values document for secrets.",
   "schemaPath": "/schemas/iac.schema.json",
   "packageSchemaPath": "schema/iac.schema.json",
   "sourcePackage": "@vertile-ai/iac",
@@ -12,9 +12,9 @@
       "fields": [
         {
           "path": "version",
-          "type": "1",
+          "type": "1 | 2",
           "required": true,
-          "description": "Schema version. Current manifests use version 1."
+          "description": "Schema version. Version 2 keeps tracked intent separate from the strict private-values document; version 1 remains compatible with inline values."
         },
         {
           "path": "project",
@@ -53,10 +53,10 @@
           "description": "Default Vercel automation-bypass operation for every managed Vercel project. Use ensure for repeatable note-keyed sync."
         },
         {
-          "path": "providers.vercel.projectDefaults",
+          "path": "providers.vercel.projectDefaults | projectSettingsDefaults",
           "type": "vercelProjectSettings",
           "required": false,
-          "description": "Default Vercel project settings applied to every deployable Vercel app."
+          "description": "Default Vercel project settings applied to every deployable Vercel app. framework, installCommand, buildCommand, and outputDirectory are managed only when explicitly declared here or by an app override."
         },
         {
           "path": "providers.<target>.deployments",
@@ -78,33 +78,75 @@
       "fields": [
         {
           "path": "providers.vercel.protectionBypassForAutomation.ensure",
-          "type": "{ secret, note, isEnvVar? }",
+          "type": "{ note, isEnvVar? } (v2 tracked) | { secret, note, isEnvVar? } (v1)",
           "required": false,
-          "description": "Repeatable operation. Vertile IaC exact-matches note against Vercel-exposed automation-bypass notes, then sends update when the note exists or generate when it does not."
+          "description": "Repeatable operation. In version 2, tracked configuration supplies note metadata and private.json supplies ensure.secret. Vertile IaC exact-matches the note against Vercel-exposed automation-bypass notes, then sends update when the note exists or generate when it does not."
         },
         {
           "path": "providers.vercel.protectionBypassForAutomation.generate",
           "type": "{ secret?, note? }",
           "required": false,
-          "description": "Direct Vercel generate operation. Use for explicit provisioning or rotation, not ordinary recurring sync."
+          "description": "Direct Vercel generate operation. Version 2 rejects a tracked secret and its private schema supports only ensure.secret; keep this inline shape for version 1 compatibility."
         },
         {
           "path": "providers.vercel.protectionBypassForAutomation.update",
           "type": "{ secret, isEnvVar?, note? }",
           "required": false,
-          "description": "Direct Vercel update operation for a known existing secret."
+          "description": "Direct Vercel update operation for a known existing secret. Version 2 rejects tracked secrets; this inline shape is version 1 compatibility."
         },
         {
           "path": "providers.vercel.protectionBypassForAutomation.revoke",
           "type": "{ secret, regenerate }",
           "required": false,
-          "description": "Direct Vercel revoke operation for a known existing secret."
+          "description": "Direct Vercel revoke operation for a known existing secret. Version 2 rejects tracked secrets; this inline shape is version 1 compatibility."
         },
         {
           "path": "apps[].providers.vercel.protectionBypassForAutomation",
           "type": "false | vercelProtectionBypassForAutomation",
           "required": false,
           "description": "Per-project override. Set false to opt a Vercel project out of the provider-level automation-bypass default."
+        }
+      ]
+    },
+    {
+      "title": "Version 2 Private Values",
+      "summary": "Version 2 keeps tracked intent in iac.json and reads only an allowlisted private document for encrypted env values and provider credentials.",
+      "fields": [
+        {
+          "path": ".vertile-iac/private.json",
+          "type": "private-values document",
+          "required": false,
+          "description": "Default private path. The document is not an arbitrary iac.json overlay and must use private document version 1."
+        },
+        {
+          "path": "private.env.<source>.<variable>.<environment>",
+          "type": "string",
+          "required": false,
+          "description": "Private value for a public metadata entry marked encrypted: true. Source, variable, and environment must already exist in iac.json."
+        },
+        {
+          "path": "private.providers.vercel.token | apiKey",
+          "type": "string",
+          "required": false,
+          "description": "Allowlisted Vercel credential. Process VERCEL_TOKEN/VERCEL_API_KEY takes precedence, then version 1 inline values and the legacy token file remain compatibility fallbacks."
+        },
+        {
+          "path": "private.providers.vercel.protectionBypassForAutomation.ensure.secret",
+          "type": "string",
+          "required": false,
+          "description": "Only supported private Vercel bypass shape. It pairs with a tracked version 2 ensure note and is injected only into the local projects request."
+        },
+        {
+          "path": "private.providers.github.token",
+          "type": "string",
+          "required": false,
+          "description": "Allowlisted GitHub credential. GH_TOKEN/GITHUB_TOKEN takes precedence; version 1 providers.github and providers.githubActions values remain compatibility fallbacks."
+        },
+        {
+          "path": "private file safety",
+          "type": "ignored + untracked + POSIX 0600",
+          "required": false,
+          "description": "When present in a Git worktree, the private file must be ignored and not tracked. Group- or world-readable modes are rejected on POSIX. Terraform render does not consume this document."
         }
       ]
     },
@@ -129,6 +171,12 @@
           "type": "string",
           "required": false,
           "description": "App root used by Vercel project settings and env file output."
+        },
+        {
+          "path": "apps[].framework | installCommand | buildCommand | outputDirectory",
+          "type": "string",
+          "required": false,
+          "description": "Vercel build settings. They are reconciled only when declared on the app, its Vercel override, or the Vercel project defaults."
         },
         {
           "path": "apps[].domains",
@@ -182,7 +230,7 @@
     },
     {
       "title": "Services",
-      "summary": "Services describe long-running app processes. v1 supports public container services, with DigitalOcean rendering one secure empty Droplet host per service.",
+      "summary": "Services are experimental long-running app processes. The current renderer supports public container services with DigitalOcean rendering one secure empty Droplet host per service.",
       "fields": [
         {
           "path": "services[].key",
@@ -368,7 +416,7 @@
           "path": "env.metadata.<source>.variables[]",
           "type": "envVariable[]",
           "required": false,
-          "description": "Structured metadata for env keys, including example, optional .env.example descriptions, encrypted, browser, package routing, and environment include/exclude rules."
+          "description": "Structured metadata for env keys, including example, optional .env.example descriptions, encrypted, browser, package routing, and environment include/exclude rules. Version 2 encrypted entries keep real values in private.json rather than tracked value or values fields."
         }
       ]
     }

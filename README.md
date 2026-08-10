@@ -67,7 +67,7 @@ bucket, while keeping the logical environments portable:
 ```json
 {
   "$schema": "./node_modules/@vertile-ai/iac/schema/iac.schema.json",
-  "version": 1,
+  "version": 2,
   "project": { "name": "acme" },
   "environments": {
     "development": { "files": [".env.development"] },
@@ -91,9 +91,10 @@ bucket, while keeping the logical environments portable:
 }
 ```
 
-The schema is published with the package at
+The tracked-manifest schema is published with the package at
 `schema/iac.schema.json`; point your editor at it for manifest completion and
-validation.
+validation. Version 2 private values use the separate
+`schema/iac.private.schema.json` document.
 
 ## Choose the provider at execution time
 
@@ -168,8 +169,67 @@ Without `--variants`, `sync-env` uses the manifest environments in declared
 order. `validate` is an offline, read-only check for manifest-driven env routes.
 
 The latter two commands are dry-runs unless `--apply` is supplied. Vercel apply
-mode accepts `VERCEL_TOKEN`, `VERCEL_API_KEY`, `providers.vercel.token`, or
-`providers.vercel.apiKey`; process environment values take precedence.
+mode requires a Vercel credential.
+
+## Version 2 private values
+
+Version 2 uses a strict split. The tracked `iac.json` contains infrastructure
+intent, env metadata, and non-secret env values only. An encrypted metadata
+entry declares its key, example, routing, and `encrypted: true` in `iac.json`,
+but must not define inline `value` or `values`. Tracked Vercel and GitHub
+credentials, and tracked Vercel bypass secrets, are rejected in version 2.
+
+Private values default to `.vertile-iac/private.json`. It is a separate,
+strictly allowlisted document, not an arbitrary overlay of `iac.json`:
+
+```json
+{
+  "version": 1,
+  "env": {
+    "web": {
+      "DATABASE_URL": {
+        "production": "<private database URL>"
+      }
+    }
+  },
+  "providers": {
+    "vercel": {
+      "token": "<private Vercel token>",
+      "protectionBypassForAutomation": {
+        "ensure": { "secret": "<private bypass secret>" }
+      }
+    },
+    "github": {
+      "token": "<private GitHub token>"
+    }
+  }
+}
+```
+
+The env shape is `env.<source>.<variable>.<environment>`. The only private
+provider fields are `providers.vercel.token`, `providers.vercel.apiKey`,
+`providers.vercel.protectionBypassForAutomation.ensure.secret`, and
+`providers.github.token`. The public version 2 Vercel `ensure` configuration
+contains its `note`; the private secret is injected only into the local Vercel
+projects request.
+
+In a Git worktree, the private file must be ignored and untracked. On POSIX,
+use mode `0600`; group- or world-readable files are rejected. Never add private
+values to the manifest or to a log. Terraform rendering deliberately does not
+load or consume the private document, so render output is identical with or
+without it.
+
+Credential precedence is provider-specific:
+
+- Vercel commands use `VERCEL_TOKEN` or `VERCEL_API_KEY`, then the private
+  Vercel token or API key, then version 1 inline provider values, then the
+  legacy Vercel token file.
+- GitHub Actions uses `GH_TOKEN` or `GITHUB_TOKEN`, then
+  `private.json` `providers.github.token`, then version 1
+  `providers.github.token` or `providers.githubActions.token`. GitHub has no
+  token-file fallback.
+
+Version 1 remains compatible with inline env values and provider credentials.
 
 ## Vercel compatibility commands
 
@@ -183,11 +243,20 @@ vertile-iac domains --repo-root .
 
 These derive Vercel desired state from `iac.json`. Explicit legacy
 `project-settings.json` and `project-domains.json` inputs remain supported only
-for compatibility. New projects should use the unified manifest.
+for compatibility. With a version 2 manifest, an explicit legacy
+`--project-settings` file must not contain a
+`protectionBypassForAutomation.*.secret`; keep that secret in the private
+document instead.
+
+Vercel project reconciliation manages `framework`, `installCommand`,
+`buildCommand`, and `outputDirectory` only when an app override or
+`providers.vercel.projectDefaults`/`projectSettingsDefaults` explicitly sets
+the field. Leaving one undeclared preserves the remote setting instead of
+clearing it.
 
 ## DigitalOcean Services, State, And Outputs
 
-DigitalOcean `services` currently render one public container service to one
+DigitalOcean `services` are experimental and currently render one public container service to one
 Droplet. `render`, `plan`, and `apply` create a secure empty host: a
 DigitalOcean project, Droplet, Reserved IP, firewall, Docker bootstrap, non-root
 `vertile` user, application directory, and readiness marker. They do not build
@@ -214,11 +283,14 @@ default. Override it with `providers.digitalocean.version` or a deployment-level
 
 ## What belongs in the manifest
 
-`apps`, `services`, `domains`, `objectStorage`, `databases`, `queues`,
-`sandboxes`, and `clusters` describe product needs. Use
-`providers.<target>.resources` for a provider-specific escape hatch when the
-portable model does not yet cover a resource. Provider deployments add
-stage-specific values without forking the whole manifest.
+The stable core is manifest validation, safe non-sensitive output, env sync,
+and Vercel and GitHub reconciliation. Object storage is a proven portable
+resource. Services and databases are experimental; queues, sandboxes, and
+clusters are deferred rather than promised by the portable model. Use
+`providers.<target>.resources` only as a provider-specific escape hatch where
+needed. Vertile IaC intentionally does not build another abstraction layer on
+top of Terraform: the manifest is the product-intent boundary and generated
+Terraform remains the execution boundary.
 
 For the complete field reference and examples, see:
 

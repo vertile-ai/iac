@@ -301,17 +301,40 @@ export function envExampleEntries({ baseDir, manifest, sourceKey = '' }) {
     }))
 }
 
-export function manifestEnvEntries({ baseDir, manifest, sourceKey = '', environment }) {
+export function manifestEnvEntries({ baseDir, manifest, sourceKey = '', environment, privateValues }: any) {
   const metadata = loadEnvMetadata({ baseDir, manifest, sourceKey })
   if (!metadata.required) return null
 
   const metadataEntries = [...metadata.entries.values()]
-  if (!metadataEntries.some((entry) => entry.valuesConfigured)) return null
+  if (manifest.version !== 2 && !metadataEntries.some((entry) => entry.valuesConfigured)) return null
 
   const entries = []
   for (const entry of metadataEntries) {
-    if (!entry.valuesConfigured) continue
     if (!isAllowedInEnv(entry, environment)) continue
+
+    if (manifest.version === 2 && entry.encrypted) {
+      const value = privateValues?.getEnvValue({
+        sourceKey: metadataSourceKey(baseDir, sourceKey),
+        key: entry.key,
+        environment,
+      })
+      if (value === undefined) continue
+      entries.push({
+        key: entry.key,
+        value,
+        metadata: entry,
+        encrypted: entry.encrypted,
+        browser: entry.browser,
+        includeInExample: entry.includeInExample,
+        excludeEnv: entry.excludeEnv,
+        includeEnv: entry.includeEnv,
+        includeEnvConfigured: entry.includeEnvConfigured,
+        packages: entry.packages,
+      })
+      continue
+    }
+
+    if (!entry.valuesConfigured) continue
 
     const hasEnvironmentValue = Object.hasOwn(entry.values, environment)
     const hasDefaultValue = Object.hasOwn(entry.values, 'default')

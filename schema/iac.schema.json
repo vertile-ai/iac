@@ -11,7 +11,7 @@
       "type": "string"
     },
     "version": {
-      "const": 1
+      "enum": [1, 2]
     },
     "project": {
       "oneOf": [
@@ -340,6 +340,114 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "version": { "const": 2 }
+        },
+        "required": ["version"]
+      },
+      "then": {
+        "properties": {
+          "providers": {
+            "type": "object",
+            "properties": {
+              "vercel": {
+                "allOf": [
+                  { "$ref": "#/$defs/versionTwoProviderConfigWithoutDeploymentCredentials" },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "token": false,
+                      "apiKey": false,
+                      "protectionBypassForAutomation": {
+                        "$ref": "#/$defs/vercelProtectionBypassForAutomationWithoutSecrets"
+                      }
+                    }
+                  }
+                ]
+              },
+              "github": {
+                "allOf": [
+                  { "$ref": "#/$defs/versionTwoProviderConfigWithoutDeploymentCredentials" },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "token": false
+                    }
+                  }
+                ]
+              },
+              "githubActions": {
+                "allOf": [
+                  { "$ref": "#/$defs/versionTwoProviderConfigWithoutDeploymentCredentials" },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "token": false
+                    }
+                  }
+                ]
+              }
+            },
+            "additionalProperties": {
+              "$ref": "#/$defs/versionTwoProviderConfigWithoutDeploymentCredentials"
+            }
+          },
+          "env": {
+            "type": "object",
+            "properties": {
+              "metadata": {
+                "type": "object",
+                "properties": {
+                  "sources": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "$ref": "#/$defs/versionTwoEnvMetadataDocument"
+                    }
+                  }
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/versionTwoEnvMetadataDocument"
+                }
+              }
+            }
+          },
+          "apps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "protectionBypassForAutomation": {
+                  "oneOf": [
+                    { "const": false },
+                    { "$ref": "#/$defs/vercelProtectionBypassForAutomationWithoutSecrets" }
+                  ]
+                },
+                "providers": {
+                  "type": "object",
+                  "properties": {
+                    "vercel": {
+                      "type": "object",
+                      "properties": {
+                        "protectionBypassForAutomation": {
+                          "oneOf": [
+                            { "const": false },
+                            { "$ref": "#/$defs/vercelProtectionBypassForAutomationWithoutSecrets" }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "providerConfig": {
       "type": "object",
@@ -352,6 +460,21 @@
         "resources": {
           "type": "array",
           "items": { "$ref": "#/$defs/providerResource" }
+        }
+      }
+    },
+    "versionTwoProviderConfigWithoutDeploymentCredentials": {
+      "type": "object",
+      "properties": {
+        "deployments": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "token": false,
+              "apiKey": false
+            }
+          }
         }
       }
     },
@@ -563,6 +686,57 @@
       "type": "object",
       "additionalProperties": { "type": "string" }
     },
+    "versionTwoEnvVariableWithoutInlineValues": {
+      "not": {
+        "allOf": [
+          {
+            "required": ["encrypted"],
+            "properties": {
+              "encrypted": { "const": true }
+            }
+          },
+          {
+            "anyOf": [
+              { "required": ["value"] },
+              { "required": ["values"] }
+            ]
+          }
+        ]
+      }
+    },
+    "versionTwoEnvMetadataDocument": {
+      "type": "object",
+      "properties": {
+        "variables": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": { "$ref": "#/$defs/versionTwoEnvVariableWithoutInlineValues" }
+            },
+            {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/versionTwoEnvVariableWithoutInlineValues" }
+            }
+          ]
+        },
+        "vars": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": { "$ref": "#/$defs/versionTwoEnvVariableWithoutInlineValues" }
+            },
+            {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/versionTwoEnvVariableWithoutInlineValues" }
+            }
+          ]
+        },
+        "env": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/versionTwoEnvVariableWithoutInlineValues" }
+        }
+      }
+    },
     "envVariablePackage": {
       "oneOf": [
         { "type": "string", "minLength": 1 },
@@ -631,6 +805,10 @@
         "rootDirectory": { "type": ["string", "null"] },
         "nodeVersion": { "type": ["string", "null"] },
         "enableAffectedProjectsDeployments": { "type": ["boolean", "null"] },
+        "framework": { "type": ["string", "null"] },
+        "installCommand": { "type": ["string", "null"] },
+        "buildCommand": { "type": ["string", "null"] },
+        "outputDirectory": { "type": ["string", "null"] },
         "protectionBypassForAutomation": {
           "oneOf": [
             { "const": false },
@@ -651,7 +829,7 @@
       "properties": {
         "ensure": {
           "type": "object",
-          "required": ["secret", "note"],
+          "required": ["note"],
           "additionalProperties": false,
           "properties": {
             "secret": {
@@ -704,6 +882,41 @@
         }
       }
     },
+    "vercelProtectionBypassForAutomationWithoutSecrets": {
+      "allOf": [
+        { "$ref": "#/$defs/vercelProtectionBypassForAutomation" },
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": ["ensure"],
+                "properties": {
+                  "ensure": { "required": ["secret"] }
+                }
+              },
+              {
+                "required": ["generate"],
+                "properties": {
+                  "generate": { "required": ["secret"] }
+                }
+              },
+              {
+                "required": ["update"],
+                "properties": {
+                  "update": { "required": ["secret"] }
+                }
+              },
+              {
+                "required": ["revoke"],
+                "properties": {
+                  "revoke": { "required": ["secret"] }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
     "app": {
       "type": "object",
       "required": ["key"],
@@ -716,6 +929,9 @@
         "framework": { "type": "string" },
         "rootDirectory": { "type": "string" },
         "outputDir": { "type": "string" },
+        "installCommand": { "type": "string" },
+        "buildCommand": { "type": "string" },
+        "outputDirectory": { "type": "string" },
         "sourceKey": { "type": "string" },
         "nodeVersion": { "type": "string" },
         "enableAffectedProjectsDeployments": { "type": "boolean" },

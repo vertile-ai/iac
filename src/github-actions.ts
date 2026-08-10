@@ -5,8 +5,9 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { envSourceDir } from './core/env-source.js'
-import { buildGitHubActionsPlan, githubTokenFromManifest } from './core/github-actions.js'
+import { buildGitHubActionsPlan } from './core/github-actions.js'
 import { readManifest } from './core/manifest.js'
+import { resolvePrivateValues } from './core/private-values.js'
 import { resolveIacContext, readOption } from './shared.js'
 
 function splitList(value) {
@@ -42,6 +43,18 @@ function resolveRepoFromGit(repoRoot) {
   return ''
 }
 
+function formatGhArgs(args) {
+  const formatted = []
+  for (let index = 0; index < args.length; index += 1) {
+    formatted.push(args[index])
+    if (args[index] === '--body' && index + 1 < args.length) {
+      formatted.push('[redacted]')
+      index += 1
+    }
+  }
+  return formatted.join(' ')
+}
+
 function runGh(args, options: any = {}) {
   const env = options.token
     ? { ...process.env, GH_TOKEN: options.token }
@@ -52,16 +65,20 @@ function runGh(args, options: any = {}) {
     input: options.input,
     stdio: options.input ? ['pipe', 'pipe', 'pipe'] : 'pipe',
   })
+  const command = formatGhArgs(args)
 
   if (result.error) {
     throw new Error(
-      `GitHub CLI is unavailable while running gh ${args.join(' ')}: ${result.error.message}`,
+      `GitHub CLI is unavailable while running gh ${command}: ${result.error.message}`,
     )
   }
 
   if (result.status !== 0) {
+    if (args.includes('--body')) {
+      throw new Error(`gh ${command} failed with exit code ${result.status ?? 'unknown'}`)
+    }
     throw new Error(
-      `gh ${args.join(' ')} failed: ${result.stderr?.trim() || result.stdout?.trim() || 'unknown error'}`,
+      `gh ${command} failed: ${result.stderr?.trim() || result.stdout?.trim() || 'unknown error'}`,
     )
   }
 
@@ -190,6 +207,7 @@ function main() {
   const args = parseArgs(argv)
   const context = resolveIacContext(argv)
   const manifest = readManifest(context.iacManifestPath)
+  const privateValues = resolvePrivateValues({ manifest, repoRoot: context.repoRoot })
   const sourceRoot = path.join(context.repoRoot, envSourceDir(manifest))
   const plan = buildGitHubActionsPlan({
     manifest,
@@ -202,7 +220,10 @@ function main() {
   }
 
   printPlan({ plan, apply: args.apply })
-  if (args.apply) applyPlan(plan, { token: githubTokenFromManifest(manifest) })
+  if (args.apply) {
+    const token = privateValues.getProviderCredential({ provider: 'github', field: 'token' })
+    applyPlan(plan, { token })
+  }
 }
 
 export const testing = {

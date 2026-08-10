@@ -442,9 +442,111 @@ function normalizeServices(manifest, apps) {
   return services
 }
 
+function metadataRows(document) {
+  if (Array.isArray(document)) return document
+
+  const config = asObject(document)
+  for (const key of ['variables', 'vars']) {
+    if (Array.isArray(config[key])) return config[key]
+    const rows = asObject(config[key], null)
+    if (rows) {
+      return Object.entries(rows).map(([rowKey, row]) => ({ key: rowKey, ...asObject(row) }))
+    }
+  }
+  if (Array.isArray(config.env)) return config.env
+  return []
+}
+
+function assertVersionTwoEncryptedValuesArePrivate(manifest) {
+  const metadata = asObject(manifest.env?.metadata)
+  const documents = [
+    ...Object.entries(asObject(metadata.sources)),
+    ...Object.entries(metadata).filter(([sourceKey]) => sourceKey !== 'sources'),
+  ]
+
+  for (const [sourceKey, document] of documents) {
+    for (const row of metadataRows(document)) {
+      const item = asObject(row)
+      if (
+        item.encrypted === true
+        && (Object.hasOwn(item, 'value') || Object.hasOwn(item, 'values'))
+      ) {
+        const key = typeof item.key === 'string' ? item.key : '<unknown>'
+        throw new Error(
+          `iac.json env.metadata.${sourceKey} metadata for ${key} is encrypted and must not define inline values in version 2.`,
+        )
+      }
+    }
+  }
+}
+
+function assertVersionTwoVercelProtectionBypassSecretsArePrivate(config, bypassPath) {
+  const bypass = asObject(config.protectionBypassForAutomation)
+  for (const operation of ['ensure', 'generate', 'update', 'revoke']) {
+    if (Object.hasOwn(asObject(bypass[operation]), 'secret')) {
+      throw new Error(
+        `iac.json ${bypassPath}.${operation}.secret must be private in version 2.`,
+      )
+    }
+  }
+}
+
+function assertVersionTwoCredentialsArePrivate(manifest) {
+  const providers = asObject(manifest.providers)
+  for (const [provider, fields] of Object.entries({
+    vercel: ['token', 'apiKey'],
+    github: ['token'],
+    githubActions: ['token'],
+  })) {
+    const config = asObject(providers[provider])
+    for (const field of fields as string[]) {
+      if (Object.hasOwn(config, field)) {
+        throw new Error(`iac.json providers.${provider}.${field} must be private in version 2.`)
+      }
+    }
+  }
+
+  for (const [provider, providerConfig] of Object.entries(providers)) {
+    const deployments = asObject(asObject(providerConfig).deployments)
+    for (const [deployment, config] of Object.entries(deployments)) {
+      for (const field of ['token', 'apiKey']) {
+        if (Object.hasOwn(asObject(config), field)) {
+          throw new Error(
+            `iac.json providers.${provider}.deployments.${deployment}.${field} must be private in version 2.`,
+          )
+        }
+      }
+    }
+  }
+
+  assertVersionTwoVercelProtectionBypassSecretsArePrivate(
+    asObject(providers.vercel),
+    'providers.vercel.protectionBypassForAutomation',
+  )
+
+  for (const app of manifest.apps || []) {
+    const appConfig = asObject(app)
+    const appKey = typeof appConfig.key === 'string' && appConfig.key.trim()
+      ? appConfig.key
+      : '<unknown>'
+    assertVersionTwoVercelProtectionBypassSecretsArePrivate(
+      appConfig,
+      `apps.${appKey}.protectionBypassForAutomation`,
+    )
+    assertVersionTwoVercelProtectionBypassSecretsArePrivate(
+      asObject(asObject(appConfig.providers).vercel),
+      `apps.${appKey}.providers.vercel.protectionBypassForAutomation`,
+    )
+  }
+}
+
 export function validateManifest(manifest) {
-  if (manifest.version !== 1) {
-    throw new Error(`Unsupported iac.json version "${manifest.version}". Expected version 1.`)
+  if (manifest.version !== 1 && manifest.version !== 2) {
+    throw new Error(`Unsupported iac.json version "${manifest.version}". Expected version 1 or 2.`)
+  }
+  if (manifest.version === 2) {
+    assertVersionTwoEncryptedValuesArePrivate(manifest)
+    assertVersionTwoCredentialsArePrivate(manifest)
   }
   if (!manifest.project.name || typeof manifest.project.name !== 'string') {
     throw new Error('iac.json project.name must be a non-empty string.')

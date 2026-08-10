@@ -303,7 +303,7 @@ test('covers manifest normalization and Vercel manifest derivation failures', as
       apps: [],
     })
     assert.deepEqual(normalized.environments, ['development', 'preview', 'production'])
-    assert.throws(() => normalizeManifest({ version: 2, project: 'x', environments: [], providers: {} }), /Unsupported/)
+    assert.throws(() => normalizeManifest({ version: 3, project: 'x', environments: [], providers: {} }), /Unsupported/)
     assert.throws(() => validateManifest({ version: 1, project: {}, environments: [], providers: {} }), /project.name/)
     assert.throws(() => validateManifest({ version: 1, project: { name: 'x' }, environments: 'bad', providers: {} }), /array/)
     assert.throws(() => normalizeManifest({ version: 1, project: 'x', environments: [], providers: {}, apps: [{}] }), /app must include a key/)

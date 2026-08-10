@@ -14,6 +14,7 @@ import {
 import { environmentOutputFile } from './core/env-files.js'
 import { envSourceDir } from './core/env-source.js'
 import { readManifest } from './core/manifest.js'
+import { resolvePrivateValues } from './core/private-values.js'
 
 function asObject(value: any): any {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
@@ -68,7 +69,11 @@ function directOutputs(manifest, sourceRoot, sourceKeys) {
   })
 }
 
-function configuredValueFor(entry, environment) {
+function configuredValueFor(entry, environment, { privateValues, sourceKey }: any = {}) {
+  if (privateValues?.version === 2 && entry.encrypted) {
+    return privateValues.getEnvValue({ sourceKey, key: entry.key, environment }) !== undefined
+  }
+
   return entry.value !== undefined
     || Object.hasOwn(entry.values, 'default')
     || Object.hasOwn(entry.values, environment)
@@ -91,9 +96,10 @@ function isGitIgnored(rootDir, target) {
   return spawnSync('git', ['-C', rootDir, 'check-ignore', '--quiet', '--', relative]).status === 0
 }
 
-export function validateEnvironmentRouting({ manifest, rootDir }) {
+export function validateEnvironmentRouting({ manifest, rootDir, privateValues }: any) {
   const errors: string[] = []
   const warnings: string[] = []
+  const resolvedPrivateValues = privateValues || resolvePrivateValues({ manifest, repoRoot: rootDir })
   const sourceRoot = path.join(rootDir, envSourceDir(manifest))
   const routedPackages = outputPackages(manifest)
   const sourceKeys = effectiveEnvMetadataSourceKeys(manifest, {
@@ -155,7 +161,10 @@ export function validateEnvironmentRouting({ manifest, rootDir }) {
 
         for (const environment of manifest.environments) {
           if (!isAllowedInEnv(entry, environment)) continue
-          if (!configuredValueFor(entry, environment)) {
+          if (!configuredValueFor(entry, environment, {
+            privateValues: resolvedPrivateValues,
+            sourceKey,
+          })) {
             errors.push(
               `${metadata.label} metadata for ${entry.key} routed to ${packageConfig.key} must define value, values.default, or values.${environment}.`,
             )

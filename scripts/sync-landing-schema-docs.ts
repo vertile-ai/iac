@@ -29,6 +29,10 @@ const files = [
     output: path.join(landingRoot, 'public', 'schemas', 'iac.schema.json'),
   },
   {
+    source: path.join(packageRoot, 'schema', 'iac.private.schema.json'),
+    output: path.join(landingRoot, 'public', 'schemas', 'iac.private.schema.json'),
+  },
+  {
     source: path.join(packageRoot, 'docs', 'schema', 'iac-manifest.schema-doc.json'),
     output: path.join(landingRoot, 'public', 'schemas', 'iac-manifest.schema-doc.json'),
   },

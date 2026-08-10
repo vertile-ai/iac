@@ -43,7 +43,7 @@ pnpm exec vertile-iac apply --target=aws --deployment=prod --yes
 ```json
 {
   "$schema": "./node_modules/@vertile-ai/iac/schema/iac.schema.json",
-  "version": 1,
+  "version": 2,
   "project": { "name": "acme" },
   "environments": {
     "development": { "files": [".env.development"] },
@@ -65,7 +65,8 @@ pnpm exec vertile-iac apply --target=aws --deployment=prod --yes
 }
 ```
 
-包内提供 `schema/iac.schema.json`；将 `$schema` 指向它即可获得编辑器补全与校验。
+包内提供 tracked manifest 的 `schema/iac.schema.json`；将 `$schema` 指向它即可获得编辑器补全与校验。version 2 的私有值使用独立的
+`schema/iac.private.schema.json`。
 
 ## 在执行时选择云厂商
 
@@ -119,7 +120,48 @@ vertile-iac env --scope=all --targets=preview,production
 vertile-iac github-actions --env=staging
 ```
 
-后两个命令默认只 dry-run，传入 `--apply` 才会变更远端。Vercel apply 支持 `VERCEL_TOKEN`、`VERCEL_API_KEY`、`providers.vercel.token` 或 `providers.vercel.apiKey`；进程环境变量优先。
+后两个命令默认只 dry-run，传入 `--apply` 才会变更远端。Vercel apply 需要可用的 Vercel 凭证。
+
+## Version 2 私有值
+
+Version 2 使用严格分离：被追踪的 `iac.json` 只保存基础设施意图、env metadata 和非 secret 的 env 值。encrypted metadata 在 `iac.json` 中声明 key、example、路由以及 `encrypted: true`，但不能定义 inline `value` 或 `values`。Version 2 会拒绝被追踪的 Vercel/GitHub 凭证和 Vercel bypass secret。
+
+私有值默认位于 `.vertile-iac/private.json`。它是独立且严格 allowlisted 的文档，而不是可以任意覆盖 `iac.json` 的 overlay：
+
+```json
+{
+  "version": 1,
+  "env": {
+    "web": {
+      "DATABASE_URL": {
+        "production": "<private database URL>"
+      }
+    }
+  },
+  "providers": {
+    "vercel": {
+      "token": "<private Vercel token>",
+      "protectionBypassForAutomation": {
+        "ensure": { "secret": "<private bypass secret>" }
+      }
+    },
+    "github": {
+      "token": "<private GitHub token>"
+    }
+  }
+}
+```
+
+env 的 shape 为 `env.<source>.<variable>.<environment>`。允许的 private provider 字段只有 `providers.vercel.token`、`providers.vercel.apiKey`、`providers.vercel.protectionBypassForAutomation.ensure.secret` 和 `providers.github.token`。公开的 version 2 Vercel `ensure` 配置只保存 `note`；私有 secret 只会注入本地发出的 Vercel projects request。
+
+在 Git worktree 中，private file 必须被 ignored 且不能 tracked。POSIX 上请使用 `0600`；group 或 world 可读会被拒绝。不要把 private 值写入 manifest 或日志。Terraform render 故意不加载或消费 private document，因此无论 private file 是否存在，render output 都相同。
+
+凭证优先级按 provider 分别处理：
+
+- Vercel 命令依次使用 `VERCEL_TOKEN` 或 `VERCEL_API_KEY`、private Vercel token/API key、version 1 inline provider 值、legacy Vercel token file。
+- GitHub Actions 依次使用 `GH_TOKEN` 或 `GITHUB_TOKEN`、`private.json` 的 `providers.github.token`、version 1 的 `providers.github.token` 或 `providers.githubActions.token`。GitHub 没有 token-file fallback。
+
+Version 1 继续兼容 inline env 值和 provider credential。
 
 ## 兼容既有 Vercel 工作流
 
@@ -133,9 +175,13 @@ vertile-iac domains --repo-root .
 
 这些命令从 `iac.json` 推导所需的 Vercel 状态。仅为兼容性保留显式的 `project-settings.json` 与 `project-domains.json`；新项目应使用统一 manifest。
 
+对于 version 2 manifest，显式传入的 legacy `--project-settings` 文件不得包含 `protectionBypassForAutomation.*.secret`；应将该 secret 放入 private document。
+
+Vercel project reconciliation 仅在 app override 或 `providers.vercel.projectDefaults`/`projectSettingsDefaults` 显式设置字段时管理 `framework`、`installCommand`、`buildCommand` 和 `outputDirectory`。未声明的字段会保留远端设置，不会被清空。
+
 ## manifest 中应放什么
 
-`apps`、`domains`、`objectStorage`、`databases`、`queues`、`sandboxes` 和 `clusters` 描述产品需求。当可移植模型尚未覆盖某个资源时，使用 `providers.<target>.resources` 作为云厂商专属扩展；通过 provider deployment 添加阶段差异，而不是复制整份 manifest。
+稳定 core 包括 manifest validation、安全的 non-sensitive output、env sync，以及 Vercel 和 GitHub reconciliation。object storage 是已验证的可移植资源。services 和 databases 仍属 experimental；queues、sandboxes 和 clusters 处于 deferred 状态，而不是已承诺的可移植模型。仅在需要时将 `providers.<target>.resources` 用作 provider-specific escape hatch。Vertile IaC 不会在 Terraform 之上再构建一层抽象：manifest 是产品意图边界，生成的 Terraform 是执行边界。
 
 完整字段说明与可运行示例：
 

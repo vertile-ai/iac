@@ -1,84 +1,47 @@
 # Roadmap
 
-## Phase 1: Stable Compiler Core
+## Current Stable Core
 
-- Keep `iac.json` as the only user-authored source of truth.
-- Render provider-specific Terraform into `.vertile/terraform/<provider>/`.
-- Keep legacy Vercel API reconciliation working until the Terraform path is
-  verified.
-- Support `render`, `plan`, and guarded `apply`.
-- Add schema validation with clear errors.
+The stable product boundary is deliberately narrow:
 
-## Phase 2: First-Class Resource Concepts
+- reviewed `iac.json` infrastructure intent and JSON Schema validation;
+- version 2 tracked/private value separation, including safe private-file
+  handling and version 1 compatibility;
+- local env sync plus Vercel env, project, and domain reconciliation;
+- GitHub Actions environment publishing;
+- generated Terraform, guarded plan/apply, and safe non-sensitive output.
 
-Move provider-specific escape hatches behind portable app infrastructure
-concepts:
+The manifest is the only authored product-intent input. Terraform/OpenTofu is
+generated provider execution, not another portable language to re-create.
 
-- `apps`
-- `domains`
-- `env`
-- `objectStorage`
-- `databases`
-- `queues`
-- `sandboxes`
-- `clusters`
+## Resource Maturity
 
-Each concept should have shared fields and optional provider overrides.
+| Area | Status | Direction |
+| --- | --- | --- |
+| `objectStorage` | Proven | Keep the portable bucket intent small and verify provider mappings before expanding it. |
+| `services` | Experimental | Validate real release-pipeline and host lifecycle needs before treating services as a stable portable abstraction. |
+| `databases` | Experimental | Prove operational contracts, credentials, backups, and migrations before making a broad portability promise. |
+| `queues` | Deferred | Do not claim a portable queue contract yet. |
+| `sandboxes` | Deferred | Do not claim a portable sandbox or runtime contract yet. |
+| `clusters` | Deferred | Do not claim a portable cluster or compute-group contract yet. |
 
-Current implementation status:
+## Near-Term Work
 
-- `apps` and `domains` render to Vercel resources.
-- `objectStorage` renders to AWS S3 and DigitalOcean Spaces.
-- `databases` renders to AWS RDS and DigitalOcean Managed Databases.
-- `queues` renders to AWS SQS.
-- `sandboxes` and `clusters` render to AWS EC2 instances and DigitalOcean
-  Droplets.
-- `services` renders to a DigitalOcean single-Droplet container host with a
-  Reserved IP, firewall, Docker bootstrap, non-root user, stable release
-  outputs, and no app image/runtime deployment.
-
-## Phase 3: Provider Matrix
-
-Initial providers:
-
-- Vercel: apps, domains, env vars, project settings.
-- AWS: S3, RDS or DynamoDB, SQS, Lambda or ECS, EC2 where needed.
-- DigitalOcean: Spaces, Managed Databases, Droplets, and first-class services
-  implemented as one public Droplet per service. App Platform, Kubernetes,
-  high-availability replicas, load balancers, and a rolling deployment contract
-  remain later work.
-
-Likely later providers:
-
-- Cloudflare for DNS, Workers, R2, and queues.
-- Neon and Supabase for databases.
-- Fly.io, Render, and Railway for app hosting.
-- Modal, E2B, and Daytona for sandbox or runtime providers.
-- Hetzner and Vultr for cheaper compute and clusters.
-
-## Phase 4: AI-Native Workflow
-
-- `vertile-iac explain`: explain a manifest in product language.
-- `vertile-iac doctor`: detect unsupported mappings, missing credentials, and
-  risky settings.
-- `vertile-iac migrate`: suggest moves between providers.
-- Plan summaries that say what changes mean, not just what Terraform will do.
-
-## Phase 5: State And Outputs
-
-- Use local Terraform state by default.
-- Support optional DigitalOcean Spaces remote state for selected deployments.
-- Support a stable JSON `output` command for non-sensitive Terraform outputs.
-- Add drift detection through `plan`.
-- Consider persisted provider output snapshots such as
-  `.vertile/outputs/<env>.json` after the command contract has stabilized.
+- Keep the version 2 private-values boundary clear in CLI behavior, schemas,
+  release artifacts, and examples.
+- Improve Vercel and GitHub reconciliation only through observed product needs.
+- Preserve safe outputs and validation as provider integrations grow.
+- Promote a resource from experimental only after it has a verified user-facing
+  lifecycle and provider contract.
 
 ## Guiding Rule
 
-Vertile AI IaC should not become Terraform, Pulumi, or Crossplane.
-
-It should stay focused on app-first portable infrastructure intent:
+Vertile AI IaC should not become Terraform, Pulumi, or Crossplane. It should
+remain an app-first manifest compiler:
 
 ```text
-one manifest -> provider adapters -> Terraform/OpenTofu execution
+one manifest -> focused provider adapters -> Terraform/OpenTofu execution
 ```
+
+No extra Terraform abstraction layer belongs between the manifest and generated
+provider code.

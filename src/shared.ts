@@ -1,5 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { readManifest } from './core/manifest.js'
+import { resolvePrivateValues } from './core/private-values.js'
 
 export function findProjectRoot(startDir) {
   let current = startDir
@@ -122,28 +124,27 @@ function readTokenFromFile(filePath) {
   return ''
 }
 
-function vercelTokenFromManifest(iacManifestPath) {
-  if (!fs.existsSync(iacManifestPath)) return ''
+function vercelTokenFromResolver(context, env) {
+  if (!fs.existsSync(context.iacManifestPath)) return ''
 
-  const manifest = JSON.parse(fs.readFileSync(iacManifestPath, 'utf8'))
-  const vercel = manifest?.providers?.vercel
-  if (!vercel || typeof vercel !== 'object' || Array.isArray(vercel)) {
-    return ''
-  }
-
-  for (const key of ['token', 'apiKey']) {
-    const value = vercel[key]
-    if (typeof value === 'string' && value.trim()) return value.trim()
-  }
-
-  return ''
+  const manifest = readManifest(context.iacManifestPath)
+  const privateValues = resolvePrivateValues({
+    manifest,
+    repoRoot: context.repoRoot || path.dirname(context.iacManifestPath),
+    env,
+  })
+  return privateValues.getProviderCredential({ provider: 'vercel', field: 'token' })
+    || privateValues.getProviderCredential({ provider: 'vercel', field: 'apiKey' })
 }
 
 export function readVercelToken(context, env = process.env) {
+  const resolvedToken = vercelTokenFromResolver(context, env)
+  const processToken = typeof env.VERCEL_TOKEN === 'string' ? env.VERCEL_TOKEN.trim() : ''
+  const processApiKey = typeof env.VERCEL_API_KEY === 'string' ? env.VERCEL_API_KEY.trim() : ''
   return (
-    env.VERCEL_TOKEN ||
-    env.VERCEL_API_KEY ||
-    vercelTokenFromManifest(context.iacManifestPath) ||
+    processToken ||
+    processApiKey ||
+    resolvedToken ||
     readTokenFromFile(context.tokenFilePath)
   )
 }

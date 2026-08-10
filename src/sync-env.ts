@@ -17,6 +17,7 @@ import {
   manifestEnvEntries,
 } from './core/env-metadata.js'
 import { readManifest } from './core/manifest.js'
+import { resolvePrivateValues } from './core/private-values.js'
 import { readOption } from './shared.js'
 
 const defaultVariants = {
@@ -311,7 +312,11 @@ function packageRefForPackage(entry, packageConfig) {
   return entry.packages.find((packageRef) => packageRef.package === packageConfig.key)
 }
 
-function valueForMetadataEntry({ entry, environment, metadata }) {
+function valueForMetadataEntry({ entry, environment, metadata, sourceKey, privateValues }) {
+  if (privateValues?.version === 2 && entry.encrypted) {
+    return privateValues.getEnvValue({ sourceKey, key: entry.key, environment })
+  }
+
   if (!entry.valuesConfigured) return undefined
 
   const hasEnvironmentValue = Object.hasOwn(entry.values, environment)
@@ -337,6 +342,7 @@ function directOutputEntriesForApp({
   app,
   variant,
   manifest,
+  privateValues,
   example = false,
 }) {
   const layers = []
@@ -360,7 +366,13 @@ function directOutputEntriesForApp({
         key: outputKey,
         value: example
           ? entry.example
-          : valueForMetadataEntry({ entry, environment: variant.name, metadata }),
+          : valueForMetadataEntry({
+            entry,
+            environment: variant.name,
+            metadata,
+            sourceKey,
+            privateValues,
+          }),
         metadata: entry,
       }
       if (!example && outputEntry.value === undefined) continue
@@ -401,17 +413,18 @@ function appExampleOutputPath(rootDir, app) {
   return path.join(appOutputDir(rootDir, app), '.env.example')
 }
 
-function manifestLayerForVariant({ baseDir, sourceKey, variant, manifest }) {
+function manifestLayerForVariant({ baseDir, sourceKey, variant, manifest, privateValues }) {
   return manifestEnvEntries({
     baseDir,
     manifest,
     sourceKey,
     environment: variant.name,
+    privateValues,
   })
 }
 
-function writeManifestValuesForVariant({ rootDir, baseDir, sourceKey, variant, manifest, dryRun }) {
-  const manifestLayer = manifestLayerForVariant({ baseDir, sourceKey, variant, manifest })
+function writeManifestValuesForVariant({ rootDir, baseDir, sourceKey, variant, manifest, privateValues, dryRun }) {
+  const manifestLayer = manifestLayerForVariant({ baseDir, sourceKey, variant, manifest, privateValues })
   if (!manifestLayer) return { handled: false, patches: [] }
 
   const outputPath = path.join(baseDir, variant.output)
@@ -451,12 +464,12 @@ function writeManifestValuesForVariant({ rootDir, baseDir, sourceKey, variant, m
   return { handled: true, patches }
 }
 
-function resolveLayer({ rootDir, baseDir, sourceKey, variant, manifest }) {
+function resolveLayer({ rootDir, baseDir, sourceKey, variant, manifest, privateValues }) {
   const examplePath = path.join(baseDir, '.env.example')
   const sourcePaths = variant.sources.map((source) => path.join(baseDir, source))
   const existingSourcePaths = sourcePaths.filter((sourcePath) => fs.existsSync(sourcePath))
   const metadata = loadEnvMetadata({ baseDir, manifest, sourceKey })
-  const manifestLayer = manifestLayerForVariant({ baseDir, sourceKey, variant, manifest })
+  const manifestLayer = manifestLayerForVariant({ baseDir, sourceKey, variant, manifest, privateValues })
   if (manifestLayer) {
     return {
       entries: manifestLayer.entries,
@@ -708,6 +721,7 @@ async function main() {
   const argv = process.argv.slice(2)
   const context = resolvePlatformContext(argv)
   const manifest = readManifest(context.manifestPath)
+  const privateValues = resolvePrivateValues({ manifest, repoRoot: context.repoRoot })
   const dryRun = hasFlag(argv, '--dry-run')
   const writeExamples = hasFlag(argv, '--write-examples') || hasFlag(argv, '--export-examples')
   const reconcileDelete = hasFlag(argv, '--reconcile-delete')
@@ -747,6 +761,7 @@ async function main() {
         app,
         variant: { name: 'example' },
         manifest,
+        privateValues,
         example: true,
       })
       const outputPath = appExampleOutputPath(context.repoRoot, app)
@@ -792,6 +807,7 @@ async function main() {
           sourceKey,
           variant,
           manifest,
+          privateValues,
           dryRun,
         })
         if (result.handled) {
@@ -846,6 +862,7 @@ async function main() {
           app,
           variant,
           manifest,
+          privateValues,
         })
         const mergedLines = entriesToLines(result.entries)
         const outputPath = path.join(appOutputDir(context.repoRoot, app), variant.output)
@@ -892,6 +909,7 @@ async function main() {
         sourceKey: sharedKey,
         variant,
         manifest,
+        privateValues,
       })
       const scopedSourceKey = appSourceKey(app)
       const scoped = scopedSourceKey === sharedKey
@@ -902,6 +920,7 @@ async function main() {
           sourceKey: scopedSourceKey,
           variant,
           manifest,
+          privateValues,
         })
 
       const sharedEntries = projectSharedLayer(

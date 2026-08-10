@@ -1494,6 +1494,171 @@ test('uses Vercel token from iac.json for project reconciliation', async () => {
   }
 })
 
+test('projects reconciles Vercel build settings from defaults and app provider overrides', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+  const fetchShimPath = path.join(root, 'fetch-shim.mjs')
+  const fetchLogPath = path.join(root, 'fetch-log.jsonl')
+
+  try {
+    const rawManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    rawManifest.providers.vercel.projectDefaults = {
+      framework: 'nextjs-default',
+      installCommand: 'pnpm install --frozen-lockfile',
+      buildCommand: 'pnpm build',
+      outputDirectory: '.next',
+    }
+    rawManifest.apps = [
+      {
+        key: 'app',
+        id: 'prj_app',
+        name: 'override-app',
+        framework: 'nextjs-app',
+        installCommand: 'npm ci',
+        buildCommand: 'npm run build',
+        outputDirectory: 'app-output',
+        providers: {
+          vercel: {
+            framework: 'nextjs-provider',
+            buildCommand: 'pnpm --filter app build',
+          },
+        },
+      },
+      {
+        key: 'defaults',
+        id: 'prj_defaults',
+        name: 'defaults-app',
+      },
+    ]
+    await writeFile(manifestPath, JSON.stringify(rawManifest, null, 2) + '\n')
+
+    await writeFile(
+      fetchShimPath,
+      [
+        "import fs from 'node:fs'",
+        "globalThis.fetch = async (url, options = {}) => {",
+        "  const parsed = new URL(String(url)); const pathname = parsed.pathname; const method = options.method || 'GET'",
+        "  fs.appendFileSync(process.env.FETCH_LOG_PATH, JSON.stringify({ pathname, method, body: options.body || '' }) + '\\n')",
+        "  if (pathname === '/v1/teams') return Response.json({ teams: [{ id: 'team_test', slug: 'example-team' }] })",
+        "  if (pathname === '/v9/projects') return Response.json({ projects: [{ id: 'prj_app', name: 'override-app' }, { id: 'prj_defaults', name: 'defaults-app' }] })",
+        "  if (pathname === '/v9/projects/prj_app' || pathname === '/v9/projects/prj_defaults') {",
+        "    if (method === 'PATCH') return Response.json({ ok: true })",
+        "    return Response.json({ rootDirectory: null, nodeVersion: null, enableAffectedProjectsDeployments: null, framework: 'old-framework', installCommand: 'old-install', buildCommand: 'old-build', outputDirectory: 'old-output' })",
+        "  }",
+        "  return new Response(JSON.stringify({ error: `unexpected ${method} ${pathname}` }), { status: 500 })",
+        "}",
+      ].join('\n') + '\n',
+    )
+
+    const result = await execNode(
+      [
+        '--import', fetchShimPath,
+        'dist/src/reconcile-project-settings.js',
+        '--repo-root', root,
+        '--projects=app,defaults',
+        '--apply',
+      ],
+      {
+        cwd: packageRoot,
+        env: {
+          ...process.env,
+          FETCH_LOG_PATH: fetchLogPath,
+          VERCEL_TOKEN: 'vercel_test_token',
+          VERCEL_API_THROTTLE_MS: '0',
+        },
+      },
+    )
+
+    assert.equal(result.code, 0, result.stderr)
+    const calls = (await readFile(fetchLogPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    const patches = new Map(
+      calls
+        .filter((call) => call.method === 'PATCH' && call.pathname.startsWith('/v9/projects/'))
+        .map((call) => [call.pathname, JSON.parse(call.body)]),
+    )
+    assert.deepEqual(patches.get('/v9/projects/prj_app'), {
+      framework: 'nextjs-provider',
+      installCommand: 'npm ci',
+      buildCommand: 'pnpm --filter app build',
+      outputDirectory: 'app-output',
+    })
+    assert.deepEqual(patches.get('/v9/projects/prj_defaults'), {
+      framework: 'nextjs-default',
+      installCommand: 'pnpm install --frozen-lockfile',
+      buildCommand: 'pnpm build',
+      outputDirectory: '.next',
+    })
+
+    const schema = JSON.parse(await readFile(path.join(packageRoot, 'schema', 'iac.schema.json'), 'utf8'))
+    for (const field of ['framework', 'installCommand', 'buildCommand', 'outputDirectory']) {
+      assert.ok(Object.hasOwn(schema.$defs.vercelProjectSettings.properties, field))
+      assert.ok(Object.hasOwn(schema.$defs.app.properties, field))
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('projects leaves undeclared Vercel build settings unmanaged', async () => {
+  const root = await createUnifiedFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+  const fetchShimPath = path.join(root, 'fetch-shim.mjs')
+  const fetchLogPath = path.join(root, 'fetch-log.jsonl')
+
+  try {
+    const rawManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    delete rawManifest.apps[0].framework
+    await writeFile(manifestPath, JSON.stringify(rawManifest, null, 2) + '\n')
+
+    await writeFile(
+      fetchShimPath,
+      [
+        "import fs from 'node:fs'",
+        "globalThis.fetch = async (url, options = {}) => {",
+        "  const parsed = new URL(String(url)); const pathname = parsed.pathname; const method = options.method || 'GET'",
+        "  fs.appendFileSync(process.env.FETCH_LOG_PATH, JSON.stringify({ pathname, method, body: options.body || '' }) + '\\n')",
+        "  if (pathname === '/v1/teams') return Response.json({ teams: [{ id: 'team_test', slug: 'example-team' }] })",
+        "  if (pathname === '/v9/projects') return Response.json({ projects: [{ id: 'prj_test', name: 'example-app' }] })",
+        "  if (pathname === '/v9/projects/prj_test') return Response.json({ rootDirectory: 'packages/app', nodeVersion: '24.x', enableAffectedProjectsDeployments: true, framework: 'nextjs', installCommand: 'pnpm install', buildCommand: 'pnpm build', outputDirectory: '.next' })",
+        "  return new Response(JSON.stringify({ error: `unexpected ${method} ${pathname}` }), { status: 500 })",
+        "}",
+      ].join('\n') + '\n',
+    )
+
+    const result = await execNode(
+      [
+        '--import', fetchShimPath,
+        'dist/src/reconcile-project-settings.js',
+        '--repo-root', root,
+        '--projects=app',
+        '--apply',
+      ],
+      {
+        cwd: packageRoot,
+        env: {
+          ...process.env,
+          FETCH_LOG_PATH: fetchLogPath,
+          VERCEL_TOKEN: 'vercel_test_token',
+          VERCEL_API_THROTTLE_MS: '0',
+        },
+      },
+    )
+
+    assert.equal(result.code, 0, result.stderr)
+    assert.match(result.stdout, /project settings already in sync/)
+    const calls = (await readFile(fetchLogPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    assert.equal(calls.some((call) => call.method === 'PATCH'), false)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('updates Vercel protection bypass automation when an exact note match exists', async () => {
   const root = await createUnifiedFixture()
   const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
@@ -1706,14 +1871,17 @@ test('syncs schema and schema documentation artifacts to a landing root', async 
     assert.equal(result.code, 0, result.stderr)
     assert.equal(result.stderr, '')
     assert.match(result.stdout, /public\/schemas\/iac\.schema\.json/)
+    assert.match(result.stdout, /public\/schemas\/iac\.private\.schema\.json/)
     assert.match(result.stdout, /public\/schemas\/iac-manifest\.schema-doc\.json/)
     assert.match(result.stdout, /public\/schemas\/iac-schema-docs\.schema\.json/)
 
     const iacSchema = JSON.parse(await readFile(path.join(root, 'public', 'schemas', 'iac.schema.json'), 'utf8'))
+    const privateSchema = JSON.parse(await readFile(path.join(root, 'public', 'schemas', 'iac.private.schema.json'), 'utf8'))
     const doc = JSON.parse(await readFile(path.join(root, 'public', 'schemas', 'iac-manifest.schema-doc.json'), 'utf8'))
     const docSchema = JSON.parse(await readFile(path.join(root, 'public', 'schemas', 'iac-schema-docs.schema.json'), 'utf8'))
 
     assert.equal(iacSchema.title, 'Vertile AI IaC Manifest')
+    assert.equal(privateSchema.title, 'Vertile AI IaC Private Values')
     assert.equal(doc.sourcePackage, '@vertile-ai/iac')
     assert.equal(doc.schemaPath, '/schemas/iac.schema.json')
     assert.equal(docSchema.title, 'Vertile AI IaC Schema Documentation')
@@ -1834,7 +2002,7 @@ test('reads GitHub Actions token from providers.github token field', async () =>
   }
 })
 
-test('GitHub Actions apply passes providers.github token to gh as primary auth', async () => {
+test('GitHub Actions apply gives process credentials precedence over providers.github token', async () => {
   const root = await createUnifiedFixture()
   const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
   const binDir = path.join(root, 'bin')
@@ -1901,7 +2069,7 @@ test('GitHub Actions apply passes providers.github token to gh as primary auth',
       .split('\n')
       .map((line) => JSON.parse(line))
     assert.ok(calls.length > 0)
-    assert.equal(calls.every((call) => call.token === 'ghp_manifest_token'), true)
+    assert.equal(calls.every((call) => call.token === 'ghp_env_token'), true)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
