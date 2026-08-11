@@ -14,7 +14,7 @@ tracked iac.json
   ├─ env metadata、routing、example 和非敏感 values
   └─ 声明哪些变量是 encrypted
 
-untracked .vertile-iac/private.json
+untracked .iac/private.json
   ├─ encrypted env values
   └─ 明确允许的 provider credentials
 ```
@@ -24,7 +24,7 @@ untracked .vertile-iac/private.json
 ### 所有权不变量
 
 1. `iac.json` 是唯一可审查意图来源，拥有结构、路由、资源和所有非敏感值。
-2. `.vertile-iac/private.json` 不是 partial manifest，只能为 `iac.json` 中已经声明为 `encrypted: true` 的变量提供值，或提供 adapter 明确允许的 provider credential。
+2. `.iac/private.json` 不是 partial manifest，只能为 `iac.json` 中已经声明为 `encrypted: true` 的变量提供值，或提供 adapter 明确允许的 provider credential。
 3. 私密文件不能新增变量、改变 package routing、覆盖非敏感值、改变 provider region、app、domain 或 resource。
 4. 同一个字段只有一个 owner；不存在任意 deep merge，也不存在“private wins everything”。
 5. 进程环境中的 credential 保持最高优先级：`process env > private file > legacy inline credential`。legacy inline 只用于迁移兼容。
@@ -74,7 +74,7 @@ untracked .vertile-iac/private.json
 }
 ```
 
-### Untracked `.vertile-iac/private.json`
+### Untracked `.iac/private.json`
 
 私密文件使用 keyed object，避免对 `variables[]` 做位置相关或任意数组合并。
 
@@ -84,7 +84,6 @@ untracked .vertile-iac/private.json
   "env": {
     "bff": {
       "AUTH_INTERNAL_SECRET": {
-        "local": "example-local-only-value",
         "staging": "<private>",
         "production": "<private>"
       }
@@ -128,7 +127,7 @@ tracked manifest + optional private values + process environment
        render / schema / plan      env sync / remote adapters
 ```
 
-外部 CLI interface 不因分离而增加必填参数。manifest version 2 固定启用 split mode，默认私密路径为 `.vertile-iac/private.json`；私密文件不存在时 public render 仍可工作，需要私密值的命令按现有 missing/blank 语义处理。manifest version 1 保持 legacy inline-values 读取兼容。
+外部 CLI interface 不因分离而增加必填参数。manifest version 2 固定启用 split mode，默认私密路径为 `.iac/private.json`；私密文件不存在时 public render 仍可工作。`sync-env --variants=local` 可把 encrypted entry 的 tracked `example` 作为安全 local fallback；其他 environment 必须存在精确 private value。manifest version 1 保持 legacy inline-values 读取兼容。
 
 resolved context 必须分别暴露：
 
@@ -184,13 +183,13 @@ resolved context 必须分别暴露：
 这是本工作的第一个真实消费者验收，不先迁移其他示例项目。
 
 1. 从当前 ignored version 1 `iac.json` 一次性提取 encrypted env values 和允许的 provider credentials。
-2. 生成安全的 tracked version 2 `iac.json` 和 mode `0600` 的 `.vertile-iac/private.json`。
-3. 在 Noop `.gitignore` 中精确忽略 `/.vertile-iac/private.json`。
+2. 生成安全的 tracked version 2 `iac.json` 和 mode `0600` 的 `.iac/private.json`。
+3. 在 Noop `.gitignore` 中精确忽略 `/.iac/private.json`。
 4. 比较迁移前后所有 package env 输出；非敏感内容必须一致，敏感内容只比较 hash/存在性，不打印值。
 5. 运行 Noop `env:sync`、`validate`、Vercel/GitHub dry-run 和现有最小相关测试。
 6. 证明 tracked `iac.json` 不包含从旧 manifest 收集到的任何敏感 sentinel。
-7. tracked `iac.json` 稳定后，删除 Noop 的整份-manifest 脱敏生成器和冗余 `iac.example.json`；本地安全默认值由一个小型 Noop-owned bootstrap adapter 写入 private 文件。
-8. Noop 私密备份如果继续需要，只备份 `.vertile-iac/private.json`；备份调度仍归 Noop，不进入通用 IAC。
+7. tracked `iac.json` 稳定后，删除 Noop 的整份-manifest 脱敏生成器和冗余 `iac.example.json`；本地安全默认值直接来自 encrypted entry 的 tracked `example`，不再生成第二份 example manifest 或 private template。
+8. Noop 私密备份如果继续需要，只备份 `.iac/private.json`；备份调度仍归 Noop，不进入通用 IAC。
 
 **Exit：** 新 clone 可以从 tracked `iac.json` 启动本地流程；真实 operator checkout 可以通过 private 文件生成与迁移前等价的 staging/production env；Git diff 中没有 secret。
 
@@ -243,7 +242,7 @@ resolved context 必须分别暴露：
 
 ### V1 boundary
 
-一个 version 2 consumer 能通过现有 CLI 自动发现 `.vertile-iac/private.json`，从 tracked metadata 与 private encrypted values 生成正确 env 输出；renderer 永远只消费 public manifest。Vercel/GitHub adapter 能从同一个 private seam 获取 allowlisted credential。Noop adaptation 延后。
+一个 version 2 consumer 能通过现有 CLI 自动发现 `.iac/private.json`，从 tracked metadata 与 private encrypted values 生成正确 env 输出；没有 private file 的贡献者可从 tracked encrypted examples 生成 local 输出，而 remote environments 仍 fail closed。renderer 永远只消费 public manifest。Vercel/GitHub adapter 能从同一个 private seam 获取 allowlisted credential。Noop adaptation 延后。
 
 ### Assertions
 
@@ -251,7 +250,8 @@ resolved context 必须分别暴露：
 - `PV-002`：version 2 tracked manifest 拒绝 inline encrypted `values`，并且有无 private 文件的 Terraform render 完全一致。
 - `PV-003`：private 文件拒绝未知 source、variable、environment、非 encrypted override 和非 allowlist provider 字段；错误不包含 secret sentinel。
 - `PV-004`：Git 内 tracked 或未 ignore 的 private 文件被拒绝；POSIX group/world-readable 文件被拒绝。
-- `PV-005`：现有 version 1 manifest 与 CLI 测试继续通过；version 1 inline credential 仅作为兼容 fallback。
+- `PV-005`：version 2 在没有 private 文件时只允许 `local` 使用 encrypted `example`；其他 environment 继续报告缺少精确 private value。
+- `PV-006`：现有 version 1 manifest 与 CLI 测试继续通过；version 1 inline credential 仅作为兼容 fallback。
 - `PC-001`：credential precedence 为 process environment、private file、version 1 inline credential、legacy token file；Vercel 与 GitHub mutating command 经过同一个 credential seam。
 - `VP-001`：现有 `projects` command reconciliation 覆盖 `framework`、`installCommand`、`buildCommand`、`outputDirectory`。
 - `DOC-001`：package 发布 version 2 manifest schema 与 private-values schema，README、manifest guide、positioning 和 roadmap 与实际 stable/experimental scope 一致。

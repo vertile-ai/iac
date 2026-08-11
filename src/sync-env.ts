@@ -314,7 +314,18 @@ function packageRefForPackage(entry, packageConfig) {
 
 function valueForMetadataEntry({ entry, environment, metadata, sourceKey, privateValues }) {
   if (privateValues?.version === 2 && entry.encrypted) {
-    return privateValues.getEnvValue({ sourceKey, key: entry.key, environment })
+    const value = privateValues.getEnvValue({
+      sourceKey,
+      key: entry.key,
+      environment,
+      example: entry.example,
+    })
+    if (value === undefined) {
+      throw new Error(
+        `${metadataDisplayPath(metadata, process.cwd())} metadata for ${entry.key} must define a private value for ${environment}.`,
+      )
+    }
+    return value
   }
 
   if (!entry.valuesConfigured) return undefined
@@ -420,6 +431,7 @@ function manifestLayerForVariant({ baseDir, sourceKey, variant, manifest, privat
     sourceKey,
     environment: variant.name,
     privateValues,
+    requireEncryptedValues: true,
   })
 }
 

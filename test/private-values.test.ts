@@ -45,7 +45,7 @@ async function writeVersionTwoFixture({ privateValues = null } = {}) {
   await writeFile(path.join(root, 'package.json'), '{}\n')
   await writeFile(
     path.join(root, '.gitignore'),
-    '/.vertile-iac/private.json\npackages/web/.env.*\n',
+    '/.iac/private.json\npackages/web/.env.*\n',
   )
   await writeFile(
     path.join(root, 'infrastructure', 'iac', 'iac.json'),
@@ -91,7 +91,7 @@ async function writeVersionTwoFixture({ privateValues = null } = {}) {
   assert.equal(initialized, true)
 
   if (privateValues) {
-    const privatePath = path.join(root, '.vertile-iac', 'private.json')
+    const privatePath = path.join(root, '.iac', 'private.json')
     await mkdir(path.dirname(privatePath), { recursive: true })
     await writeFile(privatePath, JSON.stringify(privateValues, null, 2) + '\n')
     await chmod(privatePath, 0o600)
@@ -132,6 +132,58 @@ test('version 2 sync-env resolves encrypted metadata values from the default pri
   }
 })
 
+test('version 2 sync-env uses an encrypted example as the local fallback', async () => {
+  const root = await writeVersionTwoFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+  const localDatabaseUrl = 'postgresql://postgres:postgres@localhost:5432/app'
+
+  try {
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.env.metadata.web.variables[1].example = localDatabaseUrl
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+
+    const result = await execNode([
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
+      'sync-env',
+      '--repo-root', root,
+      '--variants=local',
+    ])
+
+    assert.equal(result.code, 0, result.stderr)
+    assert.match(
+      await readFile(path.join(root, 'packages', 'web', '.env.local'), 'utf8'),
+      new RegExp(`DATABASE_URL=${JSON.stringify(localDatabaseUrl)}`),
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('version 2 sync-env rejects a missing remote private value instead of using the example', async () => {
+  const root = await writeVersionTwoFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+  const localOnlyExample = 'local-example-must-not-reach-production'
+
+  try {
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.env.metadata.web.variables[1].example = localOnlyExample
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+
+    const result = await execNode([
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
+      'sync-env',
+      '--repo-root', root,
+      '--variants=production',
+    ])
+
+    assert.equal(result.code, 1)
+    assert.match(result.stderr, /DATABASE_URL.*private value.*production/i)
+    assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(localOnlyExample))
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('version 2 rejects encrypted inline values without exposing them', async () => {
   const root = await writeVersionTwoFixture()
   const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
@@ -157,7 +209,7 @@ test('version 2 rejects encrypted inline values without exposing them', async ()
 
 test('version 2 Terraform rendering is identical with and without private values', async () => {
   const root = await writeVersionTwoFixture()
-  const privatePath = path.join(root, '.vertile-iac', 'private.json')
+  const privatePath = path.join(root, '.iac', 'private.json')
 
   try {
     const withoutPrivate = await execNode([
@@ -347,7 +399,7 @@ test('version 2 rejects a private values file tracked by Git', async () => {
   })
 
   try {
-    const staged = await execCommand('git', ['add', '--force', '.vertile-iac/private.json'], root)
+    const staged = await execCommand('git', ['add', '--force', '.iac/private.json'], root)
     assert.equal(staged.code, 0, staged.stderr)
 
     const result = await execNode([
@@ -384,8 +436,8 @@ test('version 2 rejects a private values file that Git does not ignore', async (
     ])
 
     assert.equal(result.code, 1)
-    assert.match(result.stderr, /private values file is not Git-ignored: \.vertile-iac\/private\.json/i)
-    assert.match(result.stderr, /Add "\/.vertile-iac\/private\.json" to \.gitignore/i)
+    assert.match(result.stderr, /private values file is not Git-ignored: \.iac\/private\.json/i)
+    assert.match(result.stderr, /Add "\/.iac\/private\.json" to \.gitignore/i)
     assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(secretSentinel))
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -399,7 +451,7 @@ test('version 2 rejects a group-readable private values file on POSIX', { skip: 
       env: { web: { DATABASE_URL: { local: secretSentinel } } },
     },
   })
-  const privatePath = path.join(root, '.vertile-iac', 'private.json')
+  const privatePath = path.join(root, '.iac', 'private.json')
 
   try {
     await chmod(privatePath, 0o640)
@@ -448,7 +500,7 @@ test('version 2 validate accepts encrypted metadata resolved from private values
   }
 })
 
-test('version 2 validate rejects encrypted metadata without a private value', async () => {
+test('version 2 validate accepts the local encrypted example but rejects a missing remote private value', async () => {
   const root = await writeVersionTwoFixture()
 
   try {
@@ -458,7 +510,8 @@ test('version 2 validate rejects encrypted metadata without a private value', as
     ])
 
     assert.equal(result.code, 1)
-    assert.match(result.stderr, /DATABASE_URL.*must define value, values\.default, or values\.local\./)
+    assert.match(result.stderr, /DATABASE_URL.*must define value, values\.default, or values\.production\./)
+    assert.doesNotMatch(result.stderr, /DATABASE_URL.*values\.local\./)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -495,6 +548,59 @@ test('version 2 sync-env injects private values through the non-direct metadata 
     assert.equal(result.code, 0, result.stderr)
     assert.match(await readFile(path.join(root, 'packages', 'web', '.env.local'), 'utf8'), new RegExp(`DATABASE_URL=${JSON.stringify(secretSentinel)}`))
     assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(secretSentinel))
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('version 2 sync-env uses the local encrypted example through the non-direct metadata path', async () => {
+  const root = await writeVersionTwoFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+  const localDatabaseUrl = 'postgresql://postgres:postgres@localhost:5432/non-direct'
+
+  try {
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.env.sync = { sharedKey: 'web' }
+    manifest.env.metadata.web.variables[1].example = localDatabaseUrl
+    for (const variable of manifest.env.metadata.web.variables) delete variable.packages
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+
+    const result = await execNode([
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
+      'sync-env',
+      '--repo-root', root,
+      '--variants=local',
+    ])
+
+    assert.equal(result.code, 0, result.stderr)
+    assert.match(
+      await readFile(path.join(root, 'packages', 'web', '.env.local'), 'utf8'),
+      new RegExp(`DATABASE_URL=${JSON.stringify(localDatabaseUrl)}`),
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('version 2 sync-env rejects a missing remote private value through the non-direct metadata path', async () => {
+  const root = await writeVersionTwoFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+
+  try {
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.env.sync = { sharedKey: 'web' }
+    for (const variable of manifest.env.metadata.web.variables) delete variable.packages
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+
+    const result = await execNode([
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
+      'sync-env',
+      '--repo-root', root,
+      '--variants=production',
+    ])
+
+    assert.equal(result.code, 1)
+    assert.match(result.stderr, /DATABASE_URL.*private value.*production/i)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -751,7 +857,7 @@ test('version 2 Vercel commands enforce private-file safety through the shared r
       )
 
       assert.equal(result.code, 1)
-      assert.match(result.stderr, /private values file is not Git-ignored: \.vertile-iac\/private\.json/i)
+      assert.match(result.stderr, /private values file is not Git-ignored: \.iac\/private\.json/i)
       assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(secretSentinel))
     }
   } finally {

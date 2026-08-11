@@ -179,7 +179,11 @@ entry declares its key, example, routing, and `encrypted: true` in `iac.json`,
 but must not define inline `value` or `values`. Tracked Vercel and GitHub
 credentials, and tracked Vercel bypass secrets, are rejected in version 2.
 
-Private values default to `.vertile-iac/private.json`. It is a separate,
+For `sync-env --variants=local`, an encrypted entry's tracked `example` is the
+safe local fallback when no private local value exists. Other environments
+never use `example` as a runtime value and require an exact private value.
+
+Private values default to `.iac/private.json`. It is a separate,
 strictly allowlisted document, not an arbitrary overlay of `iac.json`:
 
 ```json
@@ -206,8 +210,9 @@ strictly allowlisted document, not an arbitrary overlay of `iac.json`:
 }
 ```
 
-The env shape is `env.<source>.<variable>.<environment>`. The only private
-provider fields are `providers.vercel.token`, `providers.vercel.apiKey`,
+The env shape is `env.<source>.<variable>.<environment>`. An exact private
+value takes precedence over the local example. The only private provider fields
+are `providers.vercel.token`, `providers.vercel.apiKey`,
 `providers.vercel.protectionBypassForAutomation.ensure.secret`, and
 `providers.github.token`. The public version 2 Vercel `ensure` configuration
 contains its `note`; the private secret is injected only into the local Vercel

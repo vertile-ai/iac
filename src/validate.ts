@@ -71,7 +71,12 @@ function directOutputs(manifest, sourceRoot, sourceKeys) {
 
 function configuredValueFor(entry, environment, { privateValues, sourceKey }: any = {}) {
   if (privateValues?.version === 2 && entry.encrypted) {
-    return privateValues.getEnvValue({ sourceKey, key: entry.key, environment }) !== undefined
+    return privateValues.getEnvValue({
+      sourceKey,
+      key: entry.key,
+      environment,
+      example: entry.example,
+    }) !== undefined
   }
 
   return entry.value !== undefined

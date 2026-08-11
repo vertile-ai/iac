@@ -12,7 +12,7 @@ function asObject(value: any): any {
 }
 
 export function defaultPrivateValuesPath(repoRoot) {
-  return path.join(repoRoot, '.vertile-iac', 'private.json')
+  return path.join(repoRoot, '.iac', 'private.json')
 }
 
 function assertAllowedPrivateProviderFields(privateManifest) {
@@ -165,14 +165,18 @@ function resolveProviderCredential({ manifest, privateManifest, env, provider, f
   return undefined
 }
 
+function localExampleValue({ environment, example }) {
+  return environment === 'local' && typeof example === 'string' ? example : undefined
+}
+
 export function resolvePrivateValues({ manifest, repoRoot, env = process.env }) {
   const filePath = defaultPrivateValuesPath(repoRoot)
   const empty = {
     publicManifest: manifest,
     filePath,
     version: manifest.version,
-    getEnvValue() {
-      return undefined
+    getEnvValue(request) {
+      return manifest.version === 2 ? localExampleValue(request) : undefined
     },
     getProviderCredential({ provider, field }) {
       return resolveProviderCredential({ manifest, env, provider, field })
@@ -229,9 +233,11 @@ export function resolvePrivateValues({ manifest, repoRoot, env = process.env }) 
 
   return {
     ...empty,
-    getEnvValue({ sourceKey, key, environment }) {
+    getEnvValue({ sourceKey, key, environment, example }) {
       const value = privateEnv?.[sourceKey]?.[key]?.[environment]
-      return typeof value === 'string' ? value : undefined
+      return typeof value === 'string'
+        ? value
+        : localExampleValue({ environment, example })
     },
     getProviderCredential({ provider, field }) {
       return resolveProviderCredential({ manifest, privateManifest, env, provider, field })

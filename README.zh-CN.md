@@ -126,7 +126,9 @@ vertile-iac github-actions --env=staging
 
 Version 2 使用严格分离：被追踪的 `iac.json` 只保存基础设施意图、env metadata 和非 secret 的 env 值。encrypted metadata 在 `iac.json` 中声明 key、example、路由以及 `encrypted: true`，但不能定义 inline `value` 或 `values`。Version 2 会拒绝被追踪的 Vercel/GitHub 凭证和 Vercel bypass secret。
 
-私有值默认位于 `.vertile-iac/private.json`。它是独立且严格 allowlisted 的文档，而不是可以任意覆盖 `iac.json` 的 overlay：
+执行 `sync-env --variants=local` 时，如果没有 private local value，encrypted entry 的 tracked `example` 会作为安全的 local fallback。其他环境绝不会把 `example` 当作 runtime value，必须提供精确的 private value。
+
+私有值默认位于 `.iac/private.json`。它是独立且严格 allowlisted 的文档，而不是可以任意覆盖 `iac.json` 的 overlay：
 
 ```json
 {
@@ -152,7 +154,7 @@ Version 2 使用严格分离：被追踪的 `iac.json` 只保存基础设施意�
 }
 ```
 
-env 的 shape 为 `env.<source>.<variable>.<environment>`。允许的 private provider 字段只有 `providers.vercel.token`、`providers.vercel.apiKey`、`providers.vercel.protectionBypassForAutomation.ensure.secret` 和 `providers.github.token`。公开的 version 2 Vercel `ensure` 配置只保存 `note`；私有 secret 只会注入本地发出的 Vercel projects request。
+env 的 shape 为 `env.<source>.<variable>.<environment>`。精确 private value 的优先级高于 local example。允许的 private provider 字段只有 `providers.vercel.token`、`providers.vercel.apiKey`、`providers.vercel.protectionBypassForAutomation.ensure.secret` 和 `providers.github.token`。公开的 version 2 Vercel `ensure` 配置只保存 `note`；私有 secret 只会注入本地发出的 Vercel projects request。
 
 在 Git worktree 中，private file 必须被 ignored 且不能 tracked。POSIX 上请使用 `0600`；group 或 world 可读会被拒绝。不要把 private 值写入 manifest 或日志。Terraform render 故意不加载或消费 private document，因此无论 private file 是否存在，render output 都相同。
 

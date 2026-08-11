@@ -113,7 +113,7 @@
       "summary": "Version 2 keeps tracked intent in iac.json and reads only an allowlisted private document for encrypted env values and provider credentials.",
       "fields": [
         {
-          "path": ".vertile-iac/private.json",
+          "path": ".iac/private.json",
           "type": "private-values document",
           "required": false,
           "description": "Default private path. The document is not an arbitrary iac.json overlay and must use private document version 1."
@@ -416,7 +416,7 @@
           "path": "env.metadata.<source>.variables[]",
           "type": "envVariable[]",
           "required": false,
-          "description": "Structured metadata for env keys, including example, optional .env.example descriptions, encrypted, browser, package routing, and environment include/exclude rules. Version 2 encrypted entries keep real values in private.json rather than tracked value or values fields."
+          "description": "Structured metadata for env keys, including example, optional .env.example descriptions, encrypted, browser, package routing, and environment include/exclude rules. Version 2 encrypted entries keep real values in private.json rather than tracked value or values fields; sync-env may use example only as the local fallback."
         }
       ]
     }

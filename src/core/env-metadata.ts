@@ -301,7 +301,14 @@ export function envExampleEntries({ baseDir, manifest, sourceKey = '' }) {
     }))
 }
 
-export function manifestEnvEntries({ baseDir, manifest, sourceKey = '', environment, privateValues }: any) {
+export function manifestEnvEntries({
+  baseDir,
+  manifest,
+  sourceKey = '',
+  environment,
+  privateValues,
+  requireEncryptedValues = false,
+}: any) {
   const metadata = loadEnvMetadata({ baseDir, manifest, sourceKey })
   if (!metadata.required) return null
 
@@ -317,8 +324,16 @@ export function manifestEnvEntries({ baseDir, manifest, sourceKey = '', environm
         sourceKey: metadataSourceKey(baseDir, sourceKey),
         key: entry.key,
         environment,
+        example: entry.example,
       })
-      if (value === undefined) continue
+      if (value === undefined) {
+        if (requireEncryptedValues) {
+          throw new Error(
+            `${metadataLabel(metadata)} metadata for ${entry.key} must define a private value for ${environment}.`,
+          )
+        }
+        continue
+      }
       entries.push({
         key: entry.key,
         value,

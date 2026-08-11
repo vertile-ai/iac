@@ -85,7 +85,12 @@ infrastructure intent, env metadata, and non-secret env values. Encrypted env
 metadata must not define inline `value` or `values`, and tracked Vercel/GitHub
 credentials or Vercel automation-bypass secrets are rejected.
 
-Private values default to `.vertile-iac/private.json`. This is a strict,
+For `sync-env --variants=local`, an encrypted entry's tracked `example` is the
+safe local fallback when no private local value exists. Staging, production,
+and every other environment require an exact private value and never consume
+the example as runtime configuration.
+
+Private values default to `.iac/private.json`. This is a strict,
 allowlisted document rather than an arbitrary manifest overlay:
 
 ```json
@@ -110,13 +115,14 @@ allowlisted document rather than an arbitrary manifest overlay:
 }
 ```
 
-The env shape is `env.<source>.<variable>.<environment>`. Private env entries
-may supply only encrypted metadata keys declared by the public manifest. The
-provider allowlist is `providers.vercel.token`, `providers.vercel.apiKey`,
+The env shape is `env.<source>.<variable>.<environment>`. An exact private
+value takes precedence over the local example. Private env entries may supply
+only encrypted metadata keys declared by the public manifest. The provider
+allowlist is `providers.vercel.token`, `providers.vercel.apiKey`,
 `providers.vercel.protectionBypassForAutomation.ensure.secret`, and
 `providers.github.token`.
 
-In a Git worktree, `.vertile-iac/private.json` must be ignored and untracked.
+In a Git worktree, `.iac/private.json` must be ignored and untracked.
 On POSIX, use mode `0600`; group- or world-readable files are rejected. The
 Terraform renderer never reads this file, so private values cannot alter
 rendered Terraform.
@@ -319,7 +325,7 @@ The JSON envelope is stable:
 ## Vercel API Credentials
 
 For version 2, Vercel API credentials belong in the process environment or
-`.vertile-iac/private.json`, not in tracked `iac.json`. Resolution is process
+`.iac/private.json`, not in tracked `iac.json`. Resolution is process
 `VERCEL_TOKEN`/`VERCEL_API_KEY`, then private `providers.vercel.token` or
 `providers.vercel.apiKey`, then version 1 inline values, then the legacy token
 file. The private-document checks apply to every Vercel command that resolves a
