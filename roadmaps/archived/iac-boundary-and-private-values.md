@@ -1,6 +1,7 @@
-# IAC 边界收敛与私密值分离
+# IAC 边界收敛与私密值分离（已归档）
 
-**状态：** Active  
+**状态：** Superseded by
+[`deployment-manifest-and-credential-materialization.md`](../deployment-manifest-and-credential-materialization.md)。  
 **目标：** 让 `iac.json` 成为可追踪、可审查的唯一基础设施与环境意图来源，同时把敏感值放入严格受限、不可追踪的私密值文件；深化已经被真实项目证明的 IAC interface，不继续抽象 Terraform resource lifecycle。
 
 ## 一、核心决定
