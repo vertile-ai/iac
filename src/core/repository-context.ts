@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
+import { readManifest } from './manifest.js'
 import { defaultPrivateValuesPath } from './private-values.js'
 
 function commandOutput(command, args, cwd) {
@@ -23,25 +24,33 @@ function authenticatedGithubUser(repoRoot) {
   return user
 }
 
-export function resolveRepositoryContext({ repoRoot, stack, environment }) {
+export function inferRepositoryIdentity(repoRoot) {
   const remote = commandOutput('git', ['config', '--get', 'remote.origin.url'], repoRoot)
-  const repository: any = githubRepositoryFromRemote(remote) || {
+  return githubRepositoryFromRemote(remote) || {
     kind: 'local',
     user: authenticatedGithubUser(repoRoot),
     repo: path.basename(repoRoot),
   }
-  const identityPath = repository.kind === 'github'
-    ? ['github', repository.owner, repository.repo]
-    : ['local', repository.user, repository.repo]
+}
+
+export function resolveRepositoryContext({ repoRoot, manifestPath, stack, environment }) {
+  const manifestRef = path.resolve(manifestPath || path.join(repoRoot, 'iac.json'))
+  const manifest = readManifest(manifestRef)
+  const [owner, repo] = manifest.repository.split('/')
+  const repository = { kind: 'github', owner, repo }
+  const projectRoot = path.dirname(manifestRef)
 
   return {
     repository,
-    privateValuesRef: defaultPrivateValuesPath(repoRoot),
+    manifestRef,
+    privateValuesRef: defaultPrivateValuesPath(projectRoot),
     terraformStateDirectory: path.join(
       os.homedir(),
       '.iac',
       'repositories',
-      ...identityPath,
+      'github',
+      owner,
+      repo,
       'terraform',
       stack,
       environment,

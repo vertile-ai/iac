@@ -41,6 +41,26 @@ Install the CLI in the product repository:
 pnpm add -D @vertile-ai/iac
 ```
 
+Initialize from the repository root:
+
+```bash
+pnpm exec vertile-iac init --repo-root .
+```
+
+`init` creates `iac.json`, `.iac/private.json`, the required root `.gitignore`
+entry, and `~/.iac/repositories/github/<owner>/<repo>/`. If a version 2
+`iac.json` already exists, use the second entry point:
+
+```bash
+pnpm exec vertile-iac scaffold --repo-root .
+```
+
+`scaffold` keeps the manifest byte-for-byte, derives encrypted env keys and
+declared provider credentials into the missing private file, creates the
+home-level repository root, and creates declared
+`terraform/<stack>/<environment>/` directories. Existing private content is
+never overwritten; on POSIX its mode is enforced as `0600`.
+
 ## Global deployment context
 
 Install the CLI globally when deployment tooling needs the same repository
@@ -51,16 +71,17 @@ npm install -g @vertile-ai/iac
 vertile-iac context --repo-root . --stack=platform --environment=staging
 ```
 
-The command is read-only. It identifies GitHub repositories by `owner/repo`,
-uses `local/<authenticated GitHub user>/<repository folder>` outside GitHub,
-returns the owning project's `.iac/private.json` only as a path reference, and
-returns the durable Terraform directory:
+The command is read-only. It takes the canonical GitHub `owner/repo` identity
+from `iac.json.repository`, returns the owning project's `.iac/private.json`
+only as a path reference, and returns the durable Terraform directory. Git
+remote and authenticated GitHub user discovery are used only by `init` to write
+the initial manifest identity:
 
 ```text
 ~/.iac/repositories/github/<owner>/<repo>/terraform/<stack>/<environment>
 ```
 
-Create `iac.json` in the repository root (the CLI also accepts the legacy
+Edit the generated root `iac.json` (the CLI also accepts the legacy
 `infrastructure/iac/iac.json` location), then render before you plan or apply:
 
 ```bash

@@ -25,8 +25,13 @@ async function main() {
   const argv = process.argv.slice(2)
   const repoRootArg = readOption(argv, '--repo-root')
   const repoRoot = repoRootArg ? path.resolve(repoRootArg) : findProjectRoot(process.cwd())
+  const manifestArg = readOption(argv, '--iac-manifest') || process.env.VERTILE_IAC_MANIFEST
+  const manifestPath = manifestArg
+    ? path.resolve(repoRoot, manifestArg)
+    : path.join(repoRoot, 'iac.json')
   const context = resolveRepositoryContext({
     repoRoot,
+    manifestPath,
     stack: safePathSegment(argv, '--stack'),
     environment: safePathSegment(argv, '--environment'),
   })

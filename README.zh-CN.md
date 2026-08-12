@@ -26,7 +26,26 @@
 pnpm add -D @vertile-ai/iac
 ```
 
-在仓库根目录新建 `iac.json`（也兼容旧位置 `infrastructure/iac/iac.json`），先渲染，再 plan 或 apply：
+在仓库根目录初始化：
+
+```bash
+pnpm exec vertile-iac init --repo-root .
+```
+
+`init` 会创建 `iac.json`、`.iac/private.json`、root `.gitignore` 中必需的
+忽略项，以及 `~/.iac/repositories/github/<owner>/<repo>/`。如果已经有 version 2
+`iac.json`，使用第二个入口：
+
+```bash
+pnpm exec vertile-iac scaffold --repo-root .
+```
+
+`scaffold` 保持 manifest 原字节不变，根据 encrypted env metadata 和已声明
+provider 生成缺失的 private scaffold，同时创建 home-level repository root 和
+manifest 已声明的 `terraform/<stack>/<environment>/` 目录。已有 private 内容不会
+被覆盖；POSIX 下权限固定为 `0600`。
+
+编辑生成的 root `iac.json`（也兼容旧位置 `infrastructure/iac/iac.json`），先渲染，再 plan 或 apply：
 
 ```bash
 pnpm exec vertile-iac render --target=all --env=production
@@ -44,7 +63,7 @@ pnpm exec vertile-iac apply --target=aws --deployment=prod --yes
 {
   "$schema": "./node_modules/@vertile-ai/iac/schema/iac.schema.json",
   "version": 2,
-  "project": { "name": "acme" },
+  "repository": "acme/acme",
   "environments": {
     "development": { "files": [".env.development"] },
     "staging": { "files": [".env.staging"] },
@@ -154,7 +173,7 @@ Version 2 使用严格分离：被追踪的 `iac.json` 只保存基础设施意�
 }
 ```
 
-env 的 shape 为 `env.<source>.<variable>.<environment>`。精确 private value 的优先级高于 local example。允许的 private provider 字段只有 `providers.vercel.token`、`providers.vercel.apiKey`、`providers.vercel.protectionBypassForAutomation.ensure.secret` 和 `providers.github.token`。公开的 version 2 Vercel `ensure` 配置只保存 `note`；私有 secret 只会注入本地发出的 Vercel projects request。
+env 的 shape 为 `env.<source>.<variable>.<environment>`。精确 private value 的优先级高于 local example。允许的 private provider 字段只有 `providers.vercel.token`、`providers.vercel.apiKey`、`providers.vercel.protectionBypassForAutomation.ensure.secret`、`providers.github.token`、`providers.digitalocean.token` 和 `providers.cloudflare.apiToken`。公开的 version 2 Vercel `ensure` 配置只保存 `note`；私有 secret 只会注入本地发出的 Vercel projects request。
 
 在 Git worktree 中，private file 必须被 ignored 且不能 tracked。POSIX 上请使用 `0600`；group 或 world 可读会被拒绝。不要把 private 值写入 manifest 或日志。Terraform render 故意不加载或消费 private document，因此无论 private file 是否存在，render output 都相同。
 

@@ -132,6 +132,39 @@ test('version 2 sync-env resolves encrypted metadata values from the default pri
   }
 })
 
+test('version 2 resolves the runner-provided canonical private reference outside its checkout', async () => {
+  const canonicalRoot = await writeVersionTwoFixture({
+    privateValues: {
+      version: 1,
+      env: { web: { DATABASE_URL: { local: secretSentinel } } },
+    },
+  })
+  const checkoutRoot = await mkdtemp(path.join(tmpdir(), 'vertile-iac-checkout-'))
+
+  try {
+    const manifest = readManifest(path.join(canonicalRoot, 'infrastructure', 'iac', 'iac.json'))
+    const privateValues = resolvePrivateValues({
+      manifest,
+      repoRoot: checkoutRoot,
+      env: {
+        VERTILE_IAC_PRIVATE_VALUES: path.join(canonicalRoot, '.iac', 'private.json'),
+      },
+    })
+
+    assert.equal(
+      privateValues.getEnvValue({
+        sourceKey: 'web',
+        key: 'DATABASE_URL',
+        environment: 'local',
+      }),
+      secretSentinel,
+    )
+  } finally {
+    await rm(canonicalRoot, { recursive: true, force: true })
+    await rm(checkoutRoot, { recursive: true, force: true })
+  }
+})
+
 test('version 2 sync-env uses an encrypted example as the local fallback', async () => {
   const root = await writeVersionTwoFixture()
   const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')

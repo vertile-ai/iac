@@ -24,9 +24,16 @@ function run(command, args, options = {}) {
   })
 }
 
-async function createRepository({ remote } = {}) {
+async function createRepository({ remote, repository = 'acme/widget' } = {}) {
   const root = await mkdtemp(path.join(tmpdir(), 'vertile-iac-context-'))
   await writeFile(path.join(root, 'package.json'), '{}\n')
+  await writeFile(path.join(root, 'iac.json'), JSON.stringify({
+    version: 2,
+    repository,
+    environments: ['staging', 'production'],
+    providers: {},
+    apps: [],
+  }))
   await writeFile(path.join(root, '.gitignore'), '/.iac/private.json\n')
   await mkdir(path.join(root, '.iac'), { recursive: true })
   await writeFile(path.join(root, '.iac', 'private.json'), '{"version":1,"secret":"must-not-be-read"}\n')
@@ -36,8 +43,8 @@ async function createRepository({ remote } = {}) {
   return root
 }
 
-test('context uses the GitHub owner and repo as canonical identity, never project.name', async () => {
-  const root = await createRepository({ remote: 'git@github.com:acme/widget.git' })
+test('context uses iac.json repository as canonical identity even when the remote differs', async () => {
+  const root = await createRepository({ remote: 'git@github.com:fork-owner/fork-name.git' })
   const home = await mkdtemp(path.join(tmpdir(), 'vertile-iac-home-'))
 
   try {
@@ -52,6 +59,7 @@ test('context uses the GitHub owner and repo as canonical identity, never projec
     assert.equal(result.code, 0, result.stderr)
     assert.deepEqual(JSON.parse(result.stdout), {
       repository: { kind: 'github', owner: 'acme', repo: 'widget' },
+      manifestRef: path.join(root, 'iac.json'),
       privateValuesRef: path.join(root, '.iac', 'private.json'),
       terraformStateDirectory: path.join(home, '.iac', 'repositories', 'github', 'acme', 'widget', 'terraform', 'platform', 'staging'),
     })
@@ -61,8 +69,8 @@ test('context uses the GitHub owner and repo as canonical identity, never projec
   }
 })
 
-test('context falls back to local GitHub-user and repository-folder identity outside GitHub', async () => {
-  const root = await createRepository()
+test('context uses iac.json repository without a remote or GitHub CLI', async () => {
+  const root = await createRepository({ repository: 'local-user/local-project' })
   const home = await mkdtemp(path.join(tmpdir(), 'vertile-iac-home-'))
   const bin = await mkdtemp(path.join(tmpdir(), 'vertile-iac-bin-'))
   const ghPath = path.join(bin, 'gh')
@@ -84,13 +92,13 @@ test('context falls back to local GitHub-user and repository-folder identity out
     assert.equal(result.code, 0, result.stderr)
     const context = JSON.parse(result.stdout)
     assert.deepEqual(context.repository, {
-      kind: 'local',
-      user: 'local-user',
-      repo: path.basename(root),
+      kind: 'github',
+      owner: 'local-user',
+      repo: 'local-project',
     })
     assert.equal(
       context.terraformStateDirectory,
-      path.join(home, '.iac', 'repositories', 'local', 'local-user', path.basename(root), 'terraform', 'platform', 'production'),
+      path.join(home, '.iac', 'repositories', 'github', 'local-user', 'local-project', 'terraform', 'platform', 'production'),
     )
   } finally {
     await rm(root, { recursive: true, force: true })

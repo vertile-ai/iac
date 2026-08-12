@@ -65,6 +65,7 @@ export function resolveIacContext(argv: string[], defaults: any = {}) {
   const projectSettingsArg = readOption(argv, '--project-settings')
   const projectDomainsArg = readOption(argv, '--project-domains')
   const iacManifestArg = readOption(argv, '--iac-manifest')
+  const referencedManifest = process.env.VERTILE_IAC_MANIFEST
 
   const autoCreateKeys = new Set([
     ...splitList(defaults.autoCreateKeys || ''),
@@ -88,7 +89,7 @@ export function resolveIacContext(argv: string[], defaults: any = {}) {
     ),
     iacManifestPath: resolveFrom(
       repoRoot,
-      iacManifestArg || defaultIacManifestPath(repoRoot, iacDir, Boolean(iacDirArg || defaults.iacDir)),
+      iacManifestArg || referencedManifest || defaultIacManifestPath(repoRoot, iacDir, Boolean(iacDirArg || defaults.iacDir)),
     ),
     tokenFilePath: resolveFrom(
       repoRoot,

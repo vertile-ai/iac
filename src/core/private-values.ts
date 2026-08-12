@@ -176,7 +176,13 @@ function localExampleValue({ environment, example }) {
 }
 
 export function resolvePrivateValues({ manifest, repoRoot, env = process.env }) {
-  const filePath = defaultPrivateValuesPath(repoRoot)
+  const referencedPrivateValues = env?.VERTILE_IAC_PRIVATE_VALUES
+  const filePath = typeof referencedPrivateValues === 'string' && referencedPrivateValues.trim()
+    ? path.resolve(referencedPrivateValues)
+    : defaultPrivateValuesPath(repoRoot)
+  const privateRepoRoot = filePath === defaultPrivateValuesPath(repoRoot)
+    ? repoRoot
+    : path.dirname(path.dirname(filePath))
   const empty = {
     publicManifest: manifest,
     filePath,
@@ -191,7 +197,7 @@ export function resolvePrivateValues({ manifest, repoRoot, env = process.env }) 
 
   if (manifest.version !== 2 || !fs.existsSync(filePath)) return empty
 
-  assertPrivateFileIsNotTracked({ repoRoot, filePath })
+  assertPrivateFileIsNotTracked({ repoRoot: privateRepoRoot, filePath })
   assertPrivateFileMode(filePath)
 
   const privateManifest = asObject(JSON.parse(fs.readFileSync(filePath, 'utf8')))

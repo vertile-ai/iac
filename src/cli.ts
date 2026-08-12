@@ -11,6 +11,8 @@ const args = process.argv.slice(3)
 const root = path.dirname(fileURLToPath(import.meta.url))
 
 const commands = new Map([
+  ['init', path.join(root, 'init.js')],
+  ['scaffold', path.join(root, 'scaffold.js')],
   ['render', path.join(root, 'render.js')],
   ['context', path.join(root, 'context.js')],
   ['plan', path.join(root, 'plan.js')],
@@ -28,6 +30,8 @@ function printHelp() {
   console.log(`vertile-iac
 
 Usage:
+  vertile-iac init [--repo-root <path>]
+  vertile-iac scaffold [--repo-root <path>]
   vertile-iac render --target=vercel|aws|digitalocean|all --env=<name> [options]
   vertile-iac context --stack=<name> --environment=<name> [options]
   vertile-iac plan --target=vercel|aws|digitalocean|all --env=<name> [options]
@@ -41,6 +45,8 @@ Usage:
   vertile-iac domains [options]
 
 Commands:
+  init       Create iac.json and its repository-private scaffold.
+  scaffold   Create repo-local and home-level scaffolds from iac.json.
   render     Render Terraform workspaces from iac.json.
   context    Print repository identity, Terraform state directory, and private-file reference.
   plan       Render Terraform workspaces and run terraform plan.
