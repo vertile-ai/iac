@@ -23,6 +23,8 @@ function assertAllowedPrivateProviderFields(privateManifest) {
   const allowedFields = {
     vercel: new Set(['token', 'apiKey', 'protectionBypassForAutomation']),
     github: new Set(['token']),
+    digitalocean: new Set(['token']),
+    cloudflare: new Set(['apiToken']),
   }
 
   for (const [provider, config] of Object.entries(providers)) {
@@ -138,6 +140,10 @@ function processProviderCredential(env, provider, field) {
         : []
     : provider === 'github' && field === 'token'
       ? ['GH_TOKEN', 'GITHUB_TOKEN']
+      : provider === 'digitalocean' && field === 'token'
+        ? ['DIGITALOCEAN_TOKEN']
+        : provider === 'cloudflare' && field === 'apiToken'
+          ? ['CLOUDFLARE_API_TOKEN']
       : []
 
   for (const name of names) {

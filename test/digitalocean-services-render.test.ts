@@ -12,7 +12,7 @@ import { writeTarget } from '../src/core/render.js'
 function manifest(overrides = {}) {
   return normalizeManifest({
     version: 1,
-    project: { name: 'svc-sample' },
+    repository: 'test/svc-sample',
     environments: ['production', 'uat'],
     providers: {
       digitalocean: {
@@ -349,7 +349,7 @@ test('DigitalOcean Spaces backend renders deterministic S3-compatible backend wi
 test('DigitalOcean Spaces object storage emits DNS-safe bucket names and rejects unsafe overrides', () => {
   const rendered = renderTerraform({
     manifest: manifest({
-      project: { name: 'svc_sample' },
+      repository: 'test/svc_sample',
       objectStorage: [{ key: 'uploads' }],
     }),
     environment: 'production',
@@ -373,7 +373,7 @@ test('DigitalOcean Spaces object storage emits DNS-safe bucket names and rejects
   assert.throws(
     () => normalizeManifest({
       version: 1,
-      project: { name: 'svc-sample' },
+      repository: 'test/svc-sample',
       environments: ['production'],
       providers: {
         digitalocean: {
@@ -397,7 +397,7 @@ test('DigitalOcean Spaces object storage emits DNS-safe bucket names and rejects
   assert.throws(
     () => normalizeManifest({
       version: 1,
-      project: { name: 'svc-sample' },
+      repository: 'test/svc-sample',
       environments: ['production'],
       providers: {
         digitalocean: {
@@ -417,7 +417,7 @@ test('DigitalOcean Spaces object storage emits DNS-safe bucket names and rejects
   assert.throws(
     () => normalizeManifest({
       version: 1,
-      project: { name: 'svc-sample' },
+      repository: 'test/svc-sample',
       environments: ['production'],
       providers: { digitalocean: { region: 'syd1' } },
       apps: [],

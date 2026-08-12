@@ -7,6 +7,7 @@ import {
   renderLocals,
   renderOutput,
   renderRequiredProvider,
+  repositoryName,
   sanitizeName,
 } from '../../core/hcl.js'
 import {
@@ -143,8 +144,8 @@ function serviceBlocks(manifest, environment, providerConfig, deployment: any = 
 
   const blocks = [
     block('resource', ['digitalocean_project', 'vertile_services'], {
-      name: resourceName(manifest.project.name, nameEnvironment, 'services'),
-      description: `Services for ${manifest.project.name} ${nameEnvironment}.`,
+      name: resourceName(repositoryName(manifest.repository), nameEnvironment, 'services'),
+      description: `Services for ${repositoryName(manifest.repository)} ${nameEnvironment}.`,
       purpose: 'Web Application',
       environment: projectEnvironment(environment),
     }),
@@ -157,7 +158,7 @@ function serviceBlocks(manifest, environment, providerConfig, deployment: any = 
     const reservedIpAddress = serviceAddress(service, 'reserved_ip')
     const resolvedRegion = serviceRegion(providerConfig, deploymentValues, values, service.key)
     const tags = [
-      sanitizeName(manifest.project.name),
+      sanitizeName(repositoryName(manifest.repository)),
       sanitizeName(environment),
       'service',
       sanitizeName(service.key),
@@ -310,7 +311,7 @@ function dropletBlocks(manifest, environment, config, deployment = {}, field, pr
       region: region(config, values),
       size: values.sizeSlug || values.size || 's-1vcpu-1gb',
       count: field === 'clusters' ? values.nodes || item.nodes || item.size || 1 : undefined,
-      tags: [manifest.project.name, environment, prefix],
+      tags: [repositoryName(manifest.repository), environment, prefix],
     }))
   })
 }

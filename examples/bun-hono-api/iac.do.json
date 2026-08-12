@@ -1,10 +1,7 @@
 {
   "$schema": "../../schema/iac.schema.json",
   "version": 1,
-  "project": {
-    "key": "bun-hono-api",
-    "name": "bun-hono-api"
-  },
+  "repository": "vertile-ai/bun-hono-api",
   "environments": {
     "development": {
       "files": [

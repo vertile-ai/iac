@@ -13,6 +13,7 @@
   "homepage": "https://github.com/vertile-ai/iac#readme",
   "bin": {
     "vertile-iac": "dist/src/cli.js",
+    "vertile-iac-context": "dist/src/context.js",
     "vertile-iac-render": "dist/src/render.js",
     "vertile-iac-plan": "dist/src/plan.js",
     "vertile-iac-apply": "dist/src/apply.js",

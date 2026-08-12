@@ -31,7 +31,7 @@ async function createFixture() {
     JSON.stringify(
       {
         version: 1,
-        project: { name: 'example' },
+        repository: 'test/example',
         environments: ['staging', 'production'],
         providers: {
           vercel: {
@@ -82,7 +82,7 @@ async function createUnifiedFixture() {
     JSON.stringify(
       {
         version: 1,
-        project: { name: 'example' },
+        repository: 'test/example',
         environments: {
           staging: {},
           preview: {},
@@ -151,7 +151,7 @@ async function createEnvMetadataFixture() {
     JSON.stringify(
       {
         version: 1,
-        project: { name: 'env-metadata' },
+        repository: 'test/env-metadata',
         environments: ['staging', 'production'],
         providers: {
           vercel: { teamSlug: 'example-team' },
@@ -247,7 +247,7 @@ async function createDefaultEnvSourceFixture() {
     JSON.stringify(
       {
         version: 1,
-        project: { name: 'default-env-source' },
+        repository: 'test/default-env-source',
         environments: {
           staging: {},
           preview: {},
@@ -1898,7 +1898,6 @@ test('builds GitHub Actions environment sync plan from iac metadata', async () =
     const rawManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
     rawManifest.environments = ['staging', 'production']
     rawManifest.providers.github = {
-      repository: 'example/app',
       actions: {
         environments: {
           staging: {
@@ -1954,7 +1953,7 @@ test('builds GitHub Actions environment sync plan from iac metadata', async () =
       selectedEnvironments: ['staging'],
     })
 
-    assert.equal(plan.repo, 'example/app')
+    assert.equal(plan.repo, 'test/example')
     assert.equal(plan.environments.length, 1)
     assert.equal(plan.environments[0].name, 'staging')
     assert.deepEqual(plan.environments[0].branches, ['beta'])

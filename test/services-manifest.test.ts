@@ -9,7 +9,7 @@ const schema = JSON.parse(readFileSync('schema/iac.schema.json', 'utf8'))
 function manifest(overrides = {}) {
   return {
     version: 1,
-    project: { name: 'services-sample' },
+    repository: 'test/services-sample',
     environments: ['production'],
     providers: {
       digitalocean: { region: 'nyc3' },

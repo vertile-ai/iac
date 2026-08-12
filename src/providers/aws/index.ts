@@ -6,6 +6,7 @@ import {
   renderLocals,
   renderOutput,
   renderRequiredProvider,
+  repositoryName,
   renderVariable,
 } from '../../core/hcl.js'
 import {
@@ -29,7 +30,7 @@ function providerBlock(manifest, environment, deployment: any = {}) {
     profile: deploymentValues.profile || config.profile,
   }
   const tags = compactBody({
-    Project: manifest.project.name,
+    Project: repositoryName(manifest.repository),
     Environment: environment,
     Deployment: deployment.name || undefined,
     ...(config.defaultTags || {}),
@@ -129,7 +130,7 @@ function computeBlocks(manifest, environment, deployment, field, prefix) {
       count: field === 'clusters' ? values.size || item.size || 1 : undefined,
       tags: compactBody({
         Name: values.name || providerResourceName(manifest, nameEnvironment, item),
-        Project: manifest.project.name,
+        Project: repositoryName(manifest.repository),
         Environment: environment,
         Deployment: deployment.name || undefined,
         Kind: prefix,

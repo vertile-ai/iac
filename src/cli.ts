@@ -12,6 +12,7 @@ const root = path.dirname(fileURLToPath(import.meta.url))
 
 const commands = new Map([
   ['render', path.join(root, 'render.js')],
+  ['context', path.join(root, 'context.js')],
   ['plan', path.join(root, 'plan.js')],
   ['apply', path.join(root, 'apply.js')],
   ['output', path.join(root, 'output.js')],
@@ -28,6 +29,7 @@ function printHelp() {
 
 Usage:
   vertile-iac render --target=vercel|aws|digitalocean|all --env=<name> [options]
+  vertile-iac context --stack=<name> --environment=<name> [options]
   vertile-iac plan --target=vercel|aws|digitalocean|all --env=<name> [options]
   vertile-iac apply --target=vercel|aws|digitalocean|all --env=<name> [options]
   vertile-iac output --target=vercel|aws|digitalocean --env=<name> [options]
@@ -40,6 +42,7 @@ Usage:
 
 Commands:
   render     Render Terraform workspaces from iac.json.
+  context    Print repository identity, Terraform state directory, and private-file reference.
   plan       Render Terraform workspaces and run terraform plan.
   apply      Render Terraform workspaces and run terraform apply.
   output     Render one Terraform workspace and print non-sensitive outputs as JSON.
@@ -52,6 +55,8 @@ Commands:
   domains    Compatibility: reconcile Vercel project domains.
 
 ${sharedOptionsHelp()}
+  --stack <name>              Terraform stack name for context.
+  --environment <name>        Terraform environment name for context.
   --out <path>                Generated Terraform root. Defaults to .vertile/terraform.
   --target <name|all>         Target provider: vercel, aws, digitalocean, or all.
   --env <name>                Environment to render, plan, or apply. Defaults to production.

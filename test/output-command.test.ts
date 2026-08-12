@@ -20,7 +20,7 @@ async function fixture() {
     path.join(root, 'infrastructure', 'iac', 'iac.json'),
     JSON.stringify({
       version: 1,
-      project: { name: 'sample' },
+      repository: 'test/sample',
       environments: ['staging', 'production'],
       providers: {
         digitalocean: {

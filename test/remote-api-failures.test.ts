@@ -223,7 +223,7 @@ test('rejects missing Vercel team and project identifiers rather than continuing
   const shimPath = path.join(root, 'fetch-shim.mjs')
   const manifest = {
     version: 1,
-    project: { name: 'vercel-identifiers' },
+    repository: 'test/vercel-identifiers',
     environments: ['production'],
     providers: { vercel: { teamSlug: 'team' } },
     apps: [{ key: 'web', name: 'web', domains: ['web.example.com'] }],
@@ -266,7 +266,7 @@ test('reports unavailable, unauthenticated, and failed GitHub CLI calls with the
   const bin = path.join(root, 'bin')
   const manifest = {
     version: 1,
-    project: { name: 'github-failures' },
+    repository: 'test/github-failures',
     environments: ['production'],
     providers: {
       github: {
@@ -314,7 +314,7 @@ test('reports unavailable, unauthenticated, and failed GitHub CLI calls with the
     await chmod(ghPath, 0o755)
     const apiFailure = run({ ...process.env, PATH: bin, GH_TOKEN: '', GITHUB_TOKEN: '' })
     assert.equal(apiFailure.status, 1)
-    assert.match(apiFailure.stderr, /gh api --method PUT repos\/owner\/repo\/environments\/production --input - failed: HTTP 403/)
+    assert.match(apiFailure.stderr, /gh api --method PUT repos\/test\/github-failures\/environments\/production --input - failed: HTTP 403/)
   } finally {
     await rm(root, { recursive: true, force: true })
   }

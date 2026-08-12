@@ -20,7 +20,7 @@ async function createFixture() {
     JSON.stringify(
       {
         version: 1,
-        project: { name: 'example' },
+        repository: 'test/example',
         environments: ['preview', 'uat', 'production'],
         providers: {
           vercel: {
@@ -117,7 +117,7 @@ test('resolves and reads the neutral iac.json manifest', async () => {
     assert.equal(context.manifestPath, path.join(root, 'infrastructure', 'iac', 'iac.json'))
 
     const manifest = readManifest(context.manifestPath)
-    assert.equal(manifest.project.name, 'example')
+    assert.equal(manifest.repository, 'test/example')
     assert.deepEqual(manifest.environments, ['preview', 'uat', 'production'])
     assert.equal(manifest.apps[0].name, 'example-web')
     assert.equal(manifest.objectStorage[0].key, 'uploads')
@@ -139,7 +139,7 @@ test('validates malformed provider escape hatch resources', async () => {
       manifestPath,
       JSON.stringify({
         version: 1,
-        project: { name: 'bad' },
+        repository: 'test/bad',
         environments: ['production'],
         providers: {
           aws: {
@@ -167,7 +167,7 @@ test('validates provider deployment environment references', async () => {
       manifestPath,
       JSON.stringify({
         version: 1,
-        project: { name: 'bad' },
+        repository: 'test/bad',
         environments: ['production'],
         providers: {
           aws: {

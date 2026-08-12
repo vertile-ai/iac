@@ -34,7 +34,7 @@ async function createValidationFixture() {
     path.join(root, 'infrastructure', 'iac', 'iac.json'),
     JSON.stringify({
       version: 1,
-      project: { name: 'validate-example' },
+      repository: 'test/validate-example',
       environments: ['quality', 'production'],
       providers: {},
       packages: [{ key: 'web', directory: 'packages/web' }],
@@ -70,7 +70,7 @@ async function createMetadataValidationFixture() {
     path.join(root, 'infrastructure', 'iac', 'iac.json'),
     JSON.stringify({
       version: 1,
-      project: { name: 'legacy-validate-example' },
+      repository: 'test/legacy-validate-example',
       environments: ['quality', 'production'],
       providers: {},
       packages: [

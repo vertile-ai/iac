@@ -41,6 +41,25 @@ Install the CLI in the product repository:
 pnpm add -D @vertile-ai/iac
 ```
 
+## Global deployment context
+
+Install the CLI globally when deployment tooling needs the same repository
+context outside a product package:
+
+```bash
+npm install -g @vertile-ai/iac
+vertile-iac context --repo-root . --stack=platform --environment=staging
+```
+
+The command is read-only. It identifies GitHub repositories by `owner/repo`,
+uses `local/<authenticated GitHub user>/<repository folder>` outside GitHub,
+returns the owning project's `.iac/private.json` only as a path reference, and
+returns the durable Terraform directory:
+
+```text
+~/.iac/repositories/github/<owner>/<repo>/terraform/<stack>/<environment>
+```
+
 Create `iac.json` in the repository root (the CLI also accepts the legacy
 `infrastructure/iac/iac.json` location), then render before you plan or apply:
 
@@ -68,7 +87,7 @@ bucket, while keeping the logical environments portable:
 {
   "$schema": "./node_modules/@vertile-ai/iac/schema/iac.schema.json",
   "version": 2,
-  "project": { "name": "acme" },
+  "repository": "acme/acme",
   "environments": {
     "development": { "files": [".env.development"] },
     "staging": { "files": [".env.staging"] },
@@ -205,6 +224,12 @@ strictly allowlisted document, not an arbitrary overlay of `iac.json`:
     },
     "github": {
       "token": "<private GitHub token>"
+    },
+    "digitalocean": {
+      "token": "<private DigitalOcean token>"
+    },
+    "cloudflare": {
+      "apiToken": "<private Cloudflare API token>"
     }
   }
 }
@@ -214,7 +239,8 @@ The env shape is `env.<source>.<variable>.<environment>`. An exact private
 value takes precedence over the local example. The only private provider fields
 are `providers.vercel.token`, `providers.vercel.apiKey`,
 `providers.vercel.protectionBypassForAutomation.ensure.secret`, and
-`providers.github.token`. The public version 2 Vercel `ensure` configuration
+`providers.github.token`, `providers.digitalocean.token`, and
+`providers.cloudflare.apiToken`. The public version 2 Vercel `ensure` configuration
 contains its `note`; the private secret is injected only into the local Vercel
 projects request.
 

@@ -57,7 +57,7 @@ function runNode(args, cwd = packageRoot, env = process.env) {
 function sampleManifest(overrides = {}) {
   return {
     version: 1,
-    project: { name: 'sample' },
+    repository: 'test/sample',
     environments: ['development', 'staging', 'production'],
     providers: {
       vercel: { team: 'team', deployments: { prod: { environment: 'production', teamId: 'team-id' } } },
@@ -129,7 +129,7 @@ test('covers option, environment, deployment, and HCL edge cases', () => {
   assert.match(nestedBlock('nested', { values: [1, true, { child: 'x' }] }, 2), /nested/)
   assert.match(renderGenericResources([{ type: 'example', name: 'main', values: { enabled: true } }]), /example/)
   assert.match(renderLocals(manifest, 'staging', { name: 'preview' }), /deployment = "preview"/)
-  assert.match(renderLocals(manifest, 'staging'), /project_name/)
+  assert.match(renderLocals(manifest, 'staging'), /repository_name/)
   assert.match(renderRequiredProvider('aws', 'hashicorp/aws', '1'), /hashicorp\/aws/)
   assert.match(renderVariable('name', { type: raw('string') }), /variable/)
   assert.match(renderOutput('name', { value: 'value' }), /output/)
@@ -297,19 +297,19 @@ test('covers manifest normalization and Vercel manifest derivation failures', as
   try {
     const normalized = normalizeManifest({
       version: 1,
-      project: 'sample',
+      repository: 'test/sample',
       environments: {},
       providers: {},
       apps: [],
     })
     assert.deepEqual(normalized.environments, ['development', 'preview', 'production'])
-    assert.throws(() => normalizeManifest({ version: 3, project: 'x', environments: [], providers: {} }), /Unsupported/)
-    assert.throws(() => validateManifest({ version: 1, project: {}, environments: [], providers: {} }), /project.name/)
-    assert.throws(() => validateManifest({ version: 1, project: { name: 'x' }, environments: 'bad', providers: {} }), /array/)
-    assert.throws(() => normalizeManifest({ version: 1, project: 'x', environments: [], providers: {}, apps: [{}] }), /app must include a key/)
-    assert.throws(() => normalizeManifest({ version: 1, project: 'x', environments: [], providers: {}, queues: [{}] }), /queues item must include a key/)
-    assert.throws(() => normalizeManifest({ version: 1, project: 'x', environments: [], providers: { aws: { resources: [{}] } } }), /resources items/)
-    assert.throws(() => normalizeManifest({ version: 1, project: 'x', environments: ['production'], providers: { aws: { deployments: { bad: { environment: 'missing' } } } } }), /must be one of/)
+    assert.throws(() => normalizeManifest({ version: 3, repository: 'test/x', environments: [], providers: {} }), /Unsupported/)
+    assert.throws(() => validateManifest({ version: 1, repository: '', environments: [], providers: {} }), /repository/)
+    assert.throws(() => validateManifest({ version: 1, repository: 'test/x', environments: 'bad', providers: {} }), /array/)
+    assert.throws(() => normalizeManifest({ version: 1, repository: 'test/x', environments: [], providers: {}, apps: [{}] }), /app must include a key/)
+    assert.throws(() => normalizeManifest({ version: 1, repository: 'test/x', environments: [], providers: {}, queues: [{}] }), /queues item must include a key/)
+    assert.throws(() => normalizeManifest({ version: 1, repository: 'test/x', environments: [], providers: { aws: { resources: [{}] } } }), /resources items/)
+    assert.throws(() => normalizeManifest({ version: 1, repository: 'test/x', environments: ['production'], providers: { aws: { deployments: { bad: { environment: 'missing' } } } } }), /must be one of/)
     assert.throws(() => assertEnvironment(normalized, 'missing'), /Unknown environment/)
     assert.throws(() => readManifest(path.join(root, 'missing.json')), /Missing required iac manifest/)
 
@@ -440,7 +440,6 @@ test('covers GitHub Actions plan validation and output mapping', async () => {
     },
     providers: {
       github: {
-        repository: 'owner/repo',
         token: ' token ',
         actions: {
           variables: 'PUBLIC_URL',
@@ -455,7 +454,7 @@ test('covers GitHub Actions plan validation and output mapping', async () => {
   })
   const plan = buildGitHubActionsPlan({ manifest, sourceRoot: '/unused' })
   assert.equal(githubTokenFromManifest(manifest), 'token')
-  assert.equal(plan.repo, 'owner/repo')
+  assert.equal(plan.repo, 'test/sample')
   assert.equal(plan.environments[0].branches[0], 'main')
   assert.equal(plan.environments[0].outputs.length, 4)
   assert.equal(buildGitHubActionsPlan({ manifest, sourceRoot: '/unused', selectedEnvironments: ['production'] }).environments.length, 1)
@@ -899,9 +898,9 @@ test('reports GitHub Actions configuration failures', async () => {
       env: {},
       providers: { github: { actions: { environments: { production: { env: [] } } } } },
     })))
-    const missingRepo = runNode(['dist/src/github-actions.js', '--repo-root', root], packageRoot)
-    assert.equal(missingRepo.status, 1)
-    assert.match(missingRepo.stderr, /GitHub repository must be configured/)
+    const mismatchedRepo = runNode(['dist/src/github-actions.js', '--repo-root', root, '--repo=owner/repo'], packageRoot)
+    assert.equal(mismatchedRepo.status, 1)
+    assert.match(mismatchedRepo.stderr, /must match iac\.json repository/)
     const unknownEnvironment = runNode(['dist/src/github-actions.js', '--repo-root', root, '--repo=owner/repo', '--env=missing'], packageRoot)
     assert.equal(unknownEnvironment.status, 1)
     assert.match(unknownEnvironment.stderr, /Unknown GitHub Actions environment mapping/)

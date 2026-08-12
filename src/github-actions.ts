@@ -25,24 +25,6 @@ function parseArgs(argv) {
   }
 }
 
-function resolveRepoFromGit(repoRoot) {
-  const result = spawnSync('git', ['remote', 'get-url', 'origin'], {
-    cwd: repoRoot,
-    encoding: 'utf8',
-  })
-
-  if (result.status !== 0) return ''
-
-  const remote = result.stdout.trim()
-  const sshMatch = remote.match(/^git@github\.com:(.+?)(?:\.git)?$/)
-  if (sshMatch?.[1]) return sshMatch[1]
-
-  const httpsMatch = remote.match(/^https:\/\/github\.com\/(.+?)(?:\.git)?$/)
-  if (httpsMatch?.[1]) return httpsMatch[1]
-
-  return ''
-}
-
 function formatGhArgs(args) {
   const formatted = []
   for (let index = 0; index < args.length; index += 1) {
@@ -214,9 +196,8 @@ function main() {
     sourceRoot,
     selectedEnvironments: args.environments,
   })
-  plan.repo = args.repo || plan.repo || resolveRepoFromGit(context.repoRoot)
-  if (!plan.repo) {
-    throw new Error('GitHub repository must be configured with providers.github.repository or --repo.')
+  if (args.repo && args.repo !== plan.repo) {
+    throw new Error('--repo must match iac.json repository.')
   }
 
   printPlan({ plan, apply: args.apply })

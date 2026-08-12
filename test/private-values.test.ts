@@ -51,7 +51,7 @@ async function writeVersionTwoFixture({ privateValues = null } = {}) {
     path.join(root, 'infrastructure', 'iac', 'iac.json'),
     JSON.stringify({
       version: 2,
-      project: { name: 'private-values-fixture' },
+      repository: 'test/private-values-fixture',
       environments: ['local', 'production'],
       providers: {},
       packages: [{ key: 'web', directory: 'packages/web' }],
@@ -769,6 +769,34 @@ test('resolved private context exposes public manifest, env values, and process-
   }
 })
 
+test('version 2 resolves DigitalOcean and Cloudflare private provider credentials', async () => {
+  const root = await writeVersionTwoFixture({
+    privateValues: {
+      version: 1,
+      providers: {
+        digitalocean: { token: 'digitalocean-private-token' },
+        cloudflare: { apiToken: 'cloudflare-private-token' },
+      },
+    },
+  })
+
+  try {
+    const manifest = readManifest(path.join(root, 'infrastructure', 'iac', 'iac.json'))
+    const privateValues = resolvePrivateValues({ manifest, repoRoot: root, env: {} })
+
+    assert.equal(
+      privateValues.getProviderCredential({ provider: 'digitalocean', field: 'token' }),
+      'digitalocean-private-token',
+    )
+    assert.equal(
+      privateValues.getProviderCredential({ provider: 'cloudflare', field: 'apiToken' }),
+      'cloudflare-private-token',
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('version 2 readVercelToken uses a private token before the legacy token file', async () => {
   const privateToken = `${secretSentinel}-vercel-token`
   const root = await writeVersionTwoFixture({
@@ -983,7 +1011,7 @@ test('GitHub Actions apply redacts an environment output when gh --body fails', 
     assert.equal(`${result.stdout}${result.stderr}`.includes(secretSentinel), false)
     assert.match(
       result.stderr,
-      /gh secret set PUBLIC_ORIGIN --repo example\/private-values --env local --body \[redacted\] failed with exit code 1/,
+      /gh secret set PUBLIC_ORIGIN --repo test\/private-values-fixture --env local --body \[redacted\] failed with exit code 1/,
     )
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -1386,7 +1414,7 @@ test('published manifest schema keeps encrypted inline env values private in ver
   ]
   const manifest = (version, inlineValue, encrypted = true) => ({
     version,
-    project: { name: 'schema-validation' },
+    repository: 'test/schema-validation',
     providers: {},
     apps: [{ key: 'web' }],
     env: {
@@ -1443,10 +1471,22 @@ test('published manifest schema keeps root provider credentials private in versi
         manifest.providers.githubActions = { token: credential }
       },
     },
+    {
+      path: 'providers.digitalocean.token',
+      configure(manifest) {
+        manifest.providers.digitalocean = { token: credential }
+      },
+    },
+    {
+      path: 'providers.cloudflare.apiToken',
+      configure(manifest) {
+        manifest.providers.cloudflare = { apiToken: credential }
+      },
+    },
   ]
   const manifest = (version) => ({
     version,
-    project: { name: 'schema-validation' },
+    repository: 'test/schema-validation',
     providers: {},
     apps: [{ key: 'web' }],
   })
@@ -1469,10 +1509,10 @@ test('published manifest schema keeps provider deployment credentials private in
   const validate = new Ajv2020({ strict: false }).compile(schema)
   const credential = 'schema-private-credential'
   const providers = ['vercel', 'github', 'githubActions', 'aws', 'digitalocean', 'custom']
-  const fields = ['token', 'apiKey']
+  const fields = ['token', 'apiKey', 'apiToken']
   const manifest = (version, provider, field) => ({
     version,
-    project: { name: 'schema-validation' },
+    repository: 'test/schema-validation',
     providers: {
       [provider]: {
         deployments: {
@@ -1536,7 +1576,7 @@ test('published manifest schema keeps Vercel bypass secrets private in version 2
   ]
   const manifest = (version) => ({
     version,
-    project: { name: 'schema-validation' },
+    repository: 'test/schema-validation',
     providers: {},
     apps: [{ key: 'web' }],
   })
@@ -1706,6 +1746,42 @@ test('version 2 rejects inline provider deployment credentials', async () => {
     assert.equal(result.code, 1)
     assert.match(result.stderr, /iac\.json providers\.vercel\.deployments\.production\.token must be private in version 2/i)
     assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(secretSentinel))
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('version 2 rejects Cloudflare credentials from deployment and app provider config', async () => {
+  const root = await writeVersionTwoFixture()
+  const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+
+  try {
+    for (const configure of [
+      (manifest) => {
+        manifest.providers.cloudflare = {
+          deployments: { production: { apiToken: secretSentinel } },
+        }
+      },
+      (manifest) => {
+        manifest.apps = [{
+          key: 'web',
+          providers: { cloudflare: { apiToken: secretSentinel } },
+        }]
+      },
+    ]) {
+      const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+      configure(manifest)
+      await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+
+      assert.throws(
+        () => readManifest(manifestPath),
+        (error) => {
+          assert.doesNotMatch(error.message, new RegExp(secretSentinel))
+          assert.match(error.message, /apiToken must be private in version 2/)
+          return true
+        },
+      )
+    }
   } finally {
     await rm(root, { recursive: true, force: true })
   }

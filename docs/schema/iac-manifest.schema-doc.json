@@ -8,7 +8,7 @@
   "sections": [
     {
       "title": "Manifest Identity",
-      "summary": "Every manifest declares its schema version and project identity before provider or app configuration.",
+      "summary": "Every manifest declares its schema version and repository identity before provider or app configuration.",
       "fields": [
         {
           "path": "version",
@@ -17,10 +17,10 @@
           "description": "Schema version. Version 2 keeps tracked intent separate from the strict private-values document; version 1 remains compatible with inline values."
         },
         {
-          "path": "project",
-          "type": "string | { key?, name }",
+          "path": "repository",
+          "type": "owner/repo",
           "required": true,
-          "description": "Human-facing project identity used by generated infrastructure and documentation."
+          "description": "Canonical GitHub repository identity. Generated resource names use its repo component."
         },
         {
           "path": "environments",

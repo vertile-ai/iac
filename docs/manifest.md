@@ -21,7 +21,7 @@ Generated Terraform is an implementation detail:
 {
   "$schema": "./node_modules/@vertile-ai/iac/schema/iac.schema.json",
   "version": 2,
-  "project": { "name": "example" },
+  "repository": "example/example",
   "environments": {
     "development": { "files": [".env.development"] },
     "uat": { "files": [".env.uat"] },
@@ -110,7 +110,9 @@ allowlisted document rather than an arbitrary manifest overlay:
         "ensure": { "secret": "<private bypass secret>" }
       }
     },
-    "github": { "token": "<private GitHub token>" }
+    "github": { "token": "<private GitHub token>" },
+    "digitalocean": { "token": "<private DigitalOcean token>" },
+    "cloudflare": { "apiToken": "<private Cloudflare API token>" }
   }
 }
 ```
@@ -120,7 +122,8 @@ value takes precedence over the local example. Private env entries may supply
 only encrypted metadata keys declared by the public manifest. The provider
 allowlist is `providers.vercel.token`, `providers.vercel.apiKey`,
 `providers.vercel.protectionBypassForAutomation.ensure.secret`, and
-`providers.github.token`.
+`providers.github.token`, `providers.digitalocean.token`, and
+`providers.cloudflare.apiToken`.
 
 In a Git worktree, `.iac/private.json` must be ignored and untracked.
 On POSIX, use mode `0600`; group- or world-readable files are rejected. The

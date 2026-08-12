@@ -4,7 +4,7 @@
   "title": "Vertile AI IaC Manifest",
   "description": "Portable app infrastructure intent for Vertile AI IaC.",
   "type": "object",
-  "required": ["version", "project", "providers", "apps"],
+  "required": ["version", "repository", "providers", "apps"],
   "additionalProperties": true,
   "properties": {
     "$schema": {
@@ -13,19 +13,9 @@
     "version": {
       "enum": [1, 2]
     },
-    "project": {
-      "oneOf": [
-        { "type": "string", "minLength": 1 },
-        {
-          "type": "object",
-          "required": ["name"],
-          "additionalProperties": true,
-          "properties": {
-            "key": { "type": "string", "minLength": 1 },
-            "name": { "type": "string", "minLength": 1 }
-          }
-        }
-      ]
+    "repository": {
+      "type": "string",
+      "pattern": "^[^/\\s]+/[^/\\s]+$"
     },
     "environments": {
       "oneOf": [
@@ -129,8 +119,6 @@
             {
               "type": "object",
               "properties": {
-                "repository": { "type": "string", "minLength": 1 },
-                "repo": { "type": "string", "minLength": 1 },
                 "token": { "type": "string", "minLength": 1 },
                 "actions": {
                   "type": "object",
@@ -389,6 +377,28 @@
                     }
                   }
                 ]
+              },
+              "digitalocean": {
+                "allOf": [
+                  { "$ref": "#/$defs/versionTwoProviderConfigWithoutDeploymentCredentials" },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "token": false
+                    }
+                  }
+                ]
+              },
+              "cloudflare": {
+                "allOf": [
+                  { "$ref": "#/$defs/versionTwoProviderConfigWithoutDeploymentCredentials" },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "apiToken": false
+                    }
+                  }
+                ]
               }
             },
             "additionalProperties": {
@@ -472,7 +482,8 @@
             "type": "object",
             "properties": {
               "token": false,
-              "apiKey": false
+              "apiKey": false,
+              "apiToken": false
             }
           }
         }

@@ -1,10 +1,7 @@
 {
   "$schema": "../../schema/iac.schema.json",
   "version": 1,
-  "project": {
-    "key": "go-api",
-    "name": "go-api"
-  },
+  "repository": "vertile-ai/go-api",
   "environments": {
     "development": {
       "files": [

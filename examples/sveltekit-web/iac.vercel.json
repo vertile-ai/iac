@@ -1,10 +1,7 @@
 {
   "$schema": "../../schema/iac.schema.json",
   "version": 1,
-  "project": {
-    "key": "sveltekit-web",
-    "name": "sveltekit-web"
-  },
+  "repository": "vertile-ai/sveltekit-web",
   "environments": {
     "development": {
       "files": [

@@ -105,9 +105,8 @@ export function buildGitHubActionsPlan({ manifest, sourceRoot, selectedEnvironme
     throw new Error(`Unknown GitHub Actions environment mapping: ${missing.join(', ')}`)
   }
 
-  const repo = github.repository || github.repo || ''
   const plan = {
-    repo,
+    repo: manifest.repository,
     environments: [],
   }
 

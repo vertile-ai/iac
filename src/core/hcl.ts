@@ -172,6 +172,10 @@ export function sanitizeName(value: any) {
   return sanitized || 'resource'
 }
 
+export function repositoryName(repository: string) {
+  return repository.split('/')[1]
+}
+
 export function renderGenericResources(resources: any[] = []) {
   return resources
     .map((resource) => block('resource', [resource.type, resource.name], resource.values || {}))
@@ -180,7 +184,8 @@ export function renderGenericResources(resources: any[] = []) {
 
 export function renderLocals(manifest: any, environment: any, deployment: any = {}) {
   return block('locals', [], {
-    project_name: manifest.project.name,
+    repository: manifest.repository,
+    repository_name: repositoryName(manifest.repository),
     environment,
     deployment: deployment.name || undefined,
   })

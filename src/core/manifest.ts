@@ -6,15 +6,6 @@ function asObject(value: any, fallback: any = {}): any {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback
 }
 
-function normalizeProject(project) {
-  if (typeof project === 'string') return { name: project }
-  const normalized = asObject(project)
-  return {
-    name: normalized.name || normalized.key || 'project',
-    ...normalized,
-  }
-}
-
 function normalizeApp(app) {
   const normalized = asObject(app)
   if (!normalized.key) {
@@ -497,6 +488,8 @@ function assertVersionTwoCredentialsArePrivate(manifest) {
     vercel: ['token', 'apiKey'],
     github: ['token'],
     githubActions: ['token'],
+    digitalocean: ['token'],
+    cloudflare: ['apiToken'],
   })) {
     const config = asObject(providers[provider])
     for (const field of fields as string[]) {
@@ -509,7 +502,7 @@ function assertVersionTwoCredentialsArePrivate(manifest) {
   for (const [provider, providerConfig] of Object.entries(providers)) {
     const deployments = asObject(asObject(providerConfig).deployments)
     for (const [deployment, config] of Object.entries(deployments)) {
-      for (const field of ['token', 'apiKey']) {
+      for (const field of ['token', 'apiKey', 'apiToken']) {
         if (Object.hasOwn(asObject(config), field)) {
           throw new Error(
             `iac.json providers.${provider}.deployments.${deployment}.${field} must be private in version 2.`,
@@ -537,19 +530,35 @@ function assertVersionTwoCredentialsArePrivate(manifest) {
       asObject(asObject(appConfig.providers).vercel),
       `apps.${appKey}.providers.vercel.protectionBypassForAutomation`,
     )
+    for (const [provider, providerConfig] of Object.entries(asObject(appConfig.providers))) {
+      for (const field of ['token', 'apiKey', 'apiToken']) {
+        if (Object.hasOwn(asObject(providerConfig), field)) {
+          throw new Error(
+            `iac.json apps.${appKey}.providers.${provider}.${field} must be private in version 2.`,
+          )
+        }
+      }
+    }
   }
 }
 
 export function validateManifest(manifest) {
+  if (manifest.project !== undefined) {
+    throw new Error('iac.json project is not supported. Use repository instead.')
+  }
+  if (
+    typeof manifest.repository !== 'string'
+    || manifest.repository !== manifest.repository.trim()
+    || !/^[^/\s]+\/[^/\s]+$/.test(manifest.repository)
+  ) {
+    throw new Error('iac.json repository must be an owner/repo string.')
+  }
   if (manifest.version !== 1 && manifest.version !== 2) {
     throw new Error(`Unsupported iac.json version "${manifest.version}". Expected version 1 or 2.`)
   }
   if (manifest.version === 2) {
     assertVersionTwoEncryptedValuesArePrivate(manifest)
     assertVersionTwoCredentialsArePrivate(manifest)
-  }
-  if (!manifest.project.name || typeof manifest.project.name !== 'string') {
-    throw new Error('iac.json project.name must be a non-empty string.')
   }
   assertStringArray(manifest.environments, 'environments')
   validateProviderResources(manifest.providers)
@@ -565,7 +574,8 @@ export function normalizeManifest(rawManifest) {
 
   const normalized = {
     version: manifest.version || 1,
-    project: normalizeProject(manifest.project),
+    repository: manifest.repository,
+    ...(manifest.project === undefined ? {} : { project: manifest.project }),
     environments: environments.names,
     environmentsDeclared: Object.hasOwn(manifest, 'environments'),
     environmentFiles: environments.files,

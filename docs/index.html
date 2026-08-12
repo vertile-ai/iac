@@ -224,7 +224,7 @@
         <p>The user-authored source of truth is <code>iac.json</code> (with <code>infrastructure/iac/iac.json</code> retained for compatibility). Terraform files are generated output under <code>.vertile/terraform/&lt;provider&gt;/</code> or <code>.vertile/terraform/&lt;provider&gt;/&lt;deployment&gt;/</code>. Env metadata also lives in this manifest under <code>env.metadata.&lt;source-key&gt;</code>. Version 2 keeps encrypted values and credentials in the strict, untracked <code>.iac/private.json</code> document; encrypted examples may bootstrap local sync only.</p>
         <pre><code>{
   "version": 2,
-  "project": { "name": "example" },
+  "repository": "example/example",
   "environments": {
     "development": { "files": [".env.development"] },
     "preview": { "files": [".env.staging"] },
