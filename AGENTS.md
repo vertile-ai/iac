@@ -22,9 +22,7 @@ commands.
 - Examples and product repos should prefer unified `iac.json`; legacy
   `env-manifest.json`, `project-settings.json`, and `project-domains.json`
   exist only for explicit compatibility inputs.
-- Env metadata belongs in `iac.json` under `env.metadata.<source-key>`.
-  Per-source `.env.json` files are compatibility fallback only and should not be
-  introduced for new setups.
+- Env metadata belongs only in `iac.json` under `env.metadata.<source-key>`.
 - Env source files live under `env.sourceDir`, defaulting to `.vertile-iac/env`.
   Monorepos use one metadata object per source folder, for example
   `env.metadata.shared`, `env.metadata.web-client`, or `env.metadata.api`.

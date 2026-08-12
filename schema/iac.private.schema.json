@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vertile.ai/schemas/iac.private.schema.json",
+  "title": "Vertile AI IaC Private Values",
+  "description": "Untracked encrypted environment values and allowlisted provider credentials for an IaC version 2 manifest.",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "providers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "vercel": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "token": {
+              "type": "string"
+            },
+            "apiKey": {
+              "type": "string"
+            },
+            "protectionBypassForAutomation": {
+              "type": "object",
+              "required": ["ensure"],
+              "additionalProperties": false,
+              "properties": {
+                "ensure": {
+                  "type": "object",
+                  "required": ["secret"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "secret": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "github": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "token": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -11,11 +11,6 @@
         ".env.development"
       ]
     },
-    "test": {
-      "files": [
-        ".env.test"
-      ]
-    },
     "uat": {
       "files": [
         ".env.uat"

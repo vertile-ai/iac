@@ -221,9 +221,9 @@
     <main>
       <section id="manifest">
         <h2>One Source Of Truth</h2>
-        <p>The user-authored source of truth is <code>infrastructure/iac/iac.json</code>. Terraform files are generated output under <code>.vertile/terraform/&lt;provider&gt;/</code> or <code>.vertile/terraform/&lt;provider&gt;/&lt;deployment&gt;/</code>. Env metadata also lives in this manifest under <code>env.metadata.&lt;source-key&gt;</code>.</p>
+        <p>The user-authored source of truth is <code>iac.json</code> (with <code>infrastructure/iac/iac.json</code> retained for compatibility). Terraform files are generated output under <code>.vertile/terraform/&lt;provider&gt;/</code> or <code>.vertile/terraform/&lt;provider&gt;/&lt;deployment&gt;/</code>. Env metadata also lives in this manifest under <code>env.metadata.&lt;source-key&gt;</code>. Version 2 keeps encrypted values and credentials in the strict, untracked <code>.iac/private.json</code> document; encrypted examples may bootstrap local sync only.</p>
         <pre><code>{
-  "version": 1,
+  "version": 2,
   "project": { "name": "example" },
   "environments": {
     "development": { "files": [".env.development"] },
@@ -251,11 +251,7 @@
     }
   },
   "apps": [{ "key": "web", "domains": ["web.example.com"] }],
-  "objectStorage": [{ "key": "uploads" }],
-  "databases": [{ "key": "appdb", "engine": "postgres" }],
-  "queues": [{ "key": "jobs" }],
-  "sandboxes": [{ "key": "runner" }],
-  "clusters": [{ "key": "workers", "size": 2 }]
+  "objectStorage": [{ "key": "uploads" }]
 }</code></pre>
       </section>
 
@@ -269,11 +265,11 @@
           </div>
           <div class="tile">
             <h3>AWS</h3>
-            <p>Object storage, databases, queues, compute, and clusters for broader infrastructure needs.</p>
+            <p>Proven object storage today; other portable resource contracts are experimental or deferred.</p>
           </div>
           <div class="tile">
             <h3>DigitalOcean</h3>
-            <p>Spaces, managed databases, app hosting, droplets, and pragmatic compute defaults.</p>
+            <p>Proven Spaces support and experimental services or database work, without a broad provider matrix promise.</p>
           </div>
         </div>
       </section>

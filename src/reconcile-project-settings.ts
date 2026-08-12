@@ -6,6 +6,8 @@ import {
   readVercelEnvManifest,
   readVercelProjectSettingsManifest,
 } from './core/vercel-manifests.js'
+import { readManifest } from './core/manifest.js'
+import { resolvePrivateValues } from './core/private-values.js'
 import { readVercelToken, resolveIacContext } from './shared.js'
 
 const apiBase = 'https://api.vercel.com'
@@ -20,6 +22,12 @@ const maxRequestAttempts = Math.max(
   1,
   readPositiveIntegerEnv('VERCEL_API_MAX_ATTEMPTS', 4),
 )
+const optionalProjectSettingKeys = [
+  'framework',
+  'installCommand',
+  'buildCommand',
+  'outputDirectory',
+]
 
 function parseArgs(argv) {
   const args = {
@@ -82,6 +90,14 @@ function readRetryAfterMs(response, attempt) {
   return Math.min(30000, 1000 * 2 ** attempt)
 }
 
+function hasProtectionBypassSecret(body) {
+  for (const operation of ['ensure', 'generate', 'update', 'revoke']) {
+    const config = body?.[operation]
+    if (config && typeof config === 'object' && Object.hasOwn(config, 'secret')) return true
+  }
+  return false
+}
+
 async function requestJSON({ token, method, pathname, query, body }: any) {
   const url = `${apiBase}${pathname}${toQuery(query || {})}`
 
@@ -117,13 +133,15 @@ async function requestJSON({ token, method, pathname, query, body }: any) {
       try {
         return JSON.parse(responseText)
       } catch {
+        const responseSuffix = hasProtectionBypassSecret(body)
+          ? ''
+          : `: ${responseText.slice(0, 500)}`
         throw new Error(
-          `Vercel API ${method} ${pathname} returned invalid JSON (${response.status}): ${responseText.slice(0, 500)}`,
+          `Vercel API ${method} ${pathname} returned invalid JSON (${response.status})${responseSuffix}`,
         )
       }
     }
 
-    const errorText = responseText
     if (response.status === 429 && attempt < maxRequestAttempts - 1) {
       const delayMs = readRetryAfterMs(response, attempt)
       console.warn(
@@ -133,8 +151,9 @@ async function requestJSON({ token, method, pathname, query, body }: any) {
       continue
     }
 
+    const responseSuffix = hasProtectionBypassSecret(body) ? '' : `: ${responseText}`
     throw new Error(
-      `Vercel API ${method} ${pathname} failed (${response.status}): ${errorText}`,
+      `Vercel API ${method} ${pathname} failed (${response.status})${responseSuffix}`,
     )
   }
 
@@ -193,11 +212,13 @@ function diffSettings(current, desired) {
     'rootDirectory',
     'nodeVersion',
     'enableAffectedProjectsDeployments',
+    ...optionalProjectSettingKeys,
   ]
   const patch = {}
   const diffs = []
 
   for (const key of keys) {
+    if (!Object.hasOwn(desired, key)) continue
     const currentValue = current[key] ?? null
     const desiredValue = desired[key] ?? null
     if (currentValue !== desiredValue) {
@@ -287,6 +308,24 @@ function resolveProtectionBypassRequest({ project, desired, projectKey }: any): 
   return matches.length === 1 ? { update: body } : { generate: body }
 }
 
+function withPrivateVercelProtectionBypassSecret(desired, privateValues) {
+  if (!desired?.ensure || Object.hasOwn(desired.ensure, 'secret')) return desired
+
+  const secret = privateValues.getProviderCredential({
+    provider: 'vercel',
+    field: 'protectionBypassForAutomation.ensure.secret',
+  })
+  if (!secret) return desired
+
+  return {
+    ...desired,
+    ensure: {
+      ...desired.ensure,
+      secret,
+    },
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2))
   const iacContext = resolveIacContext(process.argv.slice(2), {
@@ -296,6 +335,8 @@ async function main() {
   const shouldAutoCreateProject = iacContext.shouldAutoCreateProject
   const dryRun = !args.apply
 
+  const manifest = readManifest(iacContext.iacManifestPath)
+  const privateValues = resolvePrivateValues({ manifest, repoRoot: iacContext.repoRoot })
   const token = readVercelToken(iacContext)
 
   if (!dryRun && !token) {
@@ -395,7 +436,7 @@ async function main() {
       continue
     }
 
-    const desired = {
+    const desired: any = {
       rootDirectory: entry.rootDirectory ?? defaultSettings.rootDirectory ?? null,
       nodeVersion: entry.nodeVersion ?? defaultSettings.nodeVersion ?? null,
       enableAffectedProjectsDeployments:
@@ -403,7 +444,14 @@ async function main() {
         defaultSettings.enableAffectedProjectsDeployments ??
         null,
     }
-    let desiredProtectionBypass = entry.protectionBypassForAutomation
+    for (const key of optionalProjectSettingKeys) {
+      if (Object.hasOwn(entry, key)) desired[key] = entry[key]
+      else if (Object.hasOwn(defaultSettings, key)) desired[key] = defaultSettings[key]
+    }
+    let desiredProtectionBypass = withPrivateVercelProtectionBypassSecret(
+      entry.protectionBypassForAutomation,
+      privateValues,
+    )
 
     if (!token) {
       console.log(
@@ -437,6 +485,10 @@ async function main() {
       nodeVersion: project.nodeVersion ?? null,
       enableAffectedProjectsDeployments:
         project.enableAffectedProjectsDeployments ?? null,
+      framework: project.framework ?? null,
+      installCommand: project.installCommand ?? null,
+      buildCommand: project.buildCommand ?? null,
+      outputDirectory: project.outputDirectory ?? null,
     }
 
     const { patch, diffs } = diffSettings(current, desired)

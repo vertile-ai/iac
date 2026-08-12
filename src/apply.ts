@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import process from 'node:process'
-import { hasFlag, parseTargetOption, readOption } from './core/args.js'
+import { hasFlag, parseTargetOption, parseTerraformInitOptions, readOption } from './core/args.js'
 import { resolvePlatformContext } from './core/context.js'
 import { readManifest } from './core/manifest.js'
 import { writeTargets } from './core/render.js'
@@ -15,6 +15,7 @@ async function main() {
   const deploymentName = readOption(argv, '--deployment') || ''
   const targets = parseTargetOption(argv)
   const autoApprove = hasFlag(argv, '--yes') || hasFlag(argv, '--auto-approve')
+  const init = parseTerraformInitOptions(argv)
 
   if (!autoApprove && !process.stdin.isTTY) {
     throw new Error('Refusing non-interactive apply without --yes.')
@@ -27,6 +28,7 @@ async function main() {
       terraformBin: context.terraformBin,
       workspace: item.workspace,
       autoApprove,
+      init,
     })
   }
 }

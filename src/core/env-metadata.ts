@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 const envKeyPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
@@ -7,24 +6,34 @@ function asObject(value: any, fallback: any = {}): any {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback
 }
 
-function metadataFileName(manifest: any = {}) {
-  return (
-    manifest.env?.metadataFile ||
-    manifest.env?.sync?.metadataFile ||
-    '.env.json'
-  )
-}
-
 function metadataSourceKey(baseDir, sourceKey) {
   return sourceKey || path.basename(baseDir)
 }
 
 function embeddedMetadata(manifest: any = {}, sourceKey) {
-  const configured = asObject(manifest.env?.metadata || manifest.env?.envJson)
+  const configured = asObject(manifest.env?.metadata)
   if (Object.keys(configured).length === 0) return null
 
   const sources = asObject(configured.sources)
   return sources[sourceKey] || configured[sourceKey] || null
+}
+
+export function configuredEnvMetadataSourceKeys(manifest: any = {}) {
+  const configured = manifest.env?.metadata
+  if (!configured || typeof configured !== 'object' || Array.isArray(configured)) return []
+
+  const sources = configured.sources && typeof configured.sources === 'object' && !Array.isArray(configured.sources)
+    ? Object.keys(configured.sources)
+    : []
+  return [...new Set([...Object.keys(configured).filter((key) => key !== 'sources'), ...sources])]
+}
+
+export function effectiveEnvMetadataSourceKeys(
+  manifest: any = {},
+  { packageSourceKeys = [] }: { packageSourceKeys?: string[] } = {},
+) {
+  const sharedKey = manifest.env?.sync?.sharedKey || manifest.env?.sharedKey || 'shared'
+  return [...new Set([sharedKey, ...packageSourceKeys, ...configuredEnvMetadataSourceKeys(manifest)])]
 }
 
 function normalizeVariableList(raw, filePath) {
@@ -57,7 +66,7 @@ function asStringList(value, field) {
 }
 
 function manifestPackageKeys(manifest: any = {}) {
-  const configured = Array.isArray(manifest.packages)
+  const configured = Array.isArray(manifest.packages) && manifest.packages.length > 0
     ? manifest.packages
     : Array.isArray(manifest.env?.packages)
       ? manifest.env.packages
@@ -176,6 +185,9 @@ function normalizeMetadataRows({ rows, label, manifest }) {
     if (typeof item.browser !== 'boolean') {
       throw new Error(`${label} metadata for ${key} must define boolean browser.`)
     }
+    if (Object.hasOwn(item, 'description') && typeof item.description !== 'string') {
+      throw new Error(`${label} metadata for ${key} description must be a string.`)
+    }
     if (Object.hasOwn(item, 'value') && typeof item.value !== 'string') {
       throw new Error(`${label} metadata for ${key} value must be a string.`)
     }
@@ -198,6 +210,7 @@ function normalizeMetadataRows({ rows, label, manifest }) {
       example: item.example,
       encrypted: item.encrypted,
       browser: item.browser,
+      description: typeof item.description === 'string' ? item.description : undefined,
       value: typeof item.value === 'string' ? item.value : undefined,
       values: normalizeEnvValues(item.values, `${label} metadata for ${key} values`),
       valuesConfigured: Object.hasOwn(item, 'value') || Object.hasOwn(item, 'values'),
@@ -218,9 +231,9 @@ function normalizeMetadataRows({ rows, label, manifest }) {
 
 export function loadEnvMetadata({ baseDir, manifest, required = false, sourceKey = '' }) {
   const resolvedSourceKey = metadataSourceKey(baseDir, sourceKey)
+  const label = `iac.json env.metadata.${resolvedSourceKey}`
   const embedded = embeddedMetadata(manifest, resolvedSourceKey)
   if (embedded) {
-    const label = `iac.json env.metadata.${resolvedSourceKey}`
     return {
       filePath: label,
       label,
@@ -233,25 +246,8 @@ export function loadEnvMetadata({ baseDir, manifest, required = false, sourceKey
     }
   }
 
-  const filePath = path.join(baseDir, metadataFileName(manifest))
-  if (!fs.existsSync(filePath)) {
-    if (required) {
-      throw new Error(`Missing required env metadata file: ${filePath}`)
-    }
-    return { filePath, label: filePath, entries: new Map(), required: false }
-  }
-
-  const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'))
-  return {
-    filePath,
-    label: filePath,
-    entries: normalizeMetadataRows({
-      rows: normalizeVariableList(raw, filePath),
-      label: filePath,
-      manifest,
-    }),
-    required: true,
-  }
+  if (required) throw new Error(`Missing required env metadata: ${label}`)
+  return { filePath: label, label, entries: new Map(), required: false }
 }
 
 export function applyEnvMetadata({ baseDir, entries, manifest, sourceKey = '' }) {
@@ -298,20 +294,62 @@ export function envExampleEntries({ baseDir, manifest, sourceKey = '' }) {
 
   return [...metadata.entries.values()]
     .filter((entry) => entry.includeInExample !== false)
-    .map(({ key, example }) => ({ key, value: example }))
+    .map(({ key, example, description }) => ({
+      key,
+      value: example,
+      ...(description === undefined ? {} : { description }),
+    }))
 }
 
-export function manifestEnvEntries({ baseDir, manifest, sourceKey = '', environment }) {
+export function manifestEnvEntries({
+  baseDir,
+  manifest,
+  sourceKey = '',
+  environment,
+  privateValues,
+  requireEncryptedValues = false,
+}: any) {
   const metadata = loadEnvMetadata({ baseDir, manifest, sourceKey })
   if (!metadata.required) return null
 
   const metadataEntries = [...metadata.entries.values()]
-  if (!metadataEntries.some((entry) => entry.valuesConfigured)) return null
+  if (manifest.version !== 2 && !metadataEntries.some((entry) => entry.valuesConfigured)) return null
 
   const entries = []
   for (const entry of metadataEntries) {
-    if (!entry.valuesConfigured) continue
     if (!isAllowedInEnv(entry, environment)) continue
+
+    if (manifest.version === 2 && entry.encrypted) {
+      const value = privateValues?.getEnvValue({
+        sourceKey: metadataSourceKey(baseDir, sourceKey),
+        key: entry.key,
+        environment,
+        example: entry.example,
+      })
+      if (value === undefined) {
+        if (requireEncryptedValues) {
+          throw new Error(
+            `${metadataLabel(metadata)} metadata for ${entry.key} must define a private value for ${environment}.`,
+          )
+        }
+        continue
+      }
+      entries.push({
+        key: entry.key,
+        value,
+        metadata: entry,
+        encrypted: entry.encrypted,
+        browser: entry.browser,
+        includeInExample: entry.includeInExample,
+        excludeEnv: entry.excludeEnv,
+        includeEnv: entry.includeEnv,
+        includeEnvConfigured: entry.includeEnvConfigured,
+        packages: entry.packages,
+      })
+      continue
+    }
+
+    if (!entry.valuesConfigured) continue
 
     const hasEnvironmentValue = Object.hasOwn(entry.values, environment)
     const hasDefaultValue = Object.hasOwn(entry.values, 'default')

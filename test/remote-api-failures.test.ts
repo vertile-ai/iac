@@ -106,7 +106,7 @@ test('fails explicitly when Vercel returns non-JSON success data or the request 
   for (const request of clients) {
     await withMockFetch(
       async () => new Response('<html>upstream proxy</html>', { status: 200, headers: { 'content-type': 'text/html' } }),
-      async () => assert.rejects(request, /Vercel API GET .* returned invalid JSON/),
+      async () => assert.rejects(request, /Vercel API GET .* returned invalid JSON.*<html>upstream proxy<\/html>/),
     )
     for (const error of [
       new TypeError('network connection reset'),

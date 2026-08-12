@@ -280,6 +280,17 @@ test('covers GitHub Actions and env sync pure helper branches', () => {
   assert.equal(syncTesting.appSourceKey({ env: { sourceKey: 'shared' }, key: 'web' }), 'shared')
 })
 
+test('env sync defaults do not include a test env file', () => {
+  const variants = syncTesting.configuredVariants({})
+
+  assert.equal(Object.hasOwn(variants, 'test'), false)
+  assert.deepEqual(syncTesting.selectedVariantNames([], variants), [
+    'local',
+    'production',
+    'staging',
+  ])
+})
+
 test('covers manifest normalization and Vercel manifest derivation failures', async () => {
   const root = await fixture()
   const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
@@ -292,7 +303,7 @@ test('covers manifest normalization and Vercel manifest derivation failures', as
       apps: [],
     })
     assert.deepEqual(normalized.environments, ['development', 'preview', 'production'])
-    assert.throws(() => normalizeManifest({ version: 2, project: 'x', environments: [], providers: {} }), /Unsupported/)
+    assert.throws(() => normalizeManifest({ version: 3, project: 'x', environments: [], providers: {} }), /Unsupported/)
     assert.throws(() => validateManifest({ version: 1, project: {}, environments: [], providers: {} }), /project.name/)
     assert.throws(() => validateManifest({ version: 1, project: { name: 'x' }, environments: 'bad', providers: {} }), /array/)
     assert.throws(() => normalizeManifest({ version: 1, project: 'x', environments: [], providers: {}, apps: [{}] }), /app must include a key/)
@@ -341,10 +352,10 @@ test('covers manifest normalization and Vercel manifest derivation failures', as
   }
 })
 
-test('covers env metadata file, embedded, projection, and validation paths', async () => {
+test('covers embedded env metadata, projection, and validation paths', async () => {
   const root = await fixture()
   const baseDir = path.join(root, 'env', 'web')
-  const manifest = sampleManifest({ packages: [{ key: 'web' }], env: { metadataFile: 'metadata.json' } })
+  const manifest = sampleManifest({ packages: [{ key: 'web' }] })
   try {
     await mkdir(baseDir, { recursive: true })
     assert.equal(loadEnvMetadata({ baseDir, manifest }).required, false)
@@ -359,7 +370,7 @@ test('covers env metadata file, embedded, projection, and validation paths', asy
       { key: 'SECRET', example: 'example', encrypted: true, browser: false, value: 'fallback', values: { production: 'production' }, includeEnv: ['production'], packages: [{ package: 'web', key: 'WEB_SECRET' }] },
       { key: 'NEXT_PUBLIC_URL', example: 'https://example.com', encrypted: false, browser: true, values: { default: 'https://default.example.com' }, includeInExample: false },
     ]
-    await writeFile(path.join(baseDir, 'metadata.json'), JSON.stringify({ variables: rows }))
+    manifest.env = { metadata: { web: { variables: rows } } }
     const loaded = loadEnvMetadata({ baseDir, manifest })
     assert.equal(loaded.entries.size, 2)
     assert.deepEqual(envExampleEntries({ baseDir, manifest }), [{ key: 'SECRET', value: 'example' }])
@@ -382,33 +393,33 @@ test('covers env metadata file, embedded, projection, and validation paths', asy
     assert.equal(embedded.filePath, 'iac.json env.metadata.shared')
     assert.equal(manifestEnvEntries({ baseDir, manifest: embeddedManifest, sourceKey: 'shared', environment: 'production' }).entries[0].value, 'value')
 
-    await writeFile(path.join(baseDir, 'metadata.json'), JSON.stringify({ vars: 'bad' }))
+    manifest.env.metadata.web = { vars: 'bad' }
     assert.throws(() => loadEnvMetadata({ baseDir, manifest }), /variables array or vars object/)
-    await writeFile(path.join(baseDir, 'metadata.json'), JSON.stringify([{ key: 'BAD-KEY', example: 'x', encrypted: true, browser: false }]))
+    manifest.env.metadata.web = [{ key: 'BAD-KEY', example: 'x', encrypted: true, browser: false }]
     assert.throws(() => loadEnvMetadata({ baseDir, manifest }), /invalid key/)
-    await writeFile(path.join(baseDir, 'metadata.json'), JSON.stringify([{ key: 'A', example: 'x', encrypted: true, browser: false }, { key: 'A', example: 'x', encrypted: true, browser: false }]))
+    manifest.env.metadata.web = [{ key: 'A', example: 'x', encrypted: true, browser: false }, { key: 'A', example: 'x', encrypted: true, browser: false }]
     assert.throws(() => loadEnvMetadata({ baseDir, manifest }), /duplicate/)
-    await writeFile(path.join(baseDir, 'metadata.json'), JSON.stringify({ variables: { A: { example: 'x', encrypted: true, browser: false } } }))
+    manifest.env.metadata.web = { variables: { A: { example: 'x', encrypted: true, browser: false } } }
     assert.equal(loadEnvMetadata({ baseDir, manifest }).entries.has('A'), true)
-    await writeFile(path.join(baseDir, 'metadata.json'), JSON.stringify([{ key: 'A', encrypted: true, browser: false }]))
+    manifest.env.metadata.web = [{ key: 'A', encrypted: true, browser: false }]
     assert.throws(() => loadEnvMetadata({ baseDir, manifest }), /string example/)
-    await writeFile(path.join(baseDir, 'metadata.json'), JSON.stringify([{ key: 'A', example: 'x', browser: false }]))
+    manifest.env.metadata.web = [{ key: 'A', example: 'x', browser: false }]
     assert.throws(() => loadEnvMetadata({ baseDir, manifest }), /boolean encrypted/)
-    await writeFile(path.join(baseDir, 'metadata.json'), JSON.stringify([{ key: 'A', example: 'x', encrypted: true }]))
+    manifest.env.metadata.web = [{ key: 'A', example: 'x', encrypted: true }]
     assert.throws(() => loadEnvMetadata({ baseDir, manifest }), /boolean browser/)
-    await writeFile(path.join(baseDir, 'metadata.json'), JSON.stringify([{ key: 'A', example: 'x', encrypted: true, browser: false, value: 1 }]))
+    manifest.env.metadata.web = [{ key: 'A', example: 'x', encrypted: true, browser: false, value: 1 }]
     assert.throws(() => loadEnvMetadata({ baseDir, manifest }), /value must be a string/)
-    await writeFile(path.join(baseDir, 'metadata.json'), JSON.stringify([{ key: 'A', example: 'x', encrypted: true, browser: false, values: 'bad' }]))
+    manifest.env.metadata.web = [{ key: 'A', example: 'x', encrypted: true, browser: false, values: 'bad' }]
     assert.throws(() => loadEnvMetadata({ baseDir, manifest }), /must be an object of string values/)
-    await writeFile(path.join(baseDir, 'metadata.json'), JSON.stringify([{ key: 'A', example: 'x', encrypted: true, browser: false, values: { production: 1 } }]))
+    manifest.env.metadata.web = [{ key: 'A', example: 'x', encrypted: true, browser: false, values: { production: 1 } }]
     assert.throws(() => loadEnvMetadata({ baseDir, manifest }), /must be a string/)
-    await writeFile(path.join(baseDir, 'metadata.json'), JSON.stringify([{ key: 'A', example: 'x', encrypted: true, browser: false, packages: null }]))
+    manifest.env.metadata.web = [{ key: 'A', example: 'x', encrypted: true, browser: false, packages: null }]
     assert.throws(() => loadEnvMetadata({ baseDir, manifest }), /must contain package keys/)
-    await writeFile(path.join(baseDir, 'metadata.json'), JSON.stringify([{ key: 'A', example: 'x', encrypted: true, browser: false, packages: [{ package: '' }] }]))
+    manifest.env.metadata.web = [{ key: 'A', example: 'x', encrypted: true, browser: false, packages: [{ package: '' }] }]
     assert.throws(() => loadEnvMetadata({ baseDir, manifest }), /must define non-empty package/)
-    await writeFile(path.join(baseDir, 'metadata.json'), JSON.stringify([{ key: 'A', example: 'x', encrypted: true, browser: false, packages: [{ package: 'missing' }] }]))
+    manifest.env.metadata.web = [{ key: 'A', example: 'x', encrypted: true, browser: false, packages: [{ package: 'missing' }] }]
     assert.throws(() => loadEnvMetadata({ baseDir, manifest }), /unknown package/)
-    await writeFile(path.join(baseDir, 'metadata.json'), JSON.stringify([{ key: 'A', example: 'x', encrypted: true, browser: false, packages: [{ package: 'web', key: 'bad-key' }] }]))
+    manifest.env.metadata.web = [{ key: 'A', example: 'x', encrypted: true, browser: false, packages: [{ package: 'web', key: 'bad-key' }] }]
     assert.throws(() => loadEnvMetadata({ baseDir, manifest }), /invalid output key/)
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -689,20 +700,26 @@ test('reconciles shared and project Vercel environment variables with deletes', 
     await mkdir(path.join(sourceRoot, 'shared'), { recursive: true })
     await mkdir(path.join(sourceRoot, 'landing'), { recursive: true })
     await writeFile(path.join(root, 'iac.json'), JSON.stringify(sampleManifest({
-      env: { sourceDir: '.vertile-iac/env' },
+      env: {
+        sourceDir: '.vertile-iac/env',
+        metadata: {
+          shared: {
+            variables: [
+              { key: 'UPDATE', example: 'x', encrypted: true, browser: false },
+              { key: 'CREATE', example: 'x', encrypted: false, browser: false },
+            ],
+          },
+          landing: {
+            variables: [{ key: 'PROJECT_VALUE', example: 'x', encrypted: true, browser: false }],
+          },
+        },
+      },
       environmentFiles: { staging: { files: ['.env.staging'] } },
       providers: { vercel: { teamSlug: 'team' } },
       apps: [{ key: 'landing', name: 'landing' }],
     })))
     await writeFile(path.join(sourceRoot, 'shared', '.env.staging'), 'UPDATE=next\nCREATE=created\n')
     await writeFile(path.join(sourceRoot, 'landing', '.env.staging'), 'PROJECT_VALUE=project\n')
-    await writeFile(path.join(sourceRoot, 'shared', '.env.json'), JSON.stringify({ variables: [
-      { key: 'UPDATE', example: 'x', encrypted: true, browser: false },
-      { key: 'CREATE', example: 'x', encrypted: false, browser: false },
-    ] }))
-    await writeFile(path.join(sourceRoot, 'landing', '.env.json'), JSON.stringify({ variables: [
-      { key: 'PROJECT_VALUE', example: 'x', encrypted: true, browser: false },
-    ] }))
     await writeFile(shimPath, [
       "import fs from 'node:fs'",
       "globalThis.fetch = async (url, options = {}) => {",

@@ -10,6 +10,7 @@ import {
 } from '../../core/hcl.js'
 import {
   compactBody,
+  providerObjectStorageName,
   providerResourceName,
   providerValues,
   resourceName,
@@ -52,7 +53,7 @@ function objectStorageBlocks(manifest, environment, deployment = {}) {
   return manifest.objectStorage.map((item) => {
     const values = providerValues(item, 'aws')
     return block('resource', ['aws_s3_bucket', resourceName('object_storage', item.key)], compactBody({
-      bucket: values.bucket || providerResourceName(manifest, nameEnvironment, item),
+      bucket: providerObjectStorageName(manifest, nameEnvironment, item, 'aws'),
       force_destroy: values.forceDestroy,
     }))
   })

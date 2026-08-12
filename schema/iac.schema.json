@@ -11,7 +11,7 @@
       "type": "string"
     },
     "version": {
-      "const": 1
+      "enum": [1, 2]
     },
     "project": {
       "oneOf": [
@@ -112,8 +112,13 @@
             {
               "type": "object",
               "properties": {
-                "region": { "type": "string" },
-                "version": { "type": "string" }
+                "region": { "type": "string", "minLength": 1 },
+                "version": { "type": "string" },
+                "backend": { "$ref": "#/$defs/digitalOceanBackend" },
+                "deployments": {
+                  "type": "object",
+                  "additionalProperties": { "$ref": "#/$defs/digitalOceanDeployment" }
+                }
               }
             }
           ]
@@ -190,7 +195,6 @@
       "properties": {
         "sourceDir": { "type": "string" },
         "sharedKey": { "type": "string" },
-        "metadataFile": { "type": "string" },
         "metadata": {
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/envMetadataDocument" },
@@ -216,7 +220,6 @@
               "uniqueItems": true
             },
             "sharedKey": { "type": "string" },
-            "metadataFile": { "type": "string" },
             "skipInVercel": { "type": "boolean" },
             "directOutputs": { "type": "boolean" },
             "patchVariantsFromExample": { "type": "boolean" },
@@ -235,6 +238,12 @@
       "type": "array",
       "items": { "$ref": "#/$defs/app" }
     },
+    "services": {
+      "description": "First-class long-running public services. v1 supports container services only.",
+      "type": "array",
+      "default": [],
+      "items": { "$ref": "#/$defs/service" }
+    },
     "packages": {
       "type": "array",
       "items": { "$ref": "#/$defs/package" }
@@ -245,7 +254,43 @@
     },
     "objectStorage": {
       "type": "array",
-      "items": { "$ref": "#/$defs/keyedResource" }
+      "items": {
+        "allOf": [
+          { "$ref": "#/$defs/keyedResource" },
+          {
+            "type": "object",
+            "properties": {
+              "visibility": {
+                "type": "string",
+                "enum": ["private", "public"],
+                "default": "private"
+              },
+              "providers": {
+                "type": "object",
+                "properties": {
+                  "digitalocean": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "$ref": "#/$defs/digitalOceanBucketName" },
+                      "bucket": { "$ref": "#/$defs/digitalOceanBucketName" },
+                      "region": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[a-z0-9]+$"
+                      },
+                      "acl": {
+                        "type": "string",
+                        "enum": ["private", "public-read"],
+                        "default": "private"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
     },
     "databases": {
       "type": "array",
@@ -295,6 +340,114 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "version": { "const": 2 }
+        },
+        "required": ["version"]
+      },
+      "then": {
+        "properties": {
+          "providers": {
+            "type": "object",
+            "properties": {
+              "vercel": {
+                "allOf": [
+                  { "$ref": "#/$defs/versionTwoProviderConfigWithoutDeploymentCredentials" },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "token": false,
+                      "apiKey": false,
+                      "protectionBypassForAutomation": {
+                        "$ref": "#/$defs/vercelProtectionBypassForAutomationWithoutSecrets"
+                      }
+                    }
+                  }
+                ]
+              },
+              "github": {
+                "allOf": [
+                  { "$ref": "#/$defs/versionTwoProviderConfigWithoutDeploymentCredentials" },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "token": false
+                    }
+                  }
+                ]
+              },
+              "githubActions": {
+                "allOf": [
+                  { "$ref": "#/$defs/versionTwoProviderConfigWithoutDeploymentCredentials" },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "token": false
+                    }
+                  }
+                ]
+              }
+            },
+            "additionalProperties": {
+              "$ref": "#/$defs/versionTwoProviderConfigWithoutDeploymentCredentials"
+            }
+          },
+          "env": {
+            "type": "object",
+            "properties": {
+              "metadata": {
+                "type": "object",
+                "properties": {
+                  "sources": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "$ref": "#/$defs/versionTwoEnvMetadataDocument"
+                    }
+                  }
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/versionTwoEnvMetadataDocument"
+                }
+              }
+            }
+          },
+          "apps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "protectionBypassForAutomation": {
+                  "oneOf": [
+                    { "const": false },
+                    { "$ref": "#/$defs/vercelProtectionBypassForAutomationWithoutSecrets" }
+                  ]
+                },
+                "providers": {
+                  "type": "object",
+                  "properties": {
+                    "vercel": {
+                      "type": "object",
+                      "properties": {
+                        "protectionBypassForAutomation": {
+                          "oneOf": [
+                            { "const": false },
+                            { "$ref": "#/$defs/vercelProtectionBypassForAutomationWithoutSecrets" }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "providerConfig": {
       "type": "object",
@@ -307,6 +460,21 @@
         "resources": {
           "type": "array",
           "items": { "$ref": "#/$defs/providerResource" }
+        }
+      }
+    },
+    "versionTwoProviderConfigWithoutDeploymentCredentials": {
+      "type": "object",
+      "properties": {
+        "deployments": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "token": false,
+              "apiKey": false
+            }
+          }
         }
       }
     },
@@ -323,7 +491,6 @@
         "region": { "type": "string" },
         "profile": { "type": "string" },
         "version": { "type": "string" },
-        "stateKey": { "type": "string" },
         "tags": {
           "type": "object",
           "additionalProperties": { "type": ["string", "number", "boolean"] }
@@ -337,6 +504,22 @@
           }
         }
       }
+    },
+    "digitalOceanDeployment": {
+      "allOf": [
+        { "$ref": "#/$defs/providerDeployment" },
+        {
+          "type": "object",
+          "properties": {
+            "stateKey": {
+              "type": "string",
+              "description": "Safe relative backend object key using only ASCII letters, digits, '.', '_', '-', and '/', with no leading slash, trailing slash, empty segment, '.', or '..' segment.",
+              "minLength": 1,
+              "pattern": "^(?!.*[\\s\\\\])(?!/)(?!.*//)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\/$)[A-Za-z0-9._/-]+$"
+            }
+          }
+        }
+      ]
     },
     "envEnvironment": {
       "oneOf": [
@@ -413,6 +596,7 @@
       "additionalProperties": true,
       "properties": {
         "example": { "type": "string" },
+        "description": { "type": "string" },
         "value": { "type": "string" },
         "values": { "$ref": "#/$defs/envVariableValues" },
         "encrypted": { "type": "boolean" },
@@ -460,6 +644,7 @@
           "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
         },
         "example": { "type": "string" },
+        "description": { "type": "string" },
         "value": { "type": "string" },
         "values": { "$ref": "#/$defs/envVariableValues" },
         "encrypted": { "type": "boolean" },
@@ -501,6 +686,57 @@
       "type": "object",
       "additionalProperties": { "type": "string" }
     },
+    "versionTwoEnvVariableWithoutInlineValues": {
+      "not": {
+        "allOf": [
+          {
+            "required": ["encrypted"],
+            "properties": {
+              "encrypted": { "const": true }
+            }
+          },
+          {
+            "anyOf": [
+              { "required": ["value"] },
+              { "required": ["values"] }
+            ]
+          }
+        ]
+      }
+    },
+    "versionTwoEnvMetadataDocument": {
+      "type": "object",
+      "properties": {
+        "variables": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": { "$ref": "#/$defs/versionTwoEnvVariableWithoutInlineValues" }
+            },
+            {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/versionTwoEnvVariableWithoutInlineValues" }
+            }
+          ]
+        },
+        "vars": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": { "$ref": "#/$defs/versionTwoEnvVariableWithoutInlineValues" }
+            },
+            {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/versionTwoEnvVariableWithoutInlineValues" }
+            }
+          ]
+        },
+        "env": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/versionTwoEnvVariableWithoutInlineValues" }
+        }
+      }
+    },
     "envVariablePackage": {
       "oneOf": [
         { "type": "string", "minLength": 1 },
@@ -539,6 +775,29 @@
         }
       }
     },
+    "digitalOceanBackend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "bucket", "region"],
+      "properties": {
+        "type": { "const": "spaces" },
+        "bucket": { "$ref": "#/$defs/digitalOceanBucketName" },
+        "region": {
+          "type": "string",
+          "description": "DigitalOcean region slug used for the Spaces endpoint, such as nyc3 or syd1.",
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+$"
+        },
+        "useLockfile": { "type": "boolean", "default": true }
+      }
+    },
+    "digitalOceanBucketName": {
+      "type": "string",
+      "description": "DigitalOcean Spaces bucket name: 3-63 lowercase letters, digits, or dashes; begins and ends with a letter or digit.",
+      "minLength": 3,
+      "maxLength": 63,
+      "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+    },
     "vercelProjectSettings": {
       "type": "object",
       "additionalProperties": true,
@@ -546,6 +805,10 @@
         "rootDirectory": { "type": ["string", "null"] },
         "nodeVersion": { "type": ["string", "null"] },
         "enableAffectedProjectsDeployments": { "type": ["boolean", "null"] },
+        "framework": { "type": ["string", "null"] },
+        "installCommand": { "type": ["string", "null"] },
+        "buildCommand": { "type": ["string", "null"] },
+        "outputDirectory": { "type": ["string", "null"] },
         "protectionBypassForAutomation": {
           "oneOf": [
             { "const": false },
@@ -566,7 +829,7 @@
       "properties": {
         "ensure": {
           "type": "object",
-          "required": ["secret", "note"],
+          "required": ["note"],
           "additionalProperties": false,
           "properties": {
             "secret": {
@@ -619,6 +882,41 @@
         }
       }
     },
+    "vercelProtectionBypassForAutomationWithoutSecrets": {
+      "allOf": [
+        { "$ref": "#/$defs/vercelProtectionBypassForAutomation" },
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": ["ensure"],
+                "properties": {
+                  "ensure": { "required": ["secret"] }
+                }
+              },
+              {
+                "required": ["generate"],
+                "properties": {
+                  "generate": { "required": ["secret"] }
+                }
+              },
+              {
+                "required": ["update"],
+                "properties": {
+                  "update": { "required": ["secret"] }
+                }
+              },
+              {
+                "required": ["revoke"],
+                "properties": {
+                  "revoke": { "required": ["secret"] }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
     "app": {
       "type": "object",
       "required": ["key"],
@@ -631,6 +929,9 @@
         "framework": { "type": "string" },
         "rootDirectory": { "type": "string" },
         "outputDir": { "type": "string" },
+        "installCommand": { "type": "string" },
+        "buildCommand": { "type": "string" },
+        "outputDirectory": { "type": "string" },
         "sourceKey": { "type": "string" },
         "nodeVersion": { "type": "string" },
         "enableAffectedProjectsDeployments": { "type": "boolean" },
@@ -684,6 +985,113 @@
             "exampleOutput": { "type": "string" },
             "sharedPrefix": { "type": "string" }
           }
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "required": ["key", "runtime", "port"],
+      "additionalProperties": true,
+      "not": { "required": ["protocol"] },
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "app": {
+          "description": "Optional reference to an apps[].key.",
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime": {
+          "description": "v1 supports container-backed long-running services only.",
+          "const": "container"
+        },
+        "port": {
+          "description": "Internal application/upstream port exposed by the service container.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "public": {
+          "description": "v1 supports public services only.",
+          "const": true,
+          "default": true
+        },
+        "replicas": {
+          "description": "v1 supports a single service replica.",
+          "const": 1,
+          "default": 1
+        },
+        "healthCheck": {
+          "description": "Rollout health metadata. Renderers may use this path for upstream checks.",
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "path": {
+              "description": "Absolute HTTP path used as rollout metadata.",
+              "type": "string",
+              "pattern": "^/"
+            }
+          }
+        },
+        "providers": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "digitalocean": { "$ref": "#/$defs/digitalOceanServiceProvider" }
+          }
+        }
+      }
+    },
+    "digitalOceanServiceProvider": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "mode": {
+          "description": "v1 supports DigitalOcean droplet-backed services only.",
+          "const": "droplet",
+          "default": "droplet"
+        },
+        "region": { "type": "string", "minLength": 1 },
+        "sizeSlug": {
+          "description": "DigitalOcean droplet size slug. If omitted, the renderer applies a conservative default.",
+          "type": "string",
+          "minLength": 1
+        },
+        "image": { "type": "string", "minLength": 1 },
+        "backups": { "type": "boolean" },
+        "monitoring": { "type": "boolean" },
+        "reservedIp": {
+          "description": "Public v1 services require a stable reserved IP.",
+          "const": true,
+          "default": true
+        },
+        "sshKeyFingerprints": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "managementCidrs": {
+          "description": "Explicit management CIDR allowlist for service administration. Values must use IP-address/prefix CIDR syntax; semantic IP version, prefix bounds, and global-range checks are also enforced by the CLI runtime.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "anyOf": [
+              {
+                "description": "IPv4 CIDR shape; exact octet semantics are enforced by the CLI runtime.",
+                "pattern": "^(?:\\d{1,3}\\.){3}\\d{1,3}/(?:[0-9]|[12][0-9]|3[0-2])$"
+              },
+              {
+                "description": "IPv6 CIDR shape; exact address semantics are enforced by the CLI runtime.",
+                "pattern": "^[0-9A-Fa-f:.]+/(?:[0-9]|[1-9][0-9]|1[01][0-9]|12[0-8])$"
+              }
+            ],
+            "not": {
+              "pattern": "/0+$"
+            }
+          },
+          "uniqueItems": true
         }
       }
     },

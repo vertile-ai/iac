@@ -1,7 +1,7 @@
 {
   "$schema": "https://vertile.ai/schemas/iac-schema-docs.schema.json",
   "title": "Vertile AI IaC Manifest Schema",
-  "summary": "The iac.json manifest is the source of truth for app infrastructure intent, provider reconciliation, and environment metadata wiring.",
+  "summary": "The tracked iac.json manifest is the source of truth for app infrastructure intent, provider reconciliation, and environment metadata wiring; version 2 uses a separate strict private-values document for secrets.",
   "schemaPath": "/schemas/iac.schema.json",
   "packageSchemaPath": "schema/iac.schema.json",
   "sourcePackage": "@vertile-ai/iac",
@@ -12,9 +12,9 @@
       "fields": [
         {
           "path": "version",
-          "type": "1",
+          "type": "1 | 2",
           "required": true,
-          "description": "Schema version. Current manifests use version 1."
+          "description": "Schema version. Version 2 keeps tracked intent separate from the strict private-values document; version 1 remains compatible with inline values."
         },
         {
           "path": "project",
@@ -53,10 +53,10 @@
           "description": "Default Vercel automation-bypass operation for every managed Vercel project. Use ensure for repeatable note-keyed sync."
         },
         {
-          "path": "providers.vercel.projectDefaults",
+          "path": "providers.vercel.projectDefaults | projectSettingsDefaults",
           "type": "vercelProjectSettings",
           "required": false,
-          "description": "Default Vercel project settings applied to every deployable Vercel app."
+          "description": "Default Vercel project settings applied to every deployable Vercel app. framework, installCommand, buildCommand, and outputDirectory are managed only when explicitly declared here or by an app override."
         },
         {
           "path": "providers.<target>.deployments",
@@ -78,33 +78,75 @@
       "fields": [
         {
           "path": "providers.vercel.protectionBypassForAutomation.ensure",
-          "type": "{ secret, note, isEnvVar? }",
+          "type": "{ note, isEnvVar? } (v2 tracked) | { secret, note, isEnvVar? } (v1)",
           "required": false,
-          "description": "Repeatable operation. Vertile IaC exact-matches note against Vercel-exposed automation-bypass notes, then sends update when the note exists or generate when it does not."
+          "description": "Repeatable operation. In version 2, tracked configuration supplies note metadata and private.json supplies ensure.secret. Vertile IaC exact-matches the note against Vercel-exposed automation-bypass notes, then sends update when the note exists or generate when it does not."
         },
         {
           "path": "providers.vercel.protectionBypassForAutomation.generate",
           "type": "{ secret?, note? }",
           "required": false,
-          "description": "Direct Vercel generate operation. Use for explicit provisioning or rotation, not ordinary recurring sync."
+          "description": "Direct Vercel generate operation. Version 2 rejects a tracked secret and its private schema supports only ensure.secret; keep this inline shape for version 1 compatibility."
         },
         {
           "path": "providers.vercel.protectionBypassForAutomation.update",
           "type": "{ secret, isEnvVar?, note? }",
           "required": false,
-          "description": "Direct Vercel update operation for a known existing secret."
+          "description": "Direct Vercel update operation for a known existing secret. Version 2 rejects tracked secrets; this inline shape is version 1 compatibility."
         },
         {
           "path": "providers.vercel.protectionBypassForAutomation.revoke",
           "type": "{ secret, regenerate }",
           "required": false,
-          "description": "Direct Vercel revoke operation for a known existing secret."
+          "description": "Direct Vercel revoke operation for a known existing secret. Version 2 rejects tracked secrets; this inline shape is version 1 compatibility."
         },
         {
           "path": "apps[].providers.vercel.protectionBypassForAutomation",
           "type": "false | vercelProtectionBypassForAutomation",
           "required": false,
           "description": "Per-project override. Set false to opt a Vercel project out of the provider-level automation-bypass default."
+        }
+      ]
+    },
+    {
+      "title": "Version 2 Private Values",
+      "summary": "Version 2 keeps tracked intent in iac.json and reads only an allowlisted private document for encrypted env values and provider credentials.",
+      "fields": [
+        {
+          "path": ".iac/private.json",
+          "type": "private-values document",
+          "required": false,
+          "description": "Default private path. The document is not an arbitrary iac.json overlay and must use private document version 1."
+        },
+        {
+          "path": "private.env.<source>.<variable>.<environment>",
+          "type": "string",
+          "required": false,
+          "description": "Private value for a public metadata entry marked encrypted: true. Source, variable, and environment must already exist in iac.json."
+        },
+        {
+          "path": "private.providers.vercel.token | apiKey",
+          "type": "string",
+          "required": false,
+          "description": "Allowlisted Vercel credential. Process VERCEL_TOKEN/VERCEL_API_KEY takes precedence, then version 1 inline values and the legacy token file remain compatibility fallbacks."
+        },
+        {
+          "path": "private.providers.vercel.protectionBypassForAutomation.ensure.secret",
+          "type": "string",
+          "required": false,
+          "description": "Only supported private Vercel bypass shape. It pairs with a tracked version 2 ensure note and is injected only into the local projects request."
+        },
+        {
+          "path": "private.providers.github.token",
+          "type": "string",
+          "required": false,
+          "description": "Allowlisted GitHub credential. GH_TOKEN/GITHUB_TOKEN takes precedence; version 1 providers.github and providers.githubActions values remain compatibility fallbacks."
+        },
+        {
+          "path": "private file safety",
+          "type": "ignored + untracked + POSIX 0600",
+          "required": false,
+          "description": "When present in a Git worktree, the private file must be ignored and not tracked. Group- or world-readable modes are rejected on POSIX. Terraform render does not consume this document."
         }
       ]
     },
@@ -131,10 +173,226 @@
           "description": "App root used by Vercel project settings and env file output."
         },
         {
+          "path": "apps[].framework | installCommand | buildCommand | outputDirectory",
+          "type": "string",
+          "required": false,
+          "description": "Vercel build settings. They are reconciled only when declared on the app, its Vercel override, or the Vercel project defaults."
+        },
+        {
           "path": "apps[].domains",
           "type": "domain[]",
           "required": false,
           "description": "Domains assigned to this app by provider domain reconciliation."
+        }
+      ]
+    },
+    {
+      "title": "Object Storage",
+      "summary": "Object storage is a portable bucket intent. DigitalOcean renders Spaces buckets and exposes non-sensitive connection metadata as Terraform outputs.",
+      "fields": [
+        {
+          "path": "objectStorage[].key",
+          "type": "string",
+          "required": true,
+          "description": "Stable object-storage identifier used in generated Terraform resource and output names."
+        },
+        {
+          "path": "objectStorage[].visibility",
+          "type": "\"private\" | \"public\"",
+          "required": false,
+          "description": "Defaults to private. DigitalOcean maps public to the public-read ACL."
+        },
+        {
+          "path": "objectStorage[].providers.digitalocean.name | bucket",
+          "type": "string",
+          "required": false,
+          "description": "Optional DNS-safe bucket name: 3-63 lowercase letters, digits, or dashes."
+        },
+        {
+          "path": "objectStorage[].providers.digitalocean.region",
+          "type": "string",
+          "required": false,
+          "description": "Optional lowercase DigitalOcean region slug; otherwise the selected deployment or provider region is used."
+        },
+        {
+          "path": "objectStorage[].providers.digitalocean.acl",
+          "type": "\"private\" | \"public-read\"",
+          "required": false,
+          "description": "Optional explicit DigitalOcean Spaces canned ACL."
+        },
+        {
+          "path": "digitalocean_object_storage_<key>_{bucket_name,endpoint,bucket_domain_name,region}",
+          "type": "Terraform outputs",
+          "required": false,
+          "description": "Non-sensitive bucket connection metadata. Access keys are never emitted."
+        }
+      ]
+    },
+    {
+      "title": "Services",
+      "summary": "Services are experimental long-running app processes. The current renderer supports public container services with DigitalOcean rendering one secure empty Droplet host per service.",
+      "fields": [
+        {
+          "path": "services[].key",
+          "type": "string",
+          "required": true,
+          "description": "Stable service identifier. Keys must be unique and must not collide after Terraform name sanitization."
+        },
+        {
+          "path": "services[].app",
+          "type": "string",
+          "required": false,
+          "description": "Optional reference to an apps[].key."
+        },
+        {
+          "path": "services[].runtime",
+          "type": "\"container\"",
+          "required": true,
+          "description": "v1 supports container-backed long-running services only."
+        },
+        {
+          "path": "services[].port",
+          "type": "integer",
+          "required": true,
+          "description": "Internal application/upstream port from 1 to 65535. DigitalOcean firewalls do not expose this port publicly."
+        },
+        {
+          "path": "services[].public",
+          "type": "true",
+          "required": false,
+          "description": "Defaults to true. v1 rejects false."
+        },
+        {
+          "path": "services[].replicas",
+          "type": "1",
+          "required": false,
+          "description": "Defaults to 1. v1 rejects any value other than 1."
+        },
+        {
+          "path": "services[].healthCheck.path",
+          "type": "string",
+          "required": false,
+          "description": "Absolute health path beginning with /. Rendered as rollout metadata and a Terraform output when set."
+        },
+        {
+          "path": "services[].protocol",
+          "type": "unsupported",
+          "required": false,
+          "description": "Rejected in v1. Reverse proxy protocol handling belongs to the consumer release pipeline."
+        },
+        {
+          "path": "services[].providers.digitalocean.mode",
+          "type": "\"droplet\"",
+          "required": false,
+          "description": "Defaults to droplet. v1 rejects any other DigitalOcean service mode."
+        },
+        {
+          "path": "services[].providers.digitalocean.region",
+          "type": "string",
+          "required": false,
+          "description": "DigitalOcean region. Resolution order is service override, selected deployment region, then provider region; one source is required for service rendering."
+        },
+        {
+          "path": "services[].providers.digitalocean.sizeSlug | size",
+          "type": "string",
+          "required": false,
+          "description": "Droplet size. First-class services default to s-1vcpu-2gb."
+        },
+        {
+          "path": "services[].providers.digitalocean.image",
+          "type": "string",
+          "required": false,
+          "description": "Droplet image. Defaults to ubuntu-24-04-x64."
+        },
+        {
+          "path": "services[].providers.digitalocean.backups",
+          "type": "boolean",
+          "required": false,
+          "description": "Droplet backups flag. Defaults to true."
+        },
+        {
+          "path": "services[].providers.digitalocean.monitoring",
+          "type": "boolean",
+          "required": false,
+          "description": "Droplet monitoring flag. Defaults to true."
+        },
+        {
+          "path": "services[].providers.digitalocean.reservedIp",
+          "type": "true",
+          "required": false,
+          "description": "Defaults to true. v1 rejects false because public services require a stable Reserved IP."
+        },
+        {
+          "path": "services[].providers.digitalocean.sshKeyFingerprints",
+          "type": "string[]",
+          "required": false,
+          "description": "DigitalOcean SSH key fingerprints for host access. Omit unless management access is intentionally configured."
+        },
+        {
+          "path": "services[].providers.digitalocean.managementCidrs",
+          "type": "CIDR[]",
+          "required": false,
+          "description": "Explicit SSH allowlist. Empty, duplicate, invalid, or global CIDRs are rejected; SSH ingress is omitted when unset."
+        }
+      ]
+    },
+    {
+      "title": "DigitalOcean Backend And Outputs",
+      "summary": "DigitalOcean uses local Terraform state by default, can render an optional Spaces S3-compatible backend for selected deployments, and exposes stable non-sensitive output JSON.",
+      "fields": [
+        {
+          "path": "providers.digitalocean.version",
+          "type": "string",
+          "required": false,
+          "description": "DigitalOcean Terraform provider version. Defaults to 2.96.0 and may be overridden by deployment version."
+        },
+        {
+          "path": "providers.digitalocean.backend.type",
+          "type": "\"spaces\"",
+          "required": true,
+          "description": "Optional remote state backend type. Only spaces is supported."
+        },
+        {
+          "path": "providers.digitalocean.backend.bucket",
+          "type": "string",
+          "required": true,
+          "description": "Pre-created Spaces bucket for Terraform state. The CLI does not create the state bucket."
+        },
+        {
+          "path": "providers.digitalocean.backend.region",
+          "type": "string",
+          "required": true,
+          "description": "Lowercase DigitalOcean region slug used in the Spaces endpoint."
+        },
+        {
+          "path": "providers.digitalocean.backend.useLockfile",
+          "type": "boolean",
+          "required": false,
+          "description": "Defaults to true. true renders Terraform ~> 1.11 with use_lockfile; false renders Terraform >= 1.6.3 without use_lockfile."
+        },
+        {
+          "path": "providers.digitalocean.backend.<credential-like-field>",
+          "type": "unsupported",
+          "required": false,
+          "description": "Rejected. Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables for Spaces backend credentials."
+        },
+        {
+          "path": "providers.digitalocean.deployments.<name>.stateKey",
+          "type": "string",
+          "required": false,
+          "description": "Required when a Spaces backend is configured and that deployment is selected. Must be a safe relative object key."
+        },
+        {
+          "path": "vertile-iac output --target=digitalocean --deployment=<name> --json",
+          "type": "{ target, deployment, environment, outputs }",
+          "required": false,
+          "description": "Stable JSON envelope for non-sensitive Terraform outputs. The command initializes the selected rendered workspace before reading terraform output -json."
+        },
+        {
+          "path": "digitalocean_service_<service_key>_ssh_user | application_directory | application_port | health_check_path",
+          "type": "Terraform output names",
+          "required": false,
+          "description": "Stable service output names for release automation, alongside droplet_id, reserved_ip, and public_host."
         }
       ]
     },
@@ -158,7 +416,7 @@
           "path": "env.metadata.<source>.variables[]",
           "type": "envVariable[]",
           "required": false,
-          "description": "Structured metadata for env keys, including example, encrypted, browser, package routing, and environment include/exclude rules."
+          "description": "Structured metadata for env keys, including example, optional .env.example descriptions, encrypted, browser, package routing, and environment include/exclude rules. Version 2 encrypted entries keep real values in private.json rather than tracked value or values fields; sync-env may use example only as the local fallback."
         }
       ]
     }

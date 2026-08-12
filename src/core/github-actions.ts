@@ -15,7 +15,7 @@ function asStringList(value, field) {
 }
 
 function metadataSourceKeys(manifest: any) {
-  const metadata = asObject(manifest.env?.metadata || manifest.env?.envJson)
+  const metadata = asObject(manifest.env?.metadata)
   const sources = new Set<string>()
   for (const key of Object.keys(asObject(metadata.sources))) sources.add(key)
   for (const key of Object.keys(metadata)) {
