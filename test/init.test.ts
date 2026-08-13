@@ -43,7 +43,7 @@ test('init creates a repository manifest and private scaffold', async () => {
     assert.deepEqual(JSON.parse(await readFile(path.join(root, '.iac', 'private.json'), 'utf8')), {
       version: 1,
       env: {},
-      providers: {},
+      credentials: {},
     })
     if (process.platform !== 'win32') {
       assert.equal((await stat(path.join(root, '.iac', 'private.json'))).mode & 0o777, 0o600)
@@ -71,6 +71,10 @@ test('scaffold derives private and home-level roots from an existing manifest wi
         vercel: {},
         digitalocean: {},
         cloudflare: {},
+      },
+      credentials: {
+        'vercel-api-token': { environments: ['production'] },
+        'digitalocean-api-token': { environments: ['local', 'production'] },
       },
       apps: [],
       env: {
@@ -115,10 +119,9 @@ test('scaffold derives private and home-level roots from an existing manifest wi
           DATABASE_URL: { local: '', production: '' },
         },
       },
-      providers: {
-        vercel: { token: '' },
-        digitalocean: { token: '' },
-        cloudflare: { apiToken: '' },
+      credentials: {
+        'vercel-api-token': { production: '' },
+        'digitalocean-api-token': { local: '', production: '' },
       },
     })
     assert.equal(await readFile(path.join(root, '.gitignore'), 'utf8'), 'node_modules\n/.iac/private.json\n')
@@ -136,7 +139,24 @@ test('scaffold derives private and home-level roots from an existing manifest wi
       ))).isDirectory(), true)
     }
 
-    await writeFile(path.join(root, '.iac', 'private.json'), '{"user":"value"}\n')
+    const expandedManifest = JSON.parse(manifest)
+    expandedManifest.credentials['new-service-token'] = {
+      environments: ['local', 'production'],
+    }
+    expandedManifest.env.metadata.api.variables.push({
+      key: 'NEW_RUNTIME_SECRET',
+      encrypted: true,
+      browser: false,
+    })
+    await writeFile(path.join(root, 'iac.json'), `${JSON.stringify(expandedManifest, null, 2)}\n`)
+    await writeFile(path.join(root, '.iac', 'private.json'), `${JSON.stringify({
+      version: 1,
+      env: { api: { DATABASE_URL: { local: 'kept', production: 'kept' } } },
+      credentials: {
+        'vercel-api-token': { production: 'kept' },
+        'digitalocean-api-token': { local: '', production: '' },
+      },
+    }, null, 2)}\n`)
     const repeated = await run(
       process.execPath,
       [cli, 'scaffold', '--repo-root', root],
@@ -144,7 +164,20 @@ test('scaffold derives private and home-level roots from an existing manifest wi
       { ...process.env, HOME: home },
     )
     assert.equal(repeated.code, 0, repeated.stderr)
-    assert.equal(await readFile(path.join(root, '.iac', 'private.json'), 'utf8'), '{"user":"value"}\n')
+    assert.deepEqual(JSON.parse(await readFile(path.join(root, '.iac', 'private.json'), 'utf8')), {
+      version: 1,
+      env: {
+        api: {
+          DATABASE_URL: { local: 'kept', production: 'kept' },
+          NEW_RUNTIME_SECRET: { local: '', production: '' },
+        },
+      },
+      credentials: {
+        'vercel-api-token': { production: 'kept' },
+        'digitalocean-api-token': { local: '', production: '' },
+        'new-service-token': { local: '', production: '' },
+      },
+    })
   } finally {
     await rm(root, { recursive: true, force: true })
     await rm(home, { recursive: true, force: true })

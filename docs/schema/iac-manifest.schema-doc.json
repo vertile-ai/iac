@@ -110,7 +110,7 @@
     },
     {
       "title": "Version 2 Private Values",
-      "summary": "Version 2 keeps tracked intent in iac.json and reads only an allowlisted private document for encrypted env values and provider credentials.",
+      "summary": "Version 2 keeps tracked declarations in iac.json and environment-keyed private facts in .iac/private.json.",
       "fields": [
         {
           "path": ".iac/private.json",
@@ -125,22 +125,16 @@
           "description": "Private value for a public metadata entry marked encrypted: true. Source, variable, and environment must already exist in iac.json."
         },
         {
-          "path": "private.providers.vercel.token | apiKey",
-          "type": "string",
+          "path": "credentials.<id>.environments[]",
+          "type": "credential declaration",
           "required": false,
-          "description": "Allowlisted Vercel credential. Process VERCEL_TOKEN/VERCEL_API_KEY takes precedence, then version 1 inline values and the legacy token file remain compatibility fallbacks."
+          "description": "Provider-neutral credential identity and required environments. Consumers own credential references and delivery mappings."
         },
         {
-          "path": "private.providers.vercel.protectionBypassForAutomation.ensure.secret",
+          "path": "private.credentials.<id>.<environment>",
           "type": "string",
           "required": false,
-          "description": "Only supported private Vercel bypass shape. It pairs with a tracked version 2 ensure note and is injected only into the local projects request."
-        },
-        {
-          "path": "private.providers.github.token",
-          "type": "string",
-          "required": false,
-          "description": "Allowlisted GitHub credential. GH_TOKEN/GITHUB_TOKEN takes precedence; version 1 providers.github and providers.githubActions values remain compatibility fallbacks."
+          "description": "Current credential value. ID and environment must match the public declaration; unreferenced credentials remain inert."
         },
         {
           "path": "private file safety",

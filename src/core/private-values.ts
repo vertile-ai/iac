@@ -15,64 +15,6 @@ export function defaultPrivateValuesPath(repoRoot) {
   return path.join(repoRoot, '.iac', 'private.json')
 }
 
-function assertAllowedPrivateProviderFields(privateManifest) {
-  if (privateManifest.providers !== undefined && !isObject(privateManifest.providers)) {
-    throw new Error('private.json providers must be an object.')
-  }
-  const providers = asObject(privateManifest.providers)
-  const allowedFields = {
-    vercel: new Set(['token', 'apiKey', 'protectionBypassForAutomation']),
-    github: new Set(['token']),
-    digitalocean: new Set(['token']),
-    cloudflare: new Set(['apiToken']),
-  }
-
-  for (const [provider, config] of Object.entries(providers)) {
-    const fields = allowedFields[provider]
-    if (!fields) {
-      throw new Error(`private.json providers.${provider} is not allowed.`)
-    }
-    if (!isObject(config)) {
-      throw new Error(`private.json providers.${provider} must be an object.`)
-    }
-    for (const field of Object.keys(config)) {
-      if (!fields.has(field)) {
-        throw new Error(`private.json providers.${provider}.${field} is not allowed.`)
-      }
-      if (field !== 'protectionBypassForAutomation' && typeof config[field] !== 'string') {
-        throw new Error(`private.json providers.${provider}.${field} must be a string.`)
-      }
-    }
-    if (provider === 'vercel') assertVercelPrivateProviderFields(config)
-  }
-}
-
-function assertVercelPrivateProviderFields(config) {
-  const bypass = config.protectionBypassForAutomation
-  if (bypass === undefined) return
-  if (!isObject(bypass)) {
-    throw new Error('private.json providers.vercel.protectionBypassForAutomation must be an object.')
-  }
-  for (const operation of Object.keys(bypass)) {
-    if (operation !== 'ensure') {
-      throw new Error(`private.json providers.vercel.protectionBypassForAutomation.${operation} is not allowed.`)
-    }
-  }
-
-  const ensure = bypass.ensure
-  if (!isObject(ensure)) {
-    throw new Error('private.json providers.vercel.protectionBypassForAutomation.ensure must be an object.')
-  }
-  for (const field of Object.keys(ensure)) {
-    if (field !== 'secret') {
-      throw new Error(`private.json providers.vercel.protectionBypassForAutomation.ensure.${field} is not allowed.`)
-    }
-  }
-  if (typeof ensure.secret !== 'string') {
-    throw new Error('private.json providers.vercel.protectionBypassForAutomation.ensure.secret must be a string.')
-  }
-}
-
 function assertPrivateValuesVersion(privateManifest) {
   if (privateManifest.version !== 1) {
     throw new Error('private.json version must be 1.')
@@ -80,10 +22,33 @@ function assertPrivateValuesVersion(privateManifest) {
 }
 
 function assertPrivateDocumentFields(privateManifest) {
-  const allowed = new Set(['version', 'env', 'providers'])
+  const allowed = new Set(['version', 'env', 'credentials'])
   for (const key of Object.keys(privateManifest)) {
     if (!allowed.has(key)) throw new Error(`private.json ${key} is not allowed.`)
   }
+}
+
+function validatePrivateCredentials(privateManifest, manifest) {
+  if (privateManifest.credentials !== undefined && !isObject(privateManifest.credentials)) {
+    throw new Error('private.json credentials must be an object.')
+  }
+  const credentials = asObject(privateManifest.credentials)
+  for (const [id, values] of Object.entries(credentials)) {
+    const declaration = manifest.credentials?.[id]
+    if (!declaration) throw new Error(`private.json credentials.${id} references unknown credential.`)
+    if (!isObject(values)) throw new Error(`private.json credentials.${id} must be an object.`)
+    for (const [environment, value] of Object.entries(values)) {
+      if (!declaration.environments.includes(environment)) {
+        throw new Error(
+          `private.json credentials.${id}.${environment} references an undeclared environment.`,
+        )
+      }
+      if (typeof value !== 'string') {
+        throw new Error(`private.json credentials.${id}.${environment} must be a string.`)
+      }
+    }
+  }
+  return credentials
 }
 
 function isGitWorktree(repoRoot) {
@@ -153,12 +118,9 @@ function processProviderCredential(env, provider, field) {
   return undefined
 }
 
-function resolveProviderCredential({ manifest, privateManifest, env, provider, field }: any) {
+function resolveProviderCredential({ manifest, env, provider, field }: any) {
   const processCredential = processProviderCredential(env, provider, field)
   if (processCredential) return processCredential
-
-  const privateCredential = nestedStringValue(privateManifest?.providers?.[provider], field)
-  if (privateCredential) return privateCredential
 
   const inlineProviders = provider === 'github'
     ? [manifest.providers?.github, manifest.providers?.githubActions]
@@ -173,6 +135,15 @@ function resolveProviderCredential({ manifest, privateManifest, env, provider, f
 
 function localExampleValue({ environment, example }) {
   return environment === 'local' && typeof example === 'string' ? example : undefined
+}
+
+function declaredCredential(manifest, { id, environment }) {
+  const declaration = manifest.credentials?.[id]
+  if (!declaration) throw new Error(`Credential ${id} is not declared in iac.json.`)
+  if (!declaration.environments.includes(environment)) {
+    throw new Error(`Credential ${id} is not declared for ${environment}.`)
+  }
+  return declaration
 }
 
 export function resolvePrivateValues({ manifest, repoRoot, env = process.env }) {
@@ -190,6 +161,10 @@ export function resolvePrivateValues({ manifest, repoRoot, env = process.env }) 
     getEnvValue(request) {
       return manifest.version === 2 ? localExampleValue(request) : undefined
     },
+    getCredential(request) {
+      declaredCredential(manifest, request)
+      return undefined
+    },
     getProviderCredential({ provider, field }) {
       return resolveProviderCredential({ manifest, env, provider, field })
     },
@@ -203,7 +178,7 @@ export function resolvePrivateValues({ manifest, repoRoot, env = process.env }) 
   const privateManifest = asObject(JSON.parse(fs.readFileSync(filePath, 'utf8')))
   assertPrivateDocumentFields(privateManifest)
   assertPrivateValuesVersion(privateManifest)
-  assertAllowedPrivateProviderFields(privateManifest)
+  const privateCredentials = validatePrivateCredentials(privateManifest, manifest)
   if (privateManifest.env !== undefined && !isObject(privateManifest.env)) {
     throw new Error('private.json env must be an object.')
   }
@@ -251,8 +226,13 @@ export function resolvePrivateValues({ manifest, repoRoot, env = process.env }) 
         ? value
         : localExampleValue({ environment, example })
     },
+    getCredential({ id, environment }) {
+      declaredCredential(manifest, { id, environment })
+      const value = privateCredentials?.[id]?.[environment]
+      return typeof value === 'string' && value.trim() ? value : undefined
+    },
     getProviderCredential({ provider, field }) {
-      return resolveProviderCredential({ manifest, privateManifest, env, provider, field })
+      return resolveProviderCredential({ manifest, env, provider, field })
     },
   }
 }

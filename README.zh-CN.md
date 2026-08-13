@@ -147,7 +147,7 @@ Version 2 使用严格分离：被追踪的 `iac.json` 只保存基础设施意�
 
 执行 `sync-env --variants=local` 时，如果没有 private local value，encrypted entry 的 tracked `example` 会作为安全的 local fallback。其他环境绝不会把 `example` 当作 runtime value，必须提供精确的 private value。
 
-私有值默认位于 `.iac/private.json`。它是独立且严格 allowlisted 的文档，而不是可以任意覆盖 `iac.json` 的 overlay：
+Credential 在 `iac.json.credentials` 中按 ID 声明所需环境；provider 和其他 consumer 只保存 credential reference。私有值默认位于 `.iac/private.json`：
 
 ```json
 {
@@ -159,28 +159,23 @@ Version 2 使用严格分离：被追踪的 `iac.json` 只保存基础设施意�
       }
     }
   },
-  "providers": {
-    "vercel": {
-      "token": "<private Vercel token>",
-      "protectionBypassForAutomation": {
-        "ensure": { "secret": "<private bypass secret>" }
-      }
-    },
-    "github": {
-      "token": "<private GitHub token>"
+  "credentials": {
+    "service-api-token": {
+      "staging": "<private staging token>",
+      "production": "<private production token>"
     }
   }
 }
 ```
 
-env 的 shape 为 `env.<source>.<variable>.<environment>`。精确 private value 的优先级高于 local example。允许的 private provider 字段只有 `providers.vercel.token`、`providers.vercel.apiKey`、`providers.vercel.protectionBypassForAutomation.ensure.secret`、`providers.github.token`、`providers.digitalocean.token` 和 `providers.cloudflare.apiToken`。公开的 version 2 Vercel `ensure` 配置只保存 `note`；私有 secret 只会注入本地发出的 Vercel projects request。
+env 的 shape 为 `env.<source>.<variable>.<environment>`；credential 的 shape 为 `credentials.<id>.<environment>`。Vertile 只负责 scaffold、validate 和 lookup，不理解 provider。Consumer 负责 reference 及 process env、argument 或 request 映射。没有 consumer reference 的 credential 保持 inert。
 
 在 Git worktree 中，private file 必须被 ignored 且不能 tracked。POSIX 上请使用 `0600`；group 或 world 可读会被拒绝。不要把 private 值写入 manifest 或日志。Terraform render 故意不加载或消费 private document，因此无论 private file 是否存在，render output 都相同。
 
-凭证优先级按 provider 分别处理：
+Credential delivery 由 consumer 负责：
 
-- Vercel 命令依次使用 `VERCEL_TOKEN` 或 `VERCEL_API_KEY`、private Vercel token/API key、version 1 inline provider 值、legacy Vercel token file。
-- GitHub Actions 依次使用 `GH_TOKEN` 或 `GITHUB_TOKEN`、`private.json` 的 `providers.github.token`、version 1 的 `providers.github.token` 或 `providers.githubActions.token`。GitHub 没有 token-file fallback。
+- Vercel 命令依次使用 `VERCEL_TOKEN` 或 `VERCEL_API_KEY`、`providers.vercel.credential`、version 1 inline 值和 legacy token file。
+- GitHub Actions 依次使用 `GH_TOKEN` 或 `GITHUB_TOKEN`、`providers.github.credential` 和 version 1 inline 值。
 
 Version 1 继续兼容 inline env 值和 provider credential。
 

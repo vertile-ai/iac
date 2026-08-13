@@ -31,6 +31,14 @@
       ],
       "default": ["development", "preview", "production"]
     },
+    "credentials": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9][a-z0-9._-]*$"
+      },
+      "additionalProperties": { "$ref": "#/$defs/credentialDeclaration" },
+      "default": {}
+    },
     "providers": {
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/providerConfig" },
@@ -459,6 +467,29 @@
     }
   ],
   "$defs": {
+    "credentialDeclaration": {
+      "type": "object",
+      "required": ["environments"],
+      "additionalProperties": false,
+      "properties": {
+        "environments": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "description": { "type": "string", "minLength": 1 }
+      }
+    },
+    "credentialReference": {
+      "type": "object",
+      "required": ["id", "environment"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" },
+        "environment": { "type": "string", "minLength": 1 }
+      }
+    },
     "providerConfig": {
       "type": "object",
       "additionalProperties": true,
@@ -843,6 +874,7 @@
           "required": ["note"],
           "additionalProperties": false,
           "properties": {
+            "credential": { "$ref": "#/$defs/credentialReference" },
             "secret": {
               "type": "string",
               "pattern": "^[a-zA-Z0-9]{32}$"

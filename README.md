@@ -55,8 +55,8 @@ entry, and `~/.iac/repositories/github/<owner>/<repo>/`. If a version 2
 pnpm exec vertile-iac scaffold --repo-root .
 ```
 
-`scaffold` keeps the manifest byte-for-byte, derives encrypted env keys and
-declared provider credentials into the missing private file, creates the
+`scaffold` keeps the manifest byte-for-byte, merges missing encrypted env and
+provider-neutral credential slots into the private file, creates the
 home-level repository root, and creates declared
 `terraform/<stack>/<environment>/` directories. Existing private content is
 never overwritten; on POSIX its mode is enforced as `0600`.
@@ -223,8 +223,21 @@ For `sync-env --variants=local`, an encrypted entry's tracked `example` is the
 safe local fallback when no private local value exists. Other environments
 never use `example` as a runtime value and require an exact private value.
 
-Private values default to `.iac/private.json`. It is a separate,
-strictly allowlisted document, not an arbitrary overlay of `iac.json`:
+Private values default to `.iac/private.json`. Credentials are provider-neutral:
+`iac.json` declares an ID and its required environments, while each consumer
+owns the reference and delivery mapping:
+
+```json
+{
+  "credentials": {
+    "service-api-token": {
+      "environments": ["staging", "production"]
+    }
+  }
+}
+```
+
+The private document stores only environment-keyed facts:
 
 ```json
 {
@@ -236,34 +249,21 @@ strictly allowlisted document, not an arbitrary overlay of `iac.json`:
       }
     }
   },
-  "providers": {
-    "vercel": {
-      "token": "<private Vercel token>",
-      "protectionBypassForAutomation": {
-        "ensure": { "secret": "<private bypass secret>" }
-      }
-    },
-    "github": {
-      "token": "<private GitHub token>"
-    },
-    "digitalocean": {
-      "token": "<private DigitalOcean token>"
-    },
-    "cloudflare": {
-      "apiToken": "<private Cloudflare API token>"
+  "credentials": {
+    "service-api-token": {
+      "staging": "<private staging token>",
+      "production": "<private production token>"
     }
   }
 }
 ```
 
-The env shape is `env.<source>.<variable>.<environment>`. An exact private
-value takes precedence over the local example. The only private provider fields
-are `providers.vercel.token`, `providers.vercel.apiKey`,
-`providers.vercel.protectionBypassForAutomation.ensure.secret`, and
-`providers.github.token`, `providers.digitalocean.token`, and
-`providers.cloudflare.apiToken`. The public version 2 Vercel `ensure` configuration
-contains its `note`; the private secret is injected only into the local Vercel
-projects request.
+The shapes are `env.<source>.<variable>.<environment>` and
+`credentials.<id>.<environment>`. Vertile validates, scaffolds, and resolves
+these facts without knowing any provider. A consumer references a credential
+with `{ "id": "service-api-token", "environment": "production" }` and owns
+its process-env, argument, or request mapping. Unreferenced credentials remain
+inert.
 
 In a Git worktree, the private file must be ignored and untracked. On POSIX,
 use mode `0600`; group- or world-readable files are rejected. Never add private
@@ -271,15 +271,13 @@ values to the manifest or to a log. Terraform rendering deliberately does not
 load or consume the private document, so render output is identical with or
 without it.
 
-Credential precedence is provider-specific:
+Credential delivery is consumer-specific:
 
-- Vercel commands use `VERCEL_TOKEN` or `VERCEL_API_KEY`, then the private
-  Vercel token or API key, then version 1 inline provider values, then the
-  legacy Vercel token file.
+- Vercel commands use `VERCEL_TOKEN` or `VERCEL_API_KEY`, then
+  `providers.vercel.credential`, then version 1 inline values and the legacy
+  token file.
 - GitHub Actions uses `GH_TOKEN` or `GITHUB_TOKEN`, then
-  `private.json` `providers.github.token`, then version 1
-  `providers.github.token` or `providers.githubActions.token`. GitHub has no
-  token-file fallback.
+  `providers.github.credential`, then version 1 inline values.
 
 Version 1 remains compatible with inline env values and provider credentials.
 

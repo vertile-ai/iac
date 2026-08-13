@@ -311,10 +311,9 @@ function resolveProtectionBypassRequest({ project, desired, projectKey }: any): 
 function withPrivateVercelProtectionBypassSecret(desired, privateValues) {
   if (!desired?.ensure || Object.hasOwn(desired.ensure, 'secret')) return desired
 
-  const secret = privateValues.getProviderCredential({
-    provider: 'vercel',
-    field: 'protectionBypassForAutomation.ensure.secret',
-  })
+  const reference = desired.ensure.credential
+  if (!reference) return desired
+  const secret = privateValues.getCredential(reference)
   if (!secret) return desired
 
   return {
@@ -340,7 +339,7 @@ async function main() {
   const token = readVercelToken(iacContext)
 
   if (!dryRun && !token) {
-    throw new Error('Missing VERCEL_TOKEN, VERCEL_API_KEY, providers.vercel.token, providers.vercel.apiKey, or token file for apply mode')
+    throw new Error('Missing VERCEL_TOKEN, VERCEL_API_KEY, providers.vercel.credential, or token file for apply mode')
   }
 
   const envManifest = readVercelEnvManifest(iacContext)

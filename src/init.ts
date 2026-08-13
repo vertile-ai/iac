@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // @ts-nocheck
 
-import { access, chmod, mkdir, open, readFile, writeFile } from 'node:fs/promises'
+import { access, chmod, mkdir, open, readFile, rename, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
@@ -56,22 +56,47 @@ function privateScaffold(rawManifest, manifest) {
     ]))
   }
 
-  const providers = {}
-  const credentialFields = {
-    vercel: 'token',
-    github: 'token',
-    digitalocean: 'token',
-    cloudflare: 'apiToken',
-  }
-  for (const [provider, field] of Object.entries(credentialFields)) {
-    if (Object.hasOwn(rawManifest.providers || {}, provider)) {
-      providers[provider] = { [field]: '' }
+  const credentials = Object.fromEntries(
+    Object.entries(rawManifest.credentials || {}).map(([id, declaration]) => [
+      id,
+      Object.fromEntries((declaration?.environments || []).map((environment) => [environment, ''])),
+    ]),
+  )
+  return { version: 1, env, credentials }
+}
+
+function mergeMissingScaffold(existing, desired) {
+  const merged = structuredClone(existing)
+  merged.env ||= {}
+  merged.credentials ||= {}
+  for (const [source, variables] of Object.entries(desired.env)) {
+    merged.env[source] ||= {}
+    for (const [key, environments] of Object.entries(variables)) {
+      merged.env[source][key] ||= {}
+      for (const environment of Object.keys(environments)) {
+        if (!Object.hasOwn(merged.env[source][key], environment)) {
+          merged.env[source][key][environment] = ''
+        }
+      }
     }
   }
-  if (rawManifest.providers?.vercel?.protectionBypassForAutomation?.ensure) {
-    providers.vercel.protectionBypassForAutomation = { ensure: { secret: '' } }
+  for (const [id, environments] of Object.entries(desired.credentials)) {
+    merged.credentials[id] ||= {}
+    for (const environment of Object.keys(environments)) {
+      if (!Object.hasOwn(merged.credentials[id], environment)) {
+        merged.credentials[id][environment] = ''
+      }
+    }
   }
-  return { version: 1, env, providers }
+  return merged
+}
+
+async function writePrivateJson(filePath, value) {
+  const temporaryPath = `${filePath}.${process.pid}.tmp`
+  await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 })
+  if (process.platform !== 'win32') await chmod(temporaryPath, 0o600)
+  await rename(temporaryPath, filePath)
+  if (process.platform !== 'win32') await chmod(filePath, 0o600)
 }
 
 function safeSegment(value, label) {
@@ -128,7 +153,11 @@ export async function scaffoldRepository(repoRoot, rawManifest) {
   await mkdir(privateDirectory, { recursive: true, mode: 0o700 })
   const privatePath = path.join(privateDirectory, 'private.json')
   if (await exists(privatePath)) {
-    if (process.platform !== 'win32') await chmod(privatePath, 0o600)
+    const existing = JSON.parse(await readFile(privatePath, 'utf8'))
+    await writePrivateJson(
+      privatePath,
+      mergeMissingScaffold(existing, privateScaffold(rawManifest, manifest)),
+    )
   } else {
     await writeExclusiveJson(privatePath, privateScaffold(rawManifest, manifest), 0o600)
   }

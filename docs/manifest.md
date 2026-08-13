@@ -90,8 +90,20 @@ safe local fallback when no private local value exists. Staging, production,
 and every other environment require an exact private value and never consume
 the example as runtime configuration.
 
-Private values default to `.iac/private.json`. This is a strict,
-allowlisted document rather than an arbitrary manifest overlay:
+Declare provider-neutral credential IDs and their required environments in
+`iac.json`:
+
+```json
+{
+  "credentials": {
+    "service-api-token": {
+      "environments": ["staging", "production"]
+    }
+  }
+}
+```
+
+Private values default to `.iac/private.json` and store environment-keyed facts:
 
 ```json
 {
@@ -103,39 +115,30 @@ allowlisted document rather than an arbitrary manifest overlay:
       }
     }
   },
-  "providers": {
-    "vercel": {
-      "apiKey": "<private Vercel API key>",
-      "protectionBypassForAutomation": {
-        "ensure": { "secret": "<private bypass secret>" }
-      }
-    },
-    "github": { "token": "<private GitHub token>" },
-    "digitalocean": { "token": "<private DigitalOcean token>" },
-    "cloudflare": { "apiToken": "<private Cloudflare API token>" }
+  "credentials": {
+    "service-api-token": {
+      "staging": "<private staging token>",
+      "production": "<private production token>"
+    }
   }
 }
 ```
 
 The env shape is `env.<source>.<variable>.<environment>`. An exact private
 value takes precedence over the local example. Private env entries may supply
-only encrypted metadata keys declared by the public manifest. The provider
-allowlist is `providers.vercel.token`, `providers.vercel.apiKey`,
-`providers.vercel.protectionBypassForAutomation.ensure.secret`, and
-`providers.github.token`, `providers.digitalocean.token`, and
-`providers.cloudflare.apiToken`.
+only encrypted metadata keys declared by the public manifest. The credential
+shape is `credentials.<id>.<environment>`; private IDs and environments must
+match their public declarations.
 
 In a Git worktree, `.iac/private.json` must be ignored and untracked.
 On POSIX, use mode `0600`; group- or world-readable files are rejected. The
 Terraform renderer never reads this file, so private values cannot alter
 rendered Terraform.
 
-Credential precedence is provider-specific. Vercel uses process
-`VERCEL_TOKEN`/`VERCEL_API_KEY`, then private Vercel credentials, then version
-1 inline values, then the legacy token file. GitHub Actions uses process
-`GH_TOKEN`/`GITHUB_TOKEN`, then `private.json` `providers.github.token`, then
-version 1 `providers.github.token` or `providers.githubActions.token`; it has
-no token-file fallback. Version 1 keeps its inline env and credential behavior.
+Consumers own credential references and delivery. Vertile only provides
+`getCredential({ id, environment })`; it does not map IDs to provider variables
+or arguments. Vercel and GitHub consumer configs use their own `credential`
+reference fields. Version 1 keeps its inline credential behavior.
 
 ## Provider Overrides
 
@@ -327,12 +330,11 @@ The JSON envelope is stable:
 
 ## Vercel API Credentials
 
-For version 2, Vercel API credentials belong in the process environment or
-`.iac/private.json`, not in tracked `iac.json`. Resolution is process
-`VERCEL_TOKEN`/`VERCEL_API_KEY`, then private `providers.vercel.token` or
-`providers.vercel.apiKey`, then version 1 inline values, then the legacy token
-file. The private-document checks apply to every Vercel command that resolves a
-private file.
+For version 2, Vercel API credentials belong in the process environment or the
+generic `.iac/private.json` credential registry. Resolution is process
+`VERCEL_TOKEN`/`VERCEL_API_KEY`, then the credential referenced by
+`providers.vercel.credential`, then version 1 inline values and the legacy token
+file.
 
 ## Vercel Automation Bypass
 

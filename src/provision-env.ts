@@ -954,7 +954,7 @@ async function main() {
   }
 
   if (!dryRun && !token) {
-    throw new Error('Missing VERCEL_TOKEN, VERCEL_API_KEY, providers.vercel.token, providers.vercel.apiKey, or token file for apply mode')
+    throw new Error('Missing VERCEL_TOKEN, VERCEL_API_KEY, providers.vercel.credential, or token file for apply mode')
   }
 
   console.log(

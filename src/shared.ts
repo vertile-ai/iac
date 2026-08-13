@@ -134,17 +134,29 @@ function vercelTokenFromResolver(context, env) {
     repoRoot: context.repoRoot || path.dirname(context.iacManifestPath),
     env,
   })
+  const reference = manifest.providers?.vercel?.credential
+  if (reference !== undefined) {
+    if (!reference || typeof reference !== 'object' || Array.isArray(reference)) {
+      throw new Error('providers.vercel.credential must be a credential reference.')
+    }
+    const value = privateValues.getCredential(reference)
+    if (!value) {
+      throw new Error(
+        `Missing credential ${reference.id} for ${reference.environment}.`,
+      )
+    }
+    return value
+  }
   return privateValues.getProviderCredential({ provider: 'vercel', field: 'token' })
     || privateValues.getProviderCredential({ provider: 'vercel', field: 'apiKey' })
 }
 
 export function readVercelToken(context, env = process.env) {
-  const resolvedToken = vercelTokenFromResolver(context, env)
   const processToken = typeof env.VERCEL_TOKEN === 'string' ? env.VERCEL_TOKEN.trim() : ''
   const processApiKey = typeof env.VERCEL_API_KEY === 'string' ? env.VERCEL_API_KEY.trim() : ''
+  if (processToken || processApiKey) return processToken || processApiKey
+  const resolvedToken = vercelTokenFromResolver(context, env)
   return (
-    processToken ||
-    processApiKey ||
     resolvedToken ||
     readTokenFromFile(context.tokenFilePath)
   )

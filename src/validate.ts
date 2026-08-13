@@ -105,6 +105,13 @@ export function validateEnvironmentRouting({ manifest, rootDir, privateValues }:
   const errors: string[] = []
   const warnings: string[] = []
   const resolvedPrivateValues = privateValues || resolvePrivateValues({ manifest, repoRoot: rootDir })
+  for (const [id, declaration] of Object.entries(manifest.credentials || {}) as any) {
+    for (const environment of declaration.environments) {
+      if (!resolvedPrivateValues.getCredential({ id, environment })) {
+        errors.push(`Credential ${id} must define a private value for ${environment}.`)
+      }
+    }
+  }
   const sourceRoot = path.join(rootDir, envSourceDir(manifest))
   const routedPackages = outputPackages(manifest)
   const sourceKeys = effectiveEnvMetadataSourceKeys(manifest, {

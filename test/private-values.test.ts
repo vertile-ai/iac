@@ -38,7 +38,7 @@ function execCommand(command, args, cwd) {
   })
 }
 
-async function writeVersionTwoFixture({ privateValues = null } = {}) {
+async function writeVersionTwoFixture({ privateValues = null, credentials = undefined } = {}) {
   const root = await mkdtemp(path.join(tmpdir(), 'vertile-iac-private-values-'))
   await mkdir(path.join(root, 'infrastructure', 'iac'), { recursive: true })
   await mkdir(path.join(root, 'packages', 'web'), { recursive: true })
@@ -54,6 +54,7 @@ async function writeVersionTwoFixture({ privateValues = null } = {}) {
       repository: 'test/private-values-fixture',
       environments: ['local', 'production'],
       providers: {},
+      ...(credentials === undefined ? {} : { credentials }),
       packages: [{ key: 'web', directory: 'packages/web' }],
       env: {
         sync: { directOutputs: true },
@@ -162,6 +163,105 @@ test('version 2 resolves the runner-provided canonical private reference outside
   } finally {
     await rm(canonicalRoot, { recursive: true, force: true })
     await rm(checkoutRoot, { recursive: true, force: true })
+  }
+})
+
+test('version 2 resolves a declared credential by id and environment without provider knowledge', async () => {
+  const root = await writeVersionTwoFixture({
+    credentials: {
+      'service-api-token': { environments: ['local', 'production'] },
+    },
+    privateValues: {
+      version: 1,
+      credentials: {
+        'service-api-token': {
+          local: `${secretSentinel}-local`,
+          production: `${secretSentinel}-production`,
+        },
+      },
+    },
+  })
+
+  try {
+    const manifest = readManifest(path.join(root, 'infrastructure', 'iac', 'iac.json'))
+    const privateValues = resolvePrivateValues({ manifest, repoRoot: root, env: {} })
+
+    assert.equal(
+      privateValues.getCredential({ id: 'service-api-token', environment: 'local' }),
+      `${secretSentinel}-local`,
+    )
+    assert.equal(
+      privateValues.getCredential({ id: 'service-api-token', environment: 'production' }),
+      `${secretSentinel}-production`,
+    )
+    assert.throws(
+      () => privateValues.getCredential({ id: 'service-api-token', environment: 'staging' }),
+      /credential service-api-token is not declared for staging/i,
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('version 2 rejects undeclared credential values without exposing them', async () => {
+  const root = await writeVersionTwoFixture({
+    privateValues: {
+      version: 1,
+      credentials: {
+        'unknown-token': { production: secretSentinel },
+      },
+    },
+  })
+
+  try {
+    const result = await execNode([
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
+      'sync-env',
+      '--repo-root', root,
+      '--dry-run',
+    ])
+
+    assert.equal(result.code, 1)
+    assert.match(result.stderr, /private\.json credentials\.unknown-token references unknown credential/i)
+    assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(secretSentinel))
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('version 2 validate requires every declared credential environment value', async () => {
+  const root = await writeVersionTwoFixture({
+    credentials: {
+      'service-token': { environments: ['local', 'production'] },
+    },
+    privateValues: {
+      version: 1,
+      env: {
+        web: {
+          DATABASE_URL: {
+            local: secretSentinel,
+            production: `${secretSentinel}-production`,
+          },
+        },
+      },
+      credentials: {
+        'service-token': { local: secretSentinel },
+      },
+    },
+  })
+
+  try {
+    const result = await execNode([
+      path.join(packageRoot, 'dist', 'src', 'cli.js'),
+      'validate',
+      '--repo-root', root,
+    ])
+
+    assert.equal(result.code, 1)
+    assert.match(result.stderr, /credential service-token must define a private value for production/i)
+    assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(secretSentinel))
+  } finally {
+    await rm(root, { recursive: true, force: true })
   }
 })
 
@@ -397,7 +497,7 @@ test('version 2 rejects private values for a non-encrypted metadata variable', a
   }
 })
 
-test('version 2 rejects private provider fields outside the credential allowlist', async () => {
+test('version 2 rejects legacy private provider fields', async () => {
   const root = await writeVersionTwoFixture({
     privateValues: {
       version: 1,
@@ -416,7 +516,7 @@ test('version 2 rejects private provider fields outside the credential allowlist
     ])
 
     assert.equal(result.code, 1)
-    assert.match(result.stderr, /private\.json providers\.vercel\.region is not allowed/i)
+    assert.match(result.stderr, /private\.json providers is not allowed/i)
     assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(secretSentinel))
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -740,7 +840,7 @@ test('version 2 rejects malformed private env object levels', async () => {
   }
 })
 
-test('version 2 rejects private Vercel protection bypass fields outside its allowlist', async () => {
+test('version 2 rejects legacy private Vercel protection bypass fields', async () => {
   const root = await writeVersionTwoFixture({
     privateValues: {
       version: 1,
@@ -763,21 +863,21 @@ test('version 2 rejects private Vercel protection bypass fields outside its allo
     ])
 
     assert.equal(result.code, 1)
-    assert.match(result.stderr, /private\.json providers\.vercel\.protectionBypassForAutomation\.ensure\.rotate is not allowed/i)
+    assert.match(result.stderr, /private\.json providers is not allowed/i)
     assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(secretSentinel))
   } finally {
     await rm(root, { recursive: true, force: true })
   }
 })
 
-test('resolved private context exposes public manifest, env values, and process-preferred provider credentials', async () => {
-  const privateProviderToken = `${secretSentinel}-provider`
-  const processProviderToken = `${secretSentinel}-process`
+test('resolved private context exposes public manifest, env values, and generic credentials', async () => {
+  const privateCredential = `${secretSentinel}-credential`
   const root = await writeVersionTwoFixture({
+    credentials: { 'service-token': { environments: ['local'] } },
     privateValues: {
       version: 1,
       env: { web: { DATABASE_URL: { local: secretSentinel } } },
-      providers: { vercel: { token: privateProviderToken } },
+      credentials: { 'service-token': { local: privateCredential } },
     },
   })
 
@@ -786,29 +886,28 @@ test('resolved private context exposes public manifest, env values, and process-
     const privateValues = resolvePrivateValues({
       manifest,
       repoRoot: root,
-      env: { VERCEL_TOKEN: processProviderToken },
+      env: {},
     })
 
     assert.strictEqual(privateValues.publicManifest, manifest)
     assert.equal(privateValues.getEnvValue({ sourceKey: 'web', key: 'DATABASE_URL', environment: 'local' }), secretSentinel)
-    assert.equal(privateValues.getProviderCredential({ provider: 'vercel', field: 'token' }), processProviderToken)
-    assert.equal(
-      resolvePrivateValues({ manifest, repoRoot: root, env: {} })
-        .getProviderCredential({ provider: 'vercel', field: 'token' }),
-      privateProviderToken,
-    )
+    assert.equal(privateValues.getCredential({ id: 'service-token', environment: 'local' }), privateCredential)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
 })
 
-test('version 2 resolves DigitalOcean and Cloudflare private provider credentials', async () => {
+test('version 2 resolves unrelated credentials through the same interface', async () => {
   const root = await writeVersionTwoFixture({
+    credentials: {
+      'first-token': { environments: ['production'] },
+      'second-token': { environments: ['local'] },
+    },
     privateValues: {
       version: 1,
-      providers: {
-        digitalocean: { token: 'digitalocean-private-token' },
-        cloudflare: { apiToken: 'cloudflare-private-token' },
+      credentials: {
+        'first-token': { production: 'first-private-token' },
+        'second-token': { local: 'second-private-token' },
       },
     },
   })
@@ -818,12 +917,12 @@ test('version 2 resolves DigitalOcean and Cloudflare private provider credential
     const privateValues = resolvePrivateValues({ manifest, repoRoot: root, env: {} })
 
     assert.equal(
-      privateValues.getProviderCredential({ provider: 'digitalocean', field: 'token' }),
-      'digitalocean-private-token',
+      privateValues.getCredential({ id: 'first-token', environment: 'production' }),
+      'first-private-token',
     )
     assert.equal(
-      privateValues.getProviderCredential({ provider: 'cloudflare', field: 'apiToken' }),
-      'cloudflare-private-token',
+      privateValues.getCredential({ id: 'second-token', environment: 'local' }),
+      'second-private-token',
     )
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -833,18 +932,36 @@ test('version 2 resolves DigitalOcean and Cloudflare private provider credential
 test('version 2 readVercelToken uses a private token before the legacy token file', async () => {
   const privateToken = `${secretSentinel}-vercel-token`
   const root = await writeVersionTwoFixture({
+    credentials: { 'vercel-token': { environments: ['production'] } },
     privateValues: {
       version: 1,
-      providers: { vercel: { token: privateToken } },
+      credentials: { 'vercel-token': { production: privateToken } },
     },
   })
 
   try {
+    const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.providers.vercel = {
+      credential: { id: 'vercel-token', environment: 'production' },
+    }
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
     await writeFile(path.join(root, '.vercel.token'), 'legacy-vercel-token\n')
     const context = resolveIacContext(['--repo-root', root])
 
     assert.equal(readVercelToken(context, { VERCEL_TOKEN: 'process-vercel-token' }), 'process-vercel-token')
     assert.equal(readVercelToken(context, {}), privateToken)
+    await writeFile(
+      path.join(root, '.iac', 'private.json'),
+      `${JSON.stringify({
+        version: 1,
+        credentials: { 'vercel-token': { production: '' } },
+      })}\n`,
+    )
+    assert.equal(
+      readVercelToken(context, { VERCEL_TOKEN: 'process-vercel-token' }),
+      'process-vercel-token',
+    )
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -852,9 +969,10 @@ test('version 2 readVercelToken uses a private token before the legacy token fil
 
 test('blank Vercel environment credentials fall through to private, version 1, and token-file values', async () => {
   const privateRoot = await writeVersionTwoFixture({
+    credentials: { 'vercel-token': { environments: ['production'] } },
     privateValues: {
       version: 1,
-      providers: { vercel: { token: 'private-vercel-token' } },
+      credentials: { 'vercel-token': { production: 'private-vercel-token' } },
     },
   })
   const inlineRoot = await writeVersionTwoFixture()
@@ -862,6 +980,12 @@ test('blank Vercel environment credentials fall through to private, version 1, a
   const blankEnv = { VERCEL_TOKEN: '  ', VERCEL_API_KEY: '\t' }
 
   try {
+    const privateManifestPath = path.join(privateRoot, 'infrastructure', 'iac', 'iac.json')
+    const privateManifest = JSON.parse(await readFile(privateManifestPath, 'utf8'))
+    privateManifest.providers.vercel = {
+      credential: { id: 'vercel-token', environment: 'production' },
+    }
+    await writeFile(privateManifestPath, `${JSON.stringify(privateManifest, null, 2)}\n`)
     assert.equal(
       readVercelToken(resolveIacContext(['--repo-root', privateRoot]), blankEnv),
       'private-vercel-token',
@@ -891,13 +1015,20 @@ test('blank Vercel environment credentials fall through to private, version 1, a
 
 test('version 2 Vercel commands enforce private-file safety through the shared resolver seam', async () => {
   const root = await writeVersionTwoFixture({
+    credentials: { 'vercel-token': { environments: ['production'] } },
     privateValues: {
       version: 1,
-      providers: { vercel: { apiKey: secretSentinel } },
+      credentials: { 'vercel-token': { production: secretSentinel } },
     },
   })
 
   try {
+    const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.providers.vercel = {
+      credential: { id: 'vercel-token', environment: 'production' },
+    }
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
     await writeFile(path.join(root, '.gitignore'), '')
     for (const command of [
       'provision-env.js',
@@ -912,7 +1043,7 @@ test('version 2 Vercel commands enforce private-file safety through the shared r
         ],
         {
           ...process.env,
-          VERCEL_TOKEN: 'process-vercel-token',
+          VERCEL_TOKEN: '',
           VERCEL_API_KEY: '',
         },
       )
@@ -929,9 +1060,10 @@ test('version 2 Vercel commands enforce private-file safety through the shared r
 test('version 2 GitHub Actions apply uses a private token without exposing it', async () => {
   const privateToken = `${secretSentinel}-github-token`
   const root = await writeVersionTwoFixture({
+    credentials: { 'github-token': { environments: ['local'] } },
     privateValues: {
       version: 1,
-      providers: { github: { token: privateToken } },
+      credentials: { 'github-token': { local: privateToken } },
     },
   })
   const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
@@ -953,6 +1085,7 @@ test('version 2 GitHub Actions apply uses a private token without exposing it', 
 
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
     manifest.providers.github = {
+      credential: { id: 'github-token', environment: 'local' },
       repository: 'example/private-values',
       actions: {
         environments: {
@@ -986,6 +1119,29 @@ test('version 2 GitHub Actions apply uses a private token without exposing it', 
     assert.ok(calls.length > 0)
     assert.equal(calls.every((call) => call.token === privateToken), true)
     assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(secretSentinel))
+
+    await writeFile(logPath, '')
+    const processResult = await execNodeWithEnv(
+      [
+        path.join(packageRoot, 'dist', 'src', 'github-actions.js'),
+        '--repo-root', root,
+        '--env=local',
+        '--apply',
+      ],
+      {
+        ...process.env,
+        GH_LOG_PATH: logPath,
+        GH_TOKEN: 'process-github-token',
+        GITHUB_TOKEN: '',
+        PATH: `${binDir}${path.delimiter}${process.env.PATH}`,
+      },
+    )
+    assert.equal(processResult.code, 0, processResult.stderr)
+    const processCalls = (await readFile(logPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    assert.equal(processCalls.every((call) => call.token === 'process-github-token'), true)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -1079,15 +1235,15 @@ test('resolved provider context keeps the version 1 githubActions token fallback
 test('version 2 projects injects a private bypass secret only into the local Vercel request', async () => {
   const privateToken = `${secretSentinel}-vercel-token`
   const root = await writeVersionTwoFixture({
+    credentials: {
+      'vercel-token': { environments: ['production'] },
+      'vercel-bypass': { environments: ['production'] },
+    },
     privateValues: {
       version: 1,
-      providers: {
-        vercel: {
-          token: privateToken,
-          protectionBypassForAutomation: {
-            ensure: { secret: secretSentinel },
-          },
-        },
+      credentials: {
+        'vercel-token': { production: privateToken },
+        'vercel-bypass': { production: secretSentinel },
       },
     },
   })
@@ -1099,8 +1255,12 @@ test('version 2 projects injects a private bypass secret only into the local Ver
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
     manifest.providers.vercel = {
       teamSlug: 'private-values-team',
+      credential: { id: 'vercel-token', environment: 'production' },
       protectionBypassForAutomation: {
-        ensure: { note: 'Private E2E' },
+        ensure: {
+          note: 'Private E2E',
+          credential: { id: 'vercel-bypass', environment: 'production' },
+        },
       },
     }
     manifest.apps = [{ key: 'web', id: 'prj_web', name: 'private-values-web', providers: {} }]
@@ -1163,15 +1323,15 @@ test('version 2 projects redacts a private bypass secret echoed by a Vercel API 
   const escapedSecretSentinel = 'private-value-"quoted"\\path'
   const privateToken = `${secretSentinel}-vercel-token`
   const root = await writeVersionTwoFixture({
+    credentials: {
+      'vercel-token': { environments: ['production'] },
+      'vercel-bypass': { environments: ['production'] },
+    },
     privateValues: {
       version: 1,
-      providers: {
-        vercel: {
-          token: privateToken,
-          protectionBypassForAutomation: {
-            ensure: { secret: escapedSecretSentinel },
-          },
-        },
+      credentials: {
+        'vercel-token': { production: privateToken },
+        'vercel-bypass': { production: escapedSecretSentinel },
       },
     },
   })
@@ -1182,8 +1342,12 @@ test('version 2 projects redacts a private bypass secret echoed by a Vercel API 
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
     manifest.providers.vercel = {
       teamSlug: 'private-values-team',
+      credential: { id: 'vercel-token', environment: 'production' },
       protectionBypassForAutomation: {
-        ensure: { note: 'Private E2E' },
+        ensure: {
+          note: 'Private E2E',
+          credential: { id: 'vercel-bypass', environment: 'production' },
+        },
       },
     }
     manifest.apps = [{ key: 'web', id: 'prj_web', name: 'private-values-web', providers: {} }]
@@ -1236,15 +1400,15 @@ test('version 2 projects hide a private bypass secret in a successful invalid Ve
   const escapedSecretSentinel = 'private-value-"quoted"\\path'
   const privateToken = `${secretSentinel}-vercel-token`
   const root = await writeVersionTwoFixture({
+    credentials: {
+      'vercel-token': { environments: ['production'] },
+      'vercel-bypass': { environments: ['production'] },
+    },
     privateValues: {
       version: 1,
-      providers: {
-        vercel: {
-          token: privateToken,
-          protectionBypassForAutomation: {
-            ensure: { secret: escapedSecretSentinel },
-          },
-        },
+      credentials: {
+        'vercel-token': { production: privateToken },
+        'vercel-bypass': { production: escapedSecretSentinel },
       },
     },
   })
@@ -1255,8 +1419,12 @@ test('version 2 projects hide a private bypass secret in a successful invalid Ve
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
     manifest.providers.vercel = {
       teamSlug: 'private-values-team',
+      credential: { id: 'vercel-token', environment: 'production' },
       protectionBypassForAutomation: {
-        ensure: { note: 'Private E2E' },
+        ensure: {
+          note: 'Private E2E',
+          credential: { id: 'vercel-bypass', environment: 'production' },
+        },
       },
     }
     manifest.apps = [{ key: 'web', id: 'prj_web', name: 'private-values-web', providers: {} }]
@@ -1873,20 +2041,20 @@ test('published schemas declare version 2 manifests and a closed private values 
   assert.equal(privateSchema.$id, 'https://vertile.ai/schemas/iac.private.schema.json')
   assert.equal(privateSchema.additionalProperties, false)
   assert.equal(privateSchema.properties.version.const, 1)
-  assert.equal(privateSchema.properties.providers.additionalProperties, false)
-  assert.equal(privateSchema.properties.providers.properties.vercel.additionalProperties, false)
+  assert.equal(privateSchema.properties.providers, undefined)
+  assert.equal(privateSchema.properties.credentials.type, 'object')
   assert.equal(
-    privateSchema.properties.providers.properties.vercel.properties.protectionBypassForAutomation
-      .properties.ensure.properties.secret.type,
+    privateSchema.properties.credentials.additionalProperties.additionalProperties.type,
     'string',
   )
 })
 
-test('version 2 rejects non-string private provider credentials', async () => {
+test('version 2 rejects non-string generic credentials', async () => {
   const root = await writeVersionTwoFixture({
+    credentials: { 'github-token': { environments: ['production'] } },
     privateValues: {
       version: 1,
-      providers: { github: { token: { value: secretSentinel } } },
+      credentials: { 'github-token': { production: { value: secretSentinel } } },
     },
   })
 
@@ -1899,7 +2067,7 @@ test('version 2 rejects non-string private provider credentials', async () => {
     ])
 
     assert.equal(result.code, 1)
-    assert.match(result.stderr, /private\.json providers\.github\.token must be a string/i)
+    assert.match(result.stderr, /private\.json credentials\.github-token\.production must be a string/i)
     assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(secretSentinel))
   } finally {
     await rm(root, { recursive: true, force: true })

@@ -59,6 +59,36 @@ function assertOptionalBoolean(value, field) {
   }
 }
 
+function normalizeCredentials(value, environments) {
+  if (value !== undefined && (!value || typeof value !== 'object' || Array.isArray(value))) {
+    throw new Error('iac.json credentials must be an object.')
+  }
+  const credentials = asObject(value)
+  for (const [id, rawDeclaration] of Object.entries(credentials)) {
+    const declaration: any = rawDeclaration
+    if (!/^[a-z0-9][a-z0-9._-]*$/.test(id)) {
+      throw new Error(`iac.json credentials.${id} must use a lowercase safe credential id.`)
+    }
+    if (!declaration || typeof declaration !== 'object' || Array.isArray(declaration)) {
+      throw new Error(`iac.json credentials.${id} must be an object.`)
+    }
+    const allowed = new Set(['environments', 'description'])
+    for (const field of Object.keys(declaration)) {
+      if (!allowed.has(field)) throw new Error(`iac.json credentials.${id}.${field} is not allowed.`)
+    }
+    assertUniqueNonEmptyStringArray(declaration.environments, `credentials.${id}.environments`)
+    for (const environment of declaration.environments) {
+      if (!environments.includes(environment)) {
+        throw new Error(
+          `iac.json credentials.${id}.environments must contain only declared environments.`,
+        )
+      }
+    }
+    assertOptionalNonEmptyString(declaration.description, `credentials.${id}.description`)
+  }
+  return credentials
+}
+
 function isDigitalOceanRegionSlug(value) {
   return typeof value === 'string' && /^[a-z0-9]+$/.test(value)
 }
@@ -579,6 +609,7 @@ export function normalizeManifest(rawManifest) {
     environments: environments.names,
     environmentsDeclared: Object.hasOwn(manifest, 'environments'),
     environmentFiles: environments.files,
+    credentials: normalizeCredentials(manifest.credentials, environments.names),
     providers: normalizeProviderConfigs(manifest.providers),
     apps,
     packages: normalizeKeyedList(manifest, 'packages'),

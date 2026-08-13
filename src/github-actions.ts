@@ -202,7 +202,9 @@ function main() {
 
   printPlan({ plan, apply: args.apply })
   if (args.apply) {
-    const token = privateValues.getProviderCredential({ provider: 'github', field: 'token' })
+    const reference = manifest.providers?.github?.credential
+    const processToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN
+    const token = processToken || (reference ? privateValues.getCredential(reference) : undefined)
     applyPlan(plan, { token })
   }
 }
