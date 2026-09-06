@@ -211,6 +211,11 @@ order. `validate` is an offline, read-only check for manifest-driven env routes.
 The latter two commands are dry-runs unless `--apply` is supplied. Vercel apply
 mode requires a Vercel credential.
 
+For version 2, Vercel env reconciliation resolves encrypted application values
+from `.iac/private.json` for the target environment (`preview` defaults to
+`staging`). Missing private values fail instead of omitting required keys from
+the desired state, including when `--reconcile-delete` is enabled.
+
 ## Version 2 private values
 
 Version 2 uses a strict split. The tracked `iac.json` contains infrastructure

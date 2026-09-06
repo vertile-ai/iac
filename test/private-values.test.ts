@@ -101,6 +101,38 @@ async function writeVersionTwoFixture({ privateValues = null, credentials = unde
   return root
 }
 
+test('version 2 Vercel env dry-run includes private runtime keys and rejects missing values', async () => {
+  const root = await writeVersionTwoFixture({
+    privateValues: {
+      version: 1,
+      env: { web: { DATABASE_URL: { production: secretSentinel } } },
+    },
+  })
+  try {
+    const manifestPath = path.join(root, 'infrastructure', 'iac', 'iac.json')
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.providers.vercel = { teamSlug: 'test-team' }
+    manifest.apps = [{ key: 'web', id: 'prj_web', name: 'test-web', directory: 'packages/web' }]
+    await writeFile(manifestPath, JSON.stringify(manifest))
+    const args = [
+      path.join(packageRoot, 'dist', 'src', 'cli.js'), 'env',
+      '--repo-root', root, '--scope=projects', '--targets=production', '--reconcile-delete',
+    ]
+    const env = { ...process.env, VERCEL_TOKEN: '', VERCEL_API_KEY: '', VERTILE_IAC_PRIVATE_VALUES: '' }
+    const result = await execNodeWithEnv(args, env)
+    assert.equal(result.code, 0, result.stderr)
+    assert.match(result.stdout, /PUBLIC_ORIGIN, DATABASE_URL/)
+    assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(secretSentinel))
+
+    await writeFile(path.join(root, '.iac', 'private.json'), JSON.stringify({ version: 1 }))
+    const missing = await execNodeWithEnv(args, env)
+    assert.equal(missing.code, 1)
+    assert.match(missing.stderr, /DATABASE_URL must define a private value for production/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('version 2 sync-env resolves encrypted metadata values from the default private file', async () => {
   const root = await writeVersionTwoFixture({
     privateValues: {

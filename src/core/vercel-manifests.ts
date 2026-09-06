@@ -208,6 +208,7 @@ function projectDomains(manifest) {
 export function vercelEnvManifestFromIac(manifest, context = {}) {
   const config = vercelConfig(manifest)
   return {
+    version: manifest.version,
     teamSlug: teamSlugFromManifest(manifest),
     sourceDir: envSourceDir(manifest),
     environments: manifest.environments,
