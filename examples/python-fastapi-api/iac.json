@@ -1,19 +1,11 @@
 {
   "$schema": "../../schema/iac.schema.json",
   "version": 1,
-  "project": {
-    "key": "python-fastapi-api",
-    "name": "python-fastapi-api"
-  },
+  "repository": "vertile-ai/python-fastapi-api",
   "environments": {
     "development": {
       "files": [
         ".env.development"
-      ]
-    },
-    "test": {
-      "files": [
-        ".env.test"
       ]
     },
     "uat": {

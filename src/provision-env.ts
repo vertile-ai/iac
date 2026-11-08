@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url'
 import { environmentFiles } from './core/env-files.js'
 import { applyEnvMetadata, manifestEnvEntries } from './core/env-metadata.js'
 import { readVercelEnvManifest } from './core/vercel-manifests.js'
+import { readManifest } from './core/manifest.js'
+import { resolvePrivateValues } from './core/private-values.js'
 import { readVercelToken, resolveIacContext } from './shared.js'
 
 const apiBase = 'https://api.vercel.com'
@@ -181,8 +183,11 @@ function readEnvFiles(baseDir, files, {
   manifest,
   sourceKey = '',
   environment = '',
+  privateValues,
 }: any = {}) {
-  const manifestLayer = manifestEnvEntries({ baseDir, manifest, sourceKey, environment })
+  const manifestLayer = manifestEnvEntries({
+    baseDir, manifest, sourceKey, environment, privateValues, requireEncryptedValues: true,
+  })
   if (manifestLayer) return manifestLayer.entries
 
   const filePaths = files.map((file) => path.join(baseDir, file))
@@ -843,6 +848,10 @@ async function main() {
   const dryRun = !args.apply
   const token = readVercelToken(iacContext)
   const manifest = readVercelEnvManifest(iacContext)
+  const privateValues = resolvePrivateValues({
+    manifest: readManifest(iacContext.iacManifestPath),
+    repoRoot: iacContext.repoRoot,
+  })
   const teamSlug = manifest.teamSlug
   const projects = Array.isArray(manifest.projects) ? manifest.projects : []
   const configuredProjects = [...projects]
@@ -954,7 +963,7 @@ async function main() {
   }
 
   if (!dryRun && !token) {
-    throw new Error('Missing VERCEL_TOKEN, VERCEL_API_KEY, providers.vercel.token, providers.vercel.apiKey, or token file for apply mode')
+    throw new Error('Missing VERCEL_TOKEN, VERCEL_API_KEY, providers.vercel.credential, or token file for apply mode')
   }
 
   console.log(
@@ -969,7 +978,7 @@ async function main() {
         environment,
         [],
         targetEnvFiles(manifest, environment),
-        { requireFiles: args.reconcileDelete, readProjects: false, manifest },
+        { requireFiles: args.reconcileDelete, readProjects: false, manifest, privateValues },
       )
       await upsertTeamShared({
         token,
@@ -992,7 +1001,7 @@ async function main() {
         environment,
         selectedProjects,
         targetEnvFiles(manifest, environment),
-        { requireFiles: args.reconcileDelete, readTeam: false, manifest },
+        { requireFiles: args.reconcileDelete, readTeam: false, manifest, privateValues },
       )
     }
 

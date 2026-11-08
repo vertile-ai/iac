@@ -15,7 +15,7 @@ function asStringList(value, field) {
 }
 
 function metadataSourceKeys(manifest: any) {
-  const metadata = asObject(manifest.env?.metadata || manifest.env?.envJson)
+  const metadata = asObject(manifest.env?.metadata)
   const sources = new Set<string>()
   for (const key of Object.keys(asObject(metadata.sources))) sources.add(key)
   for (const key of Object.keys(metadata)) {
@@ -105,9 +105,8 @@ export function buildGitHubActionsPlan({ manifest, sourceRoot, selectedEnvironme
     throw new Error(`Unknown GitHub Actions environment mapping: ${missing.join(', ')}`)
   }
 
-  const repo = github.repository || github.repo || ''
   const plan = {
-    repo,
+    repo: manifest.repository,
     environments: [],
   }
 

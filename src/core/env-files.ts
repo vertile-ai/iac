@@ -4,7 +4,6 @@ const defaultEnvironmentFiles = {
   preview: ['.env.staging'],
   production: ['.env.production'],
   staging: ['.env.staging'],
-  test: ['.env.test'],
 }
 
 function asObject(value: any): any {

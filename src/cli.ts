@@ -11,9 +11,14 @@ const args = process.argv.slice(3)
 const root = path.dirname(fileURLToPath(import.meta.url))
 
 const commands = new Map([
+  ['init', path.join(root, 'init.js')],
+  ['scaffold', path.join(root, 'scaffold.js')],
   ['render', path.join(root, 'render.js')],
+  ['context', path.join(root, 'context.js')],
   ['plan', path.join(root, 'plan.js')],
   ['apply', path.join(root, 'apply.js')],
+  ['output', path.join(root, 'output.js')],
+  ['validate', path.join(root, 'validate.js')],
   ['sync-env', path.join(root, 'sync-env.js')],
   ['env', path.join(root, 'provision-env.js')],
   ['github-actions', path.join(root, 'github-actions.js')],
@@ -25,9 +30,14 @@ function printHelp() {
   console.log(`vertile-iac
 
 Usage:
+  vertile-iac init [--repo-root <path>]
+  vertile-iac scaffold [--repo-root <path>]
   vertile-iac render --target=vercel|aws|digitalocean|all --env=<name> [options]
+  vertile-iac context --stack=<name> --environment=<name> [options]
   vertile-iac plan --target=vercel|aws|digitalocean|all --env=<name> [options]
   vertile-iac apply --target=vercel|aws|digitalocean|all --env=<name> [options]
+  vertile-iac output --target=vercel|aws|digitalocean --env=<name> [options]
+  vertile-iac validate [options]
   vertile-iac sync-env [options]
   vertile-iac env [options]
   vertile-iac github-actions [options]
@@ -35,9 +45,14 @@ Usage:
   vertile-iac domains [options]
 
 Commands:
+  init       Create iac.json and its repository-private scaffold.
+  scaffold   Create repo-local and home-level scaffolds from iac.json.
   render     Render Terraform workspaces from iac.json.
+  context    Print repository identity, Terraform state directory, and private-file reference.
   plan       Render Terraform workspaces and run terraform plan.
   apply      Render Terraform workspaces and run terraform apply.
+  output     Render one Terraform workspace and print non-sensitive outputs as JSON.
+  validate   Validate manifest-driven environment routing without writing or calling providers.
   sync-env   Generate package .env files from the configured env source tree.
   env        Compatibility: reconcile Vercel team and project environment variables.
   github-actions
@@ -46,12 +61,17 @@ Commands:
   domains    Compatibility: reconcile Vercel project domains.
 
 ${sharedOptionsHelp()}
+  --stack <name>              Terraform stack name for context.
+  --environment <name>        Terraform environment name for context.
   --out <path>                Generated Terraform root. Defaults to .vertile/terraform.
   --target <name|all>         Target provider: vercel, aws, digitalocean, or all.
   --env <name>                Environment to render, plan, or apply. Defaults to production.
   --deployment <name>         Provider deployment/stage name, such as uat or prod.
   --terraform-bin <path>      Terraform executable. Defaults to terraform.
   --yes                       Allow non-interactive apply with Terraform auto-approve.
+  --migrate-state             Run terraform init with -migrate-state -force-copy.
+  --reconfigure               Run terraform init with -reconfigure.
+  --json                      Accepted by output; output is always JSON.
 `)
 }
 

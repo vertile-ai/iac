@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import process from 'node:process'
-import { parseTargetOption, readOption } from './core/args.js'
+import { parseTargetOption, parseTerraformInitOptions, readOption } from './core/args.js'
 import { resolvePlatformContext } from './core/context.js'
 import { readManifest } from './core/manifest.js'
 import { writeTargets } from './core/render.js'
@@ -14,6 +14,7 @@ async function main() {
   const environment = readOption(argv, '--env') || 'production'
   const deploymentName = readOption(argv, '--deployment') || ''
   const targets = parseTargetOption(argv)
+  const init = parseTerraformInitOptions(argv)
 
   const rendered = await writeTargets({ context, manifest, environment, targets, deploymentName })
   for (const item of rendered) {
@@ -21,6 +22,7 @@ async function main() {
     terraformPlan({
       terraformBin: context.terraformBin,
       workspace: item.workspace,
+      init,
     })
   }
 }

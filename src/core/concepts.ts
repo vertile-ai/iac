@@ -1,4 +1,4 @@
-import { sanitizeName } from './hcl.js'
+import { repositoryName, sanitizeName } from './hcl.js'
 
 export function providerValues(item, provider) {
   return {
@@ -12,7 +12,26 @@ export function resourceName(...parts) {
 }
 
 export function providerResourceName(manifest, environment, item) {
-  return resourceName(manifest.project.name, environment, item.key)
+  return resourceName(repositoryName(manifest.repository), environment, item.key)
+}
+
+export function providerObjectStorageName(manifest, environment, item, provider) {
+  const values = providerValues(item, provider)
+  return values.name || values.bucket || bucketName(repositoryName(manifest.repository), environment, item.key)
+}
+
+export function bucketName(...parts) {
+  const normalized = parts
+    .filter(Boolean)
+    .join('-')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 63)
+    .replace(/-+$/, '')
+
+  return normalized.length >= 3 ? normalized : 'app-bucket'
 }
 
 export function compactBody(body) {

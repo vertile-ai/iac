@@ -1,19 +1,11 @@
 {
   "$schema": "../../schema/iac.schema.json",
   "version": 1,
-  "project": {
-    "key": "bun-hono-api",
-    "name": "bun-hono-api"
-  },
+  "repository": "vertile-ai/bun-hono-api",
   "environments": {
     "development": {
       "files": [
         ".env.development"
-      ]
-    },
-    "test": {
-      "files": [
-        ".env.test"
       ]
     },
     "uat": {
@@ -41,15 +33,6 @@
   "providers": {
     "digitalocean": {
       "region": "sfo3",
-      "resources": [
-        {
-          "type": "digitalocean_project",
-          "name": "main",
-          "values": {
-            "name": "bun-hono-api"
-          }
-        }
-      ],
       "deployments": {
         "dev": {
           "environment": "development",
@@ -76,6 +59,30 @@
       "name": "bun-hono-api",
       "framework": "bun",
       "rootDirectory": "."
+    }
+  ],
+  "services": [
+    {
+      "key": "api",
+      "app": "api",
+      "runtime": "container",
+      "port": 3000,
+      "public": true,
+      "replicas": 1,
+      "healthCheck": {
+        "path": "/health"
+      },
+      "providers": {
+        "digitalocean": {
+          "mode": "droplet",
+          "region": "sfo3",
+          "sizeSlug": "s-1vcpu-2gb",
+          "image": "ubuntu-24-04-x64",
+          "backups": true,
+          "monitoring": true,
+          "reservedIp": true
+        }
+      }
     }
   ],
   "databases": [

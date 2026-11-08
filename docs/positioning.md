@@ -1,7 +1,8 @@
 # Positioning
 
 Vertile AI IaC is for developers who want portable infrastructure intent without
-operating a platform control plane.
+operating a platform control plane or replacing Terraform with another general
+purpose language.
 
 ## Why This Exists
 
@@ -10,19 +11,15 @@ teams. Collaboration overhead matters less than abstraction quality. A single
 developer, or an AI working with that developer, should not need to hand-author
 different infrastructure definitions for every provider.
 
-Vertile AI IaC provides one manifest for app infrastructure needs:
+The stable core is a reviewed manifest, env metadata and sync, Vercel and
+GitHub reconciliation, validation, and safe non-sensitive output. Version 2
+keeps tracked intent and private values separate so a repository can review
+infrastructure without committing secrets.
 
-- app hosting
-- domains
-- environment variables and secrets
-- object storage
-- databases
-- queues
-- sandboxes and runtimes
-- clusters and compute
-
-Provider adapters compile those needs into Vercel, AWS, DigitalOcean, and later
-other providers.
+Object storage is the proven portable resource today. Services and databases
+are experimental. Queues, sandboxes, and clusters are deferred rather than
+presented as stable cross-provider promises. Provider adapters should grow from
+verified user needs, not from a speculative provider matrix.
 
 ## Crossplane Comparison
 
@@ -62,4 +59,7 @@ themselves. An AWS S3 bucket resource is not the same as a DigitalOcean Spaces
 resource or a Cloudflare R2 resource.
 
 Vertile AI IaC treats Terraform/OpenTofu files as generated output. The portable
-source of truth is the manifest.
+source of truth is the manifest. It intentionally does not add a second
+Terraform-like abstraction layer: provider-specific Terraform remains the
+execution contract, while the manifest stays limited to product intent that is
+actually supported.

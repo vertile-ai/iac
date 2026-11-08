@@ -1,5 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { readManifest } from './core/manifest.js'
+import { resolvePrivateValues } from './core/private-values.js'
 
 export function findProjectRoot(startDir) {
   let current = startDir
@@ -63,6 +65,7 @@ export function resolveIacContext(argv: string[], defaults: any = {}) {
   const projectSettingsArg = readOption(argv, '--project-settings')
   const projectDomainsArg = readOption(argv, '--project-domains')
   const iacManifestArg = readOption(argv, '--iac-manifest')
+  const referencedManifest = process.env.VERTILE_IAC_MANIFEST
 
   const autoCreateKeys = new Set([
     ...splitList(defaults.autoCreateKeys || ''),
@@ -86,7 +89,7 @@ export function resolveIacContext(argv: string[], defaults: any = {}) {
     ),
     iacManifestPath: resolveFrom(
       repoRoot,
-      iacManifestArg || defaultIacManifestPath(repoRoot, iacDir, Boolean(iacDirArg || defaults.iacDir)),
+      iacManifestArg || referencedManifest || defaultIacManifestPath(repoRoot, iacDir, Boolean(iacDirArg || defaults.iacDir)),
     ),
     tokenFilePath: resolveFrom(
       repoRoot,
@@ -122,28 +125,39 @@ function readTokenFromFile(filePath) {
   return ''
 }
 
-function vercelTokenFromManifest(iacManifestPath) {
-  if (!fs.existsSync(iacManifestPath)) return ''
+function vercelTokenFromResolver(context, env) {
+  if (!fs.existsSync(context.iacManifestPath)) return ''
 
-  const manifest = JSON.parse(fs.readFileSync(iacManifestPath, 'utf8'))
-  const vercel = manifest?.providers?.vercel
-  if (!vercel || typeof vercel !== 'object' || Array.isArray(vercel)) {
-    return ''
+  const manifest = readManifest(context.iacManifestPath)
+  const privateValues = resolvePrivateValues({
+    manifest,
+    repoRoot: context.repoRoot || path.dirname(context.iacManifestPath),
+    env,
+  })
+  const reference = manifest.providers?.vercel?.credential
+  if (reference !== undefined) {
+    if (!reference || typeof reference !== 'object' || Array.isArray(reference)) {
+      throw new Error('providers.vercel.credential must be a credential reference.')
+    }
+    const value = privateValues.getCredential(reference)
+    if (!value) {
+      throw new Error(
+        `Missing credential ${reference.id} for ${reference.environment}.`,
+      )
+    }
+    return value
   }
-
-  for (const key of ['token', 'apiKey']) {
-    const value = vercel[key]
-    if (typeof value === 'string' && value.trim()) return value.trim()
-  }
-
-  return ''
+  return privateValues.getProviderCredential({ provider: 'vercel', field: 'token' })
+    || privateValues.getProviderCredential({ provider: 'vercel', field: 'apiKey' })
 }
 
 export function readVercelToken(context, env = process.env) {
+  const processToken = typeof env.VERCEL_TOKEN === 'string' ? env.VERCEL_TOKEN.trim() : ''
+  const processApiKey = typeof env.VERCEL_API_KEY === 'string' ? env.VERCEL_API_KEY.trim() : ''
+  if (processToken || processApiKey) return processToken || processApiKey
+  const resolvedToken = vercelTokenFromResolver(context, env)
   return (
-    env.VERCEL_TOKEN ||
-    env.VERCEL_API_KEY ||
-    vercelTokenFromManifest(context.iacManifestPath) ||
+    resolvedToken ||
     readTokenFromFile(context.tokenFilePath)
   )
 }

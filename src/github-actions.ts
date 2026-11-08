@@ -5,8 +5,9 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { envSourceDir } from './core/env-source.js'
-import { buildGitHubActionsPlan, githubTokenFromManifest } from './core/github-actions.js'
+import { buildGitHubActionsPlan } from './core/github-actions.js'
 import { readManifest } from './core/manifest.js'
+import { resolvePrivateValues } from './core/private-values.js'
 import { resolveIacContext, readOption } from './shared.js'
 
 function splitList(value) {
@@ -24,22 +25,16 @@ function parseArgs(argv) {
   }
 }
 
-function resolveRepoFromGit(repoRoot) {
-  const result = spawnSync('git', ['remote', 'get-url', 'origin'], {
-    cwd: repoRoot,
-    encoding: 'utf8',
-  })
-
-  if (result.status !== 0) return ''
-
-  const remote = result.stdout.trim()
-  const sshMatch = remote.match(/^git@github\.com:(.+?)(?:\.git)?$/)
-  if (sshMatch?.[1]) return sshMatch[1]
-
-  const httpsMatch = remote.match(/^https:\/\/github\.com\/(.+?)(?:\.git)?$/)
-  if (httpsMatch?.[1]) return httpsMatch[1]
-
-  return ''
+function formatGhArgs(args) {
+  const formatted = []
+  for (let index = 0; index < args.length; index += 1) {
+    formatted.push(args[index])
+    if (args[index] === '--body' && index + 1 < args.length) {
+      formatted.push('[redacted]')
+      index += 1
+    }
+  }
+  return formatted.join(' ')
 }
 
 function runGh(args, options: any = {}) {
@@ -52,16 +47,20 @@ function runGh(args, options: any = {}) {
     input: options.input,
     stdio: options.input ? ['pipe', 'pipe', 'pipe'] : 'pipe',
   })
+  const command = formatGhArgs(args)
 
   if (result.error) {
     throw new Error(
-      `GitHub CLI is unavailable while running gh ${args.join(' ')}: ${result.error.message}`,
+      `GitHub CLI is unavailable while running gh ${command}: ${result.error.message}`,
     )
   }
 
   if (result.status !== 0) {
+    if (args.includes('--body')) {
+      throw new Error(`gh ${command} failed with exit code ${result.status ?? 'unknown'}`)
+    }
     throw new Error(
-      `gh ${args.join(' ')} failed: ${result.stderr?.trim() || result.stdout?.trim() || 'unknown error'}`,
+      `gh ${command} failed: ${result.stderr?.trim() || result.stdout?.trim() || 'unknown error'}`,
     )
   }
 
@@ -190,19 +189,24 @@ function main() {
   const args = parseArgs(argv)
   const context = resolveIacContext(argv)
   const manifest = readManifest(context.iacManifestPath)
+  const privateValues = resolvePrivateValues({ manifest, repoRoot: context.repoRoot })
   const sourceRoot = path.join(context.repoRoot, envSourceDir(manifest))
   const plan = buildGitHubActionsPlan({
     manifest,
     sourceRoot,
     selectedEnvironments: args.environments,
   })
-  plan.repo = args.repo || plan.repo || resolveRepoFromGit(context.repoRoot)
-  if (!plan.repo) {
-    throw new Error('GitHub repository must be configured with providers.github.repository or --repo.')
+  if (args.repo && args.repo !== plan.repo) {
+    throw new Error('--repo must match iac.json repository.')
   }
 
   printPlan({ plan, apply: args.apply })
-  if (args.apply) applyPlan(plan, { token: githubTokenFromManifest(manifest) })
+  if (args.apply) {
+    const reference = manifest.providers?.github?.credential
+    const processToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN
+    const token = processToken || (reference ? privateValues.getCredential(reference) : undefined)
+    applyPlan(plan, { token })
+  }
 }
 
 export const testing = {

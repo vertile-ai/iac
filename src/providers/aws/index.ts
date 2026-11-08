@@ -6,10 +6,12 @@ import {
   renderLocals,
   renderOutput,
   renderRequiredProvider,
+  repositoryName,
   renderVariable,
 } from '../../core/hcl.js'
 import {
   compactBody,
+  providerObjectStorageName,
   providerResourceName,
   providerValues,
   resourceName,
@@ -28,7 +30,7 @@ function providerBlock(manifest, environment, deployment: any = {}) {
     profile: deploymentValues.profile || config.profile,
   }
   const tags = compactBody({
-    Project: manifest.project.name,
+    Project: repositoryName(manifest.repository),
     Environment: environment,
     Deployment: deployment.name || undefined,
     ...(config.defaultTags || {}),
@@ -52,7 +54,7 @@ function objectStorageBlocks(manifest, environment, deployment = {}) {
   return manifest.objectStorage.map((item) => {
     const values = providerValues(item, 'aws')
     return block('resource', ['aws_s3_bucket', resourceName('object_storage', item.key)], compactBody({
-      bucket: values.bucket || providerResourceName(manifest, nameEnvironment, item),
+      bucket: providerObjectStorageName(manifest, nameEnvironment, item, 'aws'),
       force_destroy: values.forceDestroy,
     }))
   })
@@ -128,7 +130,7 @@ function computeBlocks(manifest, environment, deployment, field, prefix) {
       count: field === 'clusters' ? values.size || item.size || 1 : undefined,
       tags: compactBody({
         Name: values.name || providerResourceName(manifest, nameEnvironment, item),
-        Project: manifest.project.name,
+        Project: repositoryName(manifest.repository),
         Environment: environment,
         Deployment: deployment.name || undefined,
         Kind: prefix,

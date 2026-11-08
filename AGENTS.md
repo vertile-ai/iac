@@ -18,16 +18,37 @@ commands.
 
 ## Source Of Truth
 
-- The authored manifest is `infrastructure/iac/iac.json`.
-- Examples and product repos should prefer unified `iac.json`; legacy
-  `env-manifest.json`, `project-settings.json`, and `project-domains.json`
-  exist only for explicit compatibility inputs.
-- Env metadata belongs in `iac.json` under `env.metadata.<source-key>`.
-  Per-source `.env.json` files are compatibility fallback only and should not be
-  introduced for new setups.
+- New projects use root `iac.json` with manifest version `2`. The legacy
+  `infrastructure/iac/iac.json` location and version `1` are compatibility
+  inputs, not the authoring default. `env-manifest.json`,
+  `project-settings.json`, and `project-domains.json` are explicit compatibility
+  inputs only.
+- `iac.json` owns infrastructure intent, env metadata, non-secret values, and
+  provider-neutral credential declarations. `.iac/` supplements the manifest;
+  it does not replace it.
+- Private values live in `.iac/private.json` (document version `1`) at
+  `env.<source>.<variable>.<environment>` and
+  `credentials.<id>.<environment>`. This file must be ignored, untracked, and
+  mode `0600` on POSIX. Encrypted metadata must not define inline `value` or
+  `values`, and examples must contain only safe placeholders.
+- Credential consumers own `{ id, environment }` references and delivery.
+  Private values are runtime strings; the CLI does not decrypt legacy envelopes.
+- `init` creates both files. For an existing v2 manifest, `scaffold` preserves
+  manifest bytes, adds missing private slots without overwriting existing values,
+  and creates `~/.iac/repositories/github/<owner>/<repo>/` plus declared Terraform
+  stack/environment directories. `context` reads this repository identity and
+  returns paths without exposing private values.
+- Env metadata belongs only in `iac.json` under `env.metadata.<source-key>`.
 - Env source files live under `env.sourceDir`, defaulting to `.vertile-iac/env`.
   Monorepos use one metadata object per source folder, for example
   `env.metadata.shared`, `env.metadata.web-client`, or `env.metadata.api`.
+- In direct-output mode, metadata and private values generate package `.env*`
+  files directly; the source directory is not an additional secret authority.
+- `init` declares `local`, `staging`, and `production`. Projects may explicitly
+  declare other environments; `test` is not an implicit IaC environment.
+- After filling private slots, run `validate` (offline, read-only), then
+  `sync-env` for application env output. Credential changes do not require
+  application env sync. Provider reconciliation needs an explicit apply command.
 - `includeEnv` and `excludeEnv` are intersected with the top-level
   `environments` list. Exclusions are applied first, then inclusions are applied
   to the remaining set.
